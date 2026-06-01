@@ -12,3 +12,5 @@ Static website for ProDigital marketing agency.
 ## Deploy
 
 Use this directory as the publish root. All required images are stored in `assets/`.
+
+Form submissions are sent to Google Sheets through Google Apps Script. Paste the deployed web app URL into `GOOGLE_SHEETS_WEB_APP_URL` in `script.js`.

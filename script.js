@@ -188,8 +188,7 @@
       toast.className = 'toast-overlay';
       toast.innerHTML = `<div class="toast-box">
         <h3>Спасибо! Заявка отправлена.</h3>
-        <p>Свяжусь с вами в рабочее время для обсуждения проекта.</p>
-        <p>Если срочно — напишите в Telegram: <a href="https://t.me/ka_anisimova" target="_blank" rel="noopener">@ka_anisimova</a></p>
+        <p>Заявка сохранена. Свяжусь с вами в рабочее время для обсуждения проекта.</p>
         <div class="toast-btn">
           <button class="btn btn-primary" type="button" data-close-toast>Понятно</button>
         </div>
@@ -237,7 +236,7 @@
     if (mobileMenu) mobileMenu.classList.remove('open');
   });
 
-  // ── Phone & Telegram input formatting ─────────────────────
+  // ── Contact input formatting ──────────────────────────────
   function normalizePhone(v) {
     v = String(v || '').replace(/[^\d+]/g, '');
     if (v.includes('+')) v = '+' + v.replace(/\+/g, '');
@@ -284,77 +283,35 @@
     });
   });
 
-  // ── Form submission ────────────────────────────────────────
-  async function readJsonResponse(response) {
-    const text = await response.text();
-    if (!text) return {};
-    try {
-      return JSON.parse(text);
-    } catch (e) {
-      return { ok: false, error: text.slice(0, 220) };
-    }
-  }
-
-  async function postForm(endpoint, data, contentType) {
-    if (contentType === 'form') {
-      const params = new URLSearchParams();
-      Object.entries(data).forEach(([key, value]) => params.append(key, value == null ? '' : String(value)));
-      return fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-        body: params.toString(),
-      });
-    }
-
-    return fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-  }
-
-  async function tryEndpoint(endpoint, data) {
-    let response = await postForm(endpoint, data, 'json');
-    let result = await readJsonResponse(response);
-    if (!response.ok || !result.ok) {
-      response = await postForm(endpoint, data, 'form');
-      result = await readJsonResponse(response);
-    }
-    if (!response.ok || !result.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`);
-    }
-    return result;
-  }
+  // ── Form submission to Google Sheets ──────────────────────
+  const GOOGLE_SHEETS_WEB_APP_URL = 'PASTE_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
 
   async function sendToServer(data) {
-    if (window.location.protocol === 'file:') {
-      throw new Error('local_file');
+    if (!GOOGLE_SHEETS_WEB_APP_URL || GOOGLE_SHEETS_WEB_APP_URL.includes('PASTE_GOOGLE_APPS_SCRIPT')) {
+      throw new Error('google_script_url_missing');
     }
 
-    const errors = [];
-    const endpoints = ['/.netlify/functions/telegram-form'];
-    for (const endpoint of endpoints) {
-      try {
-        return await tryEndpoint(endpoint, data);
-      } catch (error) {
-        errors.push(`${endpoint}: ${error.message || error}`);
-      }
-    }
-    throw new Error(errors.join('; '));
+    const params = new URLSearchParams();
+    Object.entries(data).forEach(([key, value]) => params.append(key, value == null ? '' : String(value)));
+
+    await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: params,
+    });
+
+    return { ok: true };
   }
 
   function getSubmitErrorMessage(error) {
     const message = String(error && error.message ? error.message : error);
-    if (message === 'local_file') {
-      return 'Форма не может отправиться, потому что сайт открыт как файл на компьютере. Для проверки отправки нужно открыть сайт через сервер: локальный http://localhost или опубликованную версию сайта.';
+    if (message === 'google_script_url_missing') {
+      return 'Форма пока не подключена к Google-таблице: нужно вставить URL веб-приложения Google Apps Script в script.js.';
     }
     if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
-      return 'Не удалось отправить форму: браузер не смог подключиться к функции отправки. Проверьте, что сайт опубликован на Netlify и папка netlify/functions загружена вместе с сайтом.';
+      return 'Не удалось отправить форму: браузер не смог подключиться к Google Apps Script. Проверьте URL веб-приложения и права доступа.';
     }
-    if (/Telegram API request failed|Telegram API error/i.test(message)) {
-      return 'Не удалось отправить форму: сервер не смог передать заявку в Telegram. Напишите, пожалуйста, напрямую в Telegram @ka_anisimova.';
-    }
-    return `Не удалось отправить форму. Причина: ${message}. Попробуйте ещё раз или напишите в Telegram @ka_anisimova.`;
+    return `Не удалось отправить форму. Причина: ${message}. Попробуйте ещё раз.`;
   }
 
   document.querySelectorAll('form[data-brief-form]').forEach(form => {
@@ -432,6 +389,7 @@
       payload.telegram = hasTg ? tgVal : '';
       payload.form_name = form.getAttribute('name') || 'project-brief';
       payload.page_url = window.location.href;
+      payload.submitted_at = new Date().toISOString();
 
       try {
         await sendToServer(payload);
