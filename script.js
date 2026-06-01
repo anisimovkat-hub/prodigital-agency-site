@@ -284,10 +284,10 @@
   });
 
   // ── Form submission to Google Sheets ──────────────────────
-  const GOOGLE_SHEETS_WEB_APP_URL = 'PASTE_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE';
+  const GOOGLE_SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzMABMOai2nDMXL4VlX455PxkjiFoVoB3Hmmajvv_TTEc8iNVGKg561-h5b2oGMs35KXg/exec';
 
   async function sendToServer(data) {
-    if (!GOOGLE_SHEETS_WEB_APP_URL || GOOGLE_SHEETS_WEB_APP_URL.includes('PASTE_GOOGLE_APPS_SCRIPT')) {
+    if (!GOOGLE_SHEETS_WEB_APP_URL || !GOOGLE_SHEETS_WEB_APP_URL.startsWith('https://script.google.com/macros/s/')) {
       throw new Error('google_script_url_missing');
     }
 
