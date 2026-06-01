@@ -284,7 +284,7 @@
   });
 
   // ── Form submission to Google Sheets ──────────────────────
-  const GOOGLE_SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzMABMOai2nDMXL4VlX455PxkjiFoVoB3Hmmajvv_TTEc8iNVGKg561-h5b2oGMs35KXg/exec';
+  const GOOGLE_SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwozvpIFQbMM-rB0Z1PC02DsBw9kszfAXw3CroyoIfcXD_a6aJ0-V8wnZF9cLtg7hoKkQ/exec';
 
   async function sendToServer(data) {
     if (!GOOGLE_SHEETS_WEB_APP_URL || !GOOGLE_SHEETS_WEB_APP_URL.startsWith('https://script.google.com/macros/s/')) {
