@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Страница не найдена | ProDigital</title>
+  <meta name="description" content="Страница не найдена. Вернитесь на главную страницу ProDigital или посмотрите кейсы по рекламе.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500;1,600&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600;1,700&family=Manrope:wght@600;700;800&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="index.html">
+      <img src="assets/prodigital-logo-wordmark.png" alt="ProDigital">
+    </a>
+    <nav class="nav">
+      <a href="index.html#services">Услуги</a>
+      <div class="nav-dropdown">
+        <a class="nav-dropdown-trigger" href="index.html#cases">Кейсы</a>
+        <div class="nav-dropdown-menu">
+          <a href="cases-context.html">Контекстная реклама</a>
+          <a href="cases-target.html">Таргетированная реклама</a>
+        </div>
+      </div>
+      <a href="index.html#about">О нас</a>
+      <a href="index.html#contact">Контакты</a>
+    </nav>
+    <div class="header-actions">
+      <a class="btn btn-ghost" href="https://t.me/ka_anisimova" target="_blank" rel="noopener">Написать в Telegram</a>
+      <a class="btn btn-primary" href="index.html#contact">Получить стратегию продвижения</a>
+      <button class="mobile-toggle" type="button" data-mobile-toggle aria-label="Открыть меню">☰</button>
+    </div>
+  </div>
+  <div id="mobileMenu" class="container"></div>
+</header>
+
+<main>
+  <section class="not-found-section">
+    <div class="container not-found-inner">
+      <div class="not-found-code">404</div>
+      <h1>Страница не найдена</h1>
+      <p>Возможно, ссылка устарела или адрес набран с ошибкой. Вернитесь на главную страницу или откройте кейсы по нужному направлению.</p>
+      <div class="not-found-actions">
+        <a class="btn btn-primary" href="index.html">На главную</a>
+        <a class="btn btn-ghost" href="cases-context.html">Кейсы по контексту</a>
+        <a class="btn btn-ghost" href="cases-target.html">Кейсы по таргету</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-copy">
+      <div>© ProDigital · Катерина Анисимова</div>
+      <div>ИП Анисимова Катерина Андреевна</div>
+      <div>ИНН 770306774140 · ОГРН 324774600695123</div>
+    </div>
+    <div class="footer-right">
+      <div>Контекст · таргет · сайты · чат-боты · аналитика</div>
+      <div class="footer-contacts">
+        <a href="https://t.me/ka_anisimova" target="_blank" rel="noopener">Написать в Telegram</a>
+        <a href="index.html#contact">Заполнить бриф</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const mm = document.getElementById('mobileMenu');
+  if (mm) {
+    mm.innerHTML = `<div style="display:grid;gap:0">
+      <a href="index.html#services">Услуги</a>
+      <a href="index.html#cases">Кейсы</a>
+      <a href="cases-context.html">Кейсы: контекстная реклама</a>
+      <a href="cases-target.html">Кейсы: таргетированная реклама</a>
+      <a href="index.html#about">О нас</a>
+      <a href="index.html#contact">Контакты</a>
+    </div>`;
+  }
+</script>
+<script src="script.js"></script>
+</body>
+</html>
