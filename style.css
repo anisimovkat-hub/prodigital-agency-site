@@ -27,6 +27,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 82px;
   overflow-x: hidden;
   width: 100%;
 }
@@ -131,7 +132,12 @@ em.serif, .serif-em {
 
 /* ── Header ───────────────────────────────────────────── */
 .site-header {
-  position: sticky; top: 0; z-index: 40;
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 70;
+  width: 100%;
   background: #000;
   border-bottom: 1px solid var(--line);
 }
