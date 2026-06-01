@@ -291,16 +291,53 @@
       throw new Error('google_script_url_missing');
     }
 
-    const params = new URLSearchParams();
-    Object.entries(data).forEach(([key, value]) => params.append(key, value == null ? '' : String(value)));
+    return new Promise((resolve, reject) => {
+      const frameName = `google_sheets_submit_${Date.now()}`;
+      const iframe = document.createElement('iframe');
+      iframe.name = frameName;
+      iframe.style.display = 'none';
 
-    await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: params,
+      const submitForm = document.createElement('form');
+      submitForm.method = 'POST';
+      submitForm.action = GOOGLE_SHEETS_WEB_APP_URL;
+      submitForm.target = frameName;
+      submitForm.style.display = 'none';
+
+      Object.entries(data).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value == null ? '' : String(value);
+        submitForm.appendChild(input);
+      });
+
+      let settled = false;
+      const cleanup = () => {
+        window.setTimeout(() => {
+          iframe.remove();
+          submitForm.remove();
+        }, 500);
+      };
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve({ ok: true });
+      };
+
+      iframe.addEventListener('load', done);
+      document.body.appendChild(iframe);
+      document.body.appendChild(submitForm);
+      submitForm.submit();
+
+      window.setTimeout(done, 3500);
+      window.setTimeout(() => {
+        if (!settled) {
+          cleanup();
+          reject(new Error('google_script_timeout'));
+        }
+      }, 9000);
     });
-
-    return { ok: true };
   }
 
   function getSubmitErrorMessage(error) {
