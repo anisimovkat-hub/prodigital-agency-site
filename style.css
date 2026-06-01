@@ -1039,7 +1039,8 @@ em.serif, .serif-em {
   .hero-inner { grid-template-columns: 1fr; }
   .hero-portrait-card { display: none; }
   .experience-card { grid-template-columns: 1fr; }
-  .experience-photo { min-height: 460px; max-height: 560px; }
+  .experience-photo { aspect-ratio: 5 / 4; min-height: 0; max-height: none; }
+  .experience-photo img { object-position: center 18%; }
   .experience-content { padding: 28px 20px 26px; }
   .about-grid { grid-template-columns: 1fr; }
   .cases-hero-panel { grid-template-columns: 1fr; }
@@ -1150,15 +1151,53 @@ em.serif, .serif-em {
   .service-desc { display: none; }
   .ad-fit-card { grid-template-columns: 1fr; }
   .cases-hero-panel { padding: 24px; }
-  .experience-points { grid-template-columns: 1fr; }
+  .experience-section { padding: 42px 0; }
+  .experience-card { gap: 0; padding: 12px; border-radius: 22px; }
+  .experience-content { padding: 18px 8px 8px; }
+  .experience-content h2 {
+    margin-top: 0;
+    font-size: clamp(25px, 7.2vw, 34px);
+    line-height: 1.03;
+  }
+  .experience-lead {
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.52;
+  }
+  .experience-points {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .experience-points div {
+    min-height: 0;
+    padding: 12px 13px;
+    border-radius: 13px;
+  }
+  .experience-points strong {
+    min-height: 0;
+    font-size: 23px;
+    line-height: 1;
+  }
+  .experience-points span {
+    margin-top: 7px;
+    font-size: 11px;
+    line-height: 1.35;
+  }
 }
 @media (max-width: 600px) {
   .section { padding: 64px 0; }
   .brand-strip { padding: 48px 0; }
-  .experience-section { padding: 56px 0; }
-  .experience-card { padding: 12px; border-radius: 22px; }
-  .experience-photo { min-height: 360px; border-radius: 16px; }
-  .experience-content h2 { font-size: 32px; }
+  .experience-section { padding: 30px 0; }
+  .experience-card { padding: 9px; border-radius: 20px; }
+  .experience-photo { aspect-ratio: 5 / 4; min-height: 0; border-radius: 14px; }
+  .experience-content { padding: 15px 4px 3px; }
+  .experience-content h2 { font-size: 27px; }
+  .experience-lead { font-size: 12px; line-height: 1.45; margin-top: 12px; }
+  .experience-points { margin-top: 14px; gap: 7px; }
+  .experience-points div { padding: 10px 11px; }
+  .experience-points strong { font-size: 21px; }
+  .experience-points span { font-size: 10.5px; line-height: 1.3; }
   .hero-inner { grid-template-columns: minmax(0, 1fr) minmax(112px, 0.68fr); gap: 12px; }
   .hero h1 { font-size: clamp(31px, 10.5vw, 42px); }
   .hero-actions { grid-template-columns: 1fr; }
