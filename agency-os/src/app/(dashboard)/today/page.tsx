@@ -38,6 +38,7 @@ export default async function TodayPage() {
   const sorted = [...(tasks ?? [])].sort((a, b) => {
     const bucketDiff = bucket(a) - bucket(b);
     if (bucketDiff !== 0) return bucketDiff;
+    if (!a.due_date && !b.due_date) return 0;
     if (!a.due_date) return 1;
     if (!b.due_date) return -1;
     return a.due_date.localeCompare(b.due_date);
