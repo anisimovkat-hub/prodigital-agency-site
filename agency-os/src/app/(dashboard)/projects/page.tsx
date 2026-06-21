@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ProjectForm } from "@/app/(dashboard)/projects/project-form";
 import { HealthBadge, ProjectStageBadge } from "@/components/badges";
 import {
   Table,
@@ -16,10 +17,15 @@ import { createClient } from "@/lib/supabase/server";
 export default async function ProjectsPage() {
   const supabase = await createClient();
 
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("*, client:clients(id,name), responsible:profiles(id,full_name)")
-    .order("created_at", { ascending: false });
+  const [{ data: projects }, { data: clients }, { data: profiles }] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select("*, client:clients(id,name), responsible:profiles(id,full_name)")
+        .order("created_at", { ascending: false }),
+      supabase.from("clients").select("id,name").order("name"),
+      supabase.from("profiles").select("id,full_name").order("full_name"),
+    ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -29,6 +35,21 @@ export default async function ProjectsPage() {
           Все проекты агентства.
         </p>
       </div>
+
+      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          + Новый проект
+        </summary>
+        <div className="mt-4">
+          <ProjectForm
+            clients={(clients ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            profiles={(profiles ?? []).map((p) => ({
+              id: p.id,
+              full_name: p.full_name,
+            }))}
+          />
+        </div>
+      </details>
 
       <Table>
         <TableHeader>

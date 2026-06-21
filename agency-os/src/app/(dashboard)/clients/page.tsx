@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ClientForm } from "@/app/(dashboard)/clients/client-form";
 import { ClientStatusBadge } from "@/components/badges";
 import {
   Table,
@@ -36,6 +37,15 @@ export default async function ClientsPage() {
         <h1 className="text-2xl font-semibold text-neutral-900">Клиенты</h1>
         <p className="text-sm text-neutral-500">Клиенты агентства.</p>
       </div>
+
+      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          + Новый клиент
+        </summary>
+        <div className="mt-4">
+          <ClientForm />
+        </div>
+      </details>
 
       <Table>
         <TableHeader>

@@ -60,6 +60,40 @@ export const createTaskSchema = z.object({
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 
+export const CLIENT_STATUS_VALUES = ["active", "paused", "churned"] as const;
+
+const optionalEmail = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return undefined;
+  return value;
+}, z.string().email("Некорректный email").optional());
+
+export const createClientSchema = z.object({
+  name: z.string().trim().min(1, "Укажите название клиента"),
+  status: z.enum(CLIENT_STATUS_VALUES),
+  budget: optionalNonNegativeNumber,
+  phone: optionalString,
+  email: optionalEmail,
+  telegram: optionalString,
+  notes: optionalString,
+});
+
+export type CreateClientInput = z.infer<typeof createClientSchema>;
+
+export const PROJECT_HEALTH_VALUES = ["green", "yellow", "red"] as const;
+export const PROJECT_STAGE_VALUES = ["active", "paused", "finished"] as const;
+
+export const createProjectSchema = z.object({
+  name: z.string().trim().min(1, "Укажите название проекта"),
+  client_id: z.string().uuid("Выберите клиента"),
+  health: z.enum(PROJECT_HEALTH_VALUES),
+  stage: z.enum(PROJECT_STAGE_VALUES),
+  budget: optionalNonNegativeNumber,
+  responsible_id: optionalUuid,
+  short_comment: optionalString,
+});
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+
 export function flattenZodErrors(error: z.ZodError): Record<string, string[]> {
   const result: Record<string, string[]> = {};
   for (const issue of error.issues) {
