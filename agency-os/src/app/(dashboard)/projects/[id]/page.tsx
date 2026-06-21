@@ -1,18 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { addKpiEntry } from "@/app/(dashboard)/projects/actions";
+import { KpiForm } from "@/app/(dashboard)/projects/kpi-form";
 import { NotesTabs } from "@/app/(dashboard)/projects/notes-tabs";
+import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import {
   HealthBadge,
   PriorityBadge,
   ProjectStageBadge,
   TaskStatusBadge,
 } from "@/components/badges";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -22,13 +20,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import {
   formatCurrency,
   formatDate,
   formatNumber,
   formatPercent,
-  todayISO,
 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -55,6 +51,7 @@ export default async function ProjectDetailPage({
     { data: kpiEntries },
     { data: tasks },
     { data: notes },
+    { data: profiles },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -80,6 +77,7 @@ export default async function ProjectDetailPage({
       .select("*, author:profiles(full_name)")
       .eq("project_id", id)
       .order("created_at", { ascending: false }),
+    supabase.from("profiles").select("id,full_name").order("full_name"),
   ]);
 
   if (!project) notFound();
@@ -227,25 +225,7 @@ export default async function ProjectDetailPage({
             <CardTitle>Добавить запись KPI</CardTitle>
           </CardHeader>
           <CardContent>
-            <form
-              action={addKpiEntry.bind(null, project.id)}
-              className="grid grid-cols-2 gap-3 sm:grid-cols-4"
-            >
-              <Field label="Дата" name="entry_date" type="date" defaultValue={todayISO()} required />
-              <Field label="Расход" name="spend" type="number" step="0.01" />
-              <Field label="Показы" name="impressions" type="number" />
-              <Field label="Клики" name="clicks" type="number" />
-              <Field label="Лиды" name="leads" type="number" />
-              <Field label="Продажи" name="sales" type="number" />
-              <Field label="Выручка" name="revenue" type="number" step="0.01" />
-              <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
-                <Label htmlFor="comment">Комментарий</Label>
-                <Textarea id="comment" name="comment" rows={2} />
-              </div>
-              <div className="col-span-2 sm:col-span-4">
-                <Button type="submit">Добавить запись</Button>
-              </div>
-            </form>
+            <KpiForm projectId={project.id} />
           </CardContent>
         </Card>
       </section>
@@ -286,6 +266,18 @@ export default async function ProjectDetailPage({
             ))}
           </TableBody>
         </Table>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Новая задача</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TaskForm
+              profiles={profiles ?? []}
+              defaultProjectId={project.id}
+            />
+          </CardContent>
+        </Card>
       </section>
 
       <section className="flex flex-col gap-3">
@@ -305,15 +297,3 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Field({
-  label,
-  name,
-  ...props
-}: { label: string; name: string } & React.ComponentProps<"input">) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Label htmlFor={name}>{label}</Label>
-      <Input id={name} name={name} {...props} />
-    </div>
-  );
-}

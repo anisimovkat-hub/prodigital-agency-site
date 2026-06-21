@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
+import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { FilterCheckbox } from "@/components/filter-checkbox";
 import { FilterSelect } from "@/components/filter-select";
@@ -116,6 +117,21 @@ export default async function TasksPage({
         <FilterCheckbox name="important" label="Важно" />
         <FilterCheckbox name="urgent" label="Срочно" />
       </div>
+
+      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          + Новая задача
+        </summary>
+        <div className="mt-4">
+          <TaskForm
+            projects={(projects ?? []).map((p) => ({ id: p.id, name: p.name }))}
+            profiles={(profiles ?? []).map((p) => ({
+              id: p.id,
+              full_name: p.full_name,
+            }))}
+          />
+        </div>
+      </details>
 
       <Table>
         <TableHeader>
