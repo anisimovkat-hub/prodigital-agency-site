@@ -28,11 +28,21 @@
 
 3. Откройте http://localhost:3000 — без логина вас перебросит на `/login`.
 
+## База данных
+
+Схема (`profiles`, `clients`, `projects`, `tasks`) лежит в
+`supabase/migrations/0001_init.sql`. Примените её в Supabase Dashboard →
+SQL Editor (вставить и выполнить файл целиком) либо через Supabase CLI:
+
+```bash
+supabase db push
+```
+
 ## Авторизация
 
 Публичной регистрации нет. Пользователей создаёте вручную в Supabase Dashboard →
 Authentication → Users, затем добавляете соответствующую строку в таблицу
-`profiles` (см. следующий шаг — SQL-миграцию).
+`profiles` (id пользователя, имя, роль) — таблица описана в SQL-миграции выше.
 
 ## Деплой на Vercel
 
