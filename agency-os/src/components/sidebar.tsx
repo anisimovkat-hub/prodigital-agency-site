@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CalendarCheck,
+  SquareKanban,
   FolderKanban,
   ListChecks,
+  UserRound,
   Users,
   Building2,
   LogOut,
@@ -21,8 +23,10 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Дашборд", icon: LayoutDashboard },
   { href: "/today", label: "Сегодня", icon: CalendarCheck },
+  { href: "/board", label: "Доска", icon: SquareKanban },
   { href: "/projects", label: "Проекты", icon: FolderKanban },
   { href: "/tasks", label: "Задачи", icon: ListChecks },
+  { href: "/personal", label: "Личное", icon: UserRound },
   { href: "/employees", label: "Сотрудники", icon: Users },
   { href: "/clients", label: "Клиенты", icon: Building2 },
 ];

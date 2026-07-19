@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { InviteForm } from "@/app/(dashboard)/employees/invite-form";
 import {
   Table,
   TableBody,
@@ -11,19 +12,30 @@ import {
 } from "@/components/ui/table";
 import { USER_ROLE_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
-import { todayISO } from "@/lib/format";
+import { formatDate, todayISO } from "@/lib/format";
 
 export default async function EmployeesPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const [{ data: profiles }, { data: tasks }, { data: members }] =
+  const [{ data: profiles }, { data: tasks }, { data: members }, { data: invites }] =
     await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
       supabase.from("tasks").select("assignee_id,status,due_date"),
       supabase
         .from("project_members")
         .select("profile_id, project:projects(stage)"),
+      supabase
+        .from("invite_codes")
+        .select("*")
+        .is("used_at", null)
+        .order("created_at", { ascending: false }),
     ]);
+
+  const isAdmin =
+    (profiles ?? []).find((p) => p.id === user?.id)?.role === "owner";
 
   const today = todayISO();
 
@@ -65,6 +77,34 @@ export default async function EmployeesPage() {
           Команда агентства и текущая загрузка.
         </p>
       </div>
+
+      {isAdmin && (
+        <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+            + Пригласить сотрудника
+          </summary>
+          <div className="mt-4 flex flex-col gap-4">
+            <InviteForm signupUrl="agency-os-lilac-eight.vercel.app/signup" />
+            {(invites ?? []).length > 0 && (
+              <div className="text-sm">
+                <p className="mb-1 font-medium text-neutral-700">
+                  Активные коды:
+                </p>
+                <ul className="flex flex-col gap-0.5 text-neutral-600">
+                  {(invites ?? []).map((invite) => (
+                    <li key={invite.code}>
+                      <code>{invite.code}</code>
+                      {invite.full_name ? ` — ${invite.full_name}` : ""} ·{" "}
+                      {USER_ROLE_LABEL[invite.role]} · до{" "}
+                      {formatDate(invite.expires_at)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
 
       <Table>
         <TableHeader>

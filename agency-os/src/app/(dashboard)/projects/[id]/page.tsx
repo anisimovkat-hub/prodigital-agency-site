@@ -55,7 +55,7 @@ export default async function ProjectDetailPage({
   ] = await Promise.all([
     supabase
       .from("projects")
-      .select("*, client:clients(id,name), responsible:profiles(id,full_name)")
+      .select("*, client:clients(id,name), responsible:profiles!projects_responsible_id_fkey(id,full_name)")
       .eq("id", id)
       .maybeSingle(),
     supabase

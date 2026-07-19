@@ -1,4 +1,4 @@
-import { isDueToday, todayISO } from "@/lib/format";
+import { todayISO } from "@/lib/format";
 import type { Enums } from "@/lib/supabase/types";
 
 export type TodaySortableTask = {
@@ -13,7 +13,7 @@ export type TodaySortableTask = {
  */
 export function taskBucket(task: TodaySortableTask, today = todayISO()): number {
   if (task.due_date && task.due_date < today) return 1;
-  if (isDueToday(task.due_date)) return 2;
+  if (task.due_date === today) return 2;
   if (task.priority === "urgent") return 3;
   if (task.is_important) return 4;
   if (task.priority === "high") return 5;

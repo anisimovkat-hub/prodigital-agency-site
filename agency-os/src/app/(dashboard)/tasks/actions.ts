@@ -59,6 +59,23 @@ export async function createTask(
   return undefined;
 }
 
+export async function updateTaskStatus(taskId: string, status: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("tasks")
+    .update({
+      status: status as never,
+      completed_at: status === "done" ? new Date().toISOString() : null,
+    })
+    .eq("id", taskId);
+
+  revalidatePath("/board");
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+  revalidatePath("/personal");
+  revalidatePath("/");
+}
+
 export async function toggleTaskDone(taskId: string, done: boolean) {
   const supabase = await createClient();
   await supabase

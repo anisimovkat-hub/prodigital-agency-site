@@ -21,7 +21,7 @@ export default async function ProjectsPage() {
     await Promise.all([
       supabase
         .from("projects")
-        .select("*, client:clients(id,name), responsible:profiles(id,full_name)")
+        .select("*, client:clients(id,name), responsible:profiles!projects_responsible_id_fkey(id,full_name)")
         .order("created_at", { ascending: false }),
       supabase.from("clients").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),

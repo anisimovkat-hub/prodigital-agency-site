@@ -466,6 +466,39 @@ export type Database = {
           },
         ];
       };
+      invite_codes: {
+        Row: {
+          code: string;
+          role: Database["public"]["Enums"]["user_role"];
+          full_name: string | null;
+          created_by: string | null;
+          created_at: string | null;
+          expires_at: string | null;
+          used_by: string | null;
+          used_at: string | null;
+        };
+        Insert: {
+          code: string;
+          role?: Database["public"]["Enums"]["user_role"];
+          full_name?: string | null;
+          created_by?: string | null;
+          created_at?: string | null;
+          expires_at?: string | null;
+          used_by?: string | null;
+          used_at?: string | null;
+        };
+        Update: {
+          code?: string;
+          role?: Database["public"]["Enums"]["user_role"];
+          full_name?: string | null;
+          created_by?: string | null;
+          created_at?: string | null;
+          expires_at?: string | null;
+          used_by?: string | null;
+          used_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

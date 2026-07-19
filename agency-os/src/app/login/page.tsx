@@ -49,6 +49,12 @@ export default function LoginPage() {
             <Button type="submit" disabled={pending} className="mt-2">
               {pending ? "Входим..." : "Войти"}
             </Button>
+            <a
+              href="/signup"
+              className="text-center text-sm text-neutral-500 hover:underline"
+            >
+              Регистрация по коду приглашения
+            </a>
           </form>
         </CardContent>
       </Card>

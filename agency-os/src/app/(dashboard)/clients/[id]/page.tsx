@@ -36,7 +36,7 @@ export default async function ClientDetailPage({
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("projects")
-      .select("*, responsible:profiles(full_name)")
+      .select("*, responsible:profiles!projects_responsible_id_fkey(full_name)")
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
   ]);

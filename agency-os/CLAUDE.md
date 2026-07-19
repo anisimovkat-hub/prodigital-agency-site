@@ -1,1 +1,73 @@
 @AGENTS.md
+
+# Agency OS
+
+Внутренняя операционная система рекламного агентства ProDigital (Катерина Анисимова):
+дашборд руководителя, проекты/клиенты/сотрудники, задачи (таблица + канбан + «Сегодня» + личные),
+KPI с авторасчётом, заметки. Заменяет связку Notion + Trello + таблицы. Пользователи — владелец
+(админ, видит всё) и ~5 специалистов (видят только свои проекты).
+
+## Стек
+
+- Next.js 16 (App Router, Turbopack), React 19, TypeScript strict
+- Tailwind CSS v4, компоненты в стиле shadcn/ui (`src/components/ui`), lucide-react
+- Supabase: Postgres + Auth через `@supabase/ssr` (проект `ihsjgzzdihjesblkuylz`, eu-central-1, free-тир)
+- Zod v4 — валидация форм в server actions
+- Vitest — юнит-тесты; ESLint 9
+- Деплой: Vercel (team `team_htNZrI5iP6zK3F0CurE1R8S3`, проект `agency-os`, prod: agency-os-lilac-eight.vercel.app)
+
+## Структура
+
+```
+agency-os/
+├── supabase/migrations/
+│   ├── 0001_init.sql            # схема: profiles, clients, projects, project_members,
+│   │                            #   tasks(+checklist/comments/attachments), kpi_entries, project_notes
+│   └── 0002_roles_and_invites.sql  # ролевой RLS, invite_codes, триггер регистрации
+├── scripts/seed.mjs             # демо-сидинг (не для прода)
+├── src/
+│   ├── proxy.ts                 # Next 16: замена middleware.ts (авторизация всех роутов)
+│   ├── app/
+│   │   ├── login/  signup/      # публичные страницы (signup — по инвайт-коду)
+│   │   └── (dashboard)/         # всё под auth: layout с Sidebar
+│   │       ├── page.tsx         # дашборд руководителя (KPI+задачи по проектам)
+│   │       ├── today/           # умная сортировка срочного (lib/today-sort.ts)
+│   │       ├── board/           # канбан (kanban-board.tsx — HTML5 dnd + useOptimistic)
+│   │       ├── tasks/           # таблица+фильтры, task-drawer, task-form, actions.ts
+│   │       ├── personal/        # личные задачи (project_id IS NULL)
+│   │       ├── projects/ [id]/  # + kpi-form, notes-tabs, project-form
+│   │       ├── clients/ [id]/   # + client-form
+│   │       └── employees/ [id]/ # + invite-form (только для owner)
+│   ├── components/              # badges, filter-*, sidebar (адаптивный), ui/*
+│   └── lib/
+│       ├── supabase/            # server.ts, client.ts, proxy.ts(updateSession), types.ts (ручные типы БД!)
+│       ├── validation.ts        # все zod-схемы
+│       ├── labels.ts            # русские названия enum'ов
+│       └── format.ts, today-sort.ts, utils.ts
+```
+
+## Архитектурные решения
+
+- **Server Actions вместо API-роутов** — вся запись в БД через `"use server"` + `useActionState`,
+  ошибки валидации возвращаются полем `errors: Record<string,string[]>`.
+- **RLS как единственный слой прав** (0002): SECURITY DEFINER функции `is_admin()`,
+  `is_project_member(pid)`, `can_access_task(tid)`, `has_profile()` — без рекурсии политик.
+  UI не фильтрует по ролям (кроме скрытия admin-блоков) — база сама отдаёт только доступное.
+- **Регистрация только по инвайт-кодам**: триггер `on_auth_user_created` на `auth.users`
+  валидирует `raw_user_meta_data->>'invite_code'`, создаёт профиль с ролью из кода.
+  Пользователи без метаданных (созданные админом через SQL) пропускаются триггером.
+- **Личные задачи** = `tasks.project_id IS NULL` + creator/assignee = auth.uid().
+- **PostgREST embed с хинтом**: `profiles!projects_responsible_id_fkey` обязателен —
+  без него связь projects→profiles неоднозначна (вторая — через project_members) и запрос падает.
+- **types.ts ведётся вручную** по миграциям (новая таблица → добавить в types.ts).
+- **`src/proxy.ts`** — в Next 16 так называется middleware; matcher покрыт тестом proxy.test.ts.
+
+## Соглашения
+
+- Русский язык во всём UI и в комментариях к SQL; названия файлов/переменных — английские.
+- Формы: клиентский компонент `*-form.tsx` + action в соседнем `actions.ts`; инлайн-ошибки под полем.
+- Списки: компоненты `Table*` из ui/table; пустое состояние — `TableEmpty`.
+- Enum-подписи — только через `lib/labels.ts`; значения enum — константы в `lib/validation.ts`.
+- Функции сортировки/логики — в `lib/` с юнит-тестами (vitest, `*.test.ts` рядом).
+- Прежде чем писать код — см. AGENTS.md: у этого Next.js есть breaking changes, сверяться с
+  `node_modules/next/dist/docs/`.
