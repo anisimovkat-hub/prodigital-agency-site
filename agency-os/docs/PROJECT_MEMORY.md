@@ -16,7 +16,7 @@
   signup проверен, тестовые записи удалены.
 - Vercel не связан с GitHub. Деплоить полным каталогом через MCP; fallback — Vercel CLI с теми же
   ID. Production env Supabase находятся в Vercel Project Settings.
-- Ручной шаг владельца: задать Site URL продакшна и решить, отключать ли Confirm email. Сейчас
-  Confirm email включён.
+- Ручной шаг владельца: заменить Site URL с `.../login` на корень production-домена, добавить
+  redirect `/**` и решить, отключать ли Confirm email. Сейчас Confirm email включён.
 - Следующие задачи: реальные email сотрудников, UI смены пароля, ответственные для проектов без
   владельца, KPI, фильтры канбана, dependency audit.

@@ -38,8 +38,10 @@
 
 ## Остались ручные шаги владельца в Supabase Dashboard
 
-1. Authentication → URL Configuration → Site URL = `https://agency-os-lilac-eight.vercel.app`.
-2. Там же добавить Redirect URL `https://agency-os-lilac-eight.vercel.app/**`.
+1. Authentication → URL Configuration → заменить текущий Site URL
+   `https://agency-os-lilac-eight.vercel.app/login` на `https://agency-os-lilac-eight.vercel.app`.
+2. Там же добавить Redirect URL `https://agency-os-lilac-eight.vercel.app/**`. Сейчас в списке
+   разрешён только `https://agency-os-lilac-eight.vercel.app/login`.
 3. Authentication → Providers → Email → выключить **Confirm email**, если нужен моментальный вход
    после регистрации. Сейчас подтверждение включено: QA-регистрация отправила письмо.
 
