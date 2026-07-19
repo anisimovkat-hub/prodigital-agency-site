@@ -7,6 +7,10 @@
 KPI с авторасчётом, заметки. Заменяет связку Notion + Trello + таблицы. Пользователи — владелец
 (админ, видит всё) и ~5 специалистов (видят только свои проекты).
 
+**Продакшн на 2026-07-19:** миграции 0001 и 0002 применены, роли/RLS и инвайты работают;
+коммит `ce2538e` задеплоен в production (`dpl_Heau2u7KpTi8sBZYX4seQqbXMNoM`). Страницы
+«Проекты» и «Доска» проверены на реальных данных. Пять сотрудников получили временные пароли.
+
 ## Стек
 
 - Next.js 16 (App Router, Turbopack), React 19, TypeScript strict
@@ -15,11 +19,15 @@ KPI с авторасчётом, заметки. Заменяет связку N
 - Zod v4 — валидация форм в server actions
 - Vitest — юнит-тесты; ESLint 9
 - Деплой: Vercel (team `team_htNZrI5iP6zK3F0CurE1R8S3`, проект `agency-os`, prod: agency-os-lilac-eight.vercel.app)
+- Production env в Vercel: `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ## Структура
 
 ```
 agency-os/
+├── docs/
+│   ├── ONBOARDING.md            # инструкция сотруднику
+│   └── PROJECT_MEMORY.md        # короткая заметка-память для переноса между сессиями
 ├── supabase/migrations/
 │   ├── 0001_init.sql            # схема: profiles, clients, projects, project_members,
 │   │                            #   tasks(+checklist/comments/attachments), kpi_entries, project_notes
@@ -61,6 +69,9 @@ agency-os/
   без него связь projects→profiles неоднозначна (вторая — через project_members) и запрос падает.
 - **types.ts ведётся вручную** по миграциям (новая таблица → добавить в types.ts).
 - **`src/proxy.ts`** — в Next 16 так называется middleware; matcher покрыт тестом proxy.test.ts.
+- **Деплой полным каталогом** — GitHub пока не подключён к Vercel. Основной путь — Vercel MCP;
+  при его недоступности допустим Vercel CLI, связанный с тем же project/team ID. Production env
+  хранится в настройках проекта Vercel, секреты и временные пароли в Git не попадают.
 
 ## Соглашения
 

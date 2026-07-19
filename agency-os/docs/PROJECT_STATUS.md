@@ -1,47 +1,52 @@
 # Статус проекта Agency OS
 
-Обновлено: 2026-07-19 (сессия Claude Code)
+Обновлено: 2026-07-19 (сессия Codex)
 
 ## Реализовано и работает на проде
 
-- **Инфраструктура**: Supabase-проект `ihsjgzzdihjesblkuylz` (eu-central-1, free) со схемой 0001;
-  Vercel-проект `agency-os` (prod: https://agency-os-lilac-eight.vercel.app, деплой файлами через MCP,
-  git к Vercel НЕ привязан). CI (lint+test+build) в `.github/workflows/ci.yml`.
-- **Auth**: вход по email/паролю; админ — anisimov.katerina@gmail.com (роль owner).
-- **Страницы**: Дашборд (KPI+статистика задач по проектам), Сегодня, Задачи (фильтры, drawer,
-  создание), Проекты (+создание, KPI-форма, заметки), Клиенты (+создание), Сотрудники (загрузка).
-- **Реальные данные в базе** (заведены в этой сессии): 21+3 клиента, 31 проект (июльский список
+- **Инфраструктура**: Supabase-проект `ihsjgzzdihjesblkuylz` (eu-central-1, free) со схемами
+  0001+0002; Vercel-проект `agency-os` (prod: https://agency-os-lilac-eight.vercel.app,
+  production deployment `dpl_Heau2u7KpTi8sBZYX4seQqbXMNoM`, Ready). Git к Vercel НЕ привязан.
+  CI (lint+test+build) в `.github/workflows/ci.yml`.
+- **Auth**: вход по email/паролю; админ — anisimov.katerina@gmail.com (роль owner). Регистрация
+  работает только по одноразовому инвайт-коду; неверный код отклоняется триггером.
+- **Страницы**: Дашборд (KPI+статистика задач по проектам), Сегодня, Доска, Задачи (фильтры,
+  drawer, создание), Личное, Проекты (+создание, KPI-форма, заметки), Клиенты (+создание),
+  Сотрудники (+инвайты), Login и Signup.
+- **Реальные данные в базе**: 21+3 клиента, 31 проект (июльский список
   со скриншота + ответственные из Notion), 13 задач с чеклистом, 6 профилей
-  (Катерина=owner; Инна, Илона, Екатерина, Софа, Алёна=specialist, входа пока не имеют).
+  (Катерина=owner; Инна, Илона, Екатерина, Софа, Алёна=specialist). Пяти специалистам назначены
+  временные пароли; email подтверждены.
 
-## Готово в коде, НО НЕ ЗАДЕПЛОЕНО и НЕ ПРИМЕНЕНО (точка продолжения!)
+## Завершено 2026-07-19
 
-Всё собрано и протестировано локально (24/24 теста, lint, build — зелёные), закоммичено в ветку
-`claude/agency-ops-mvp-design-ykrrn0`. Осталось сделать по шагам:
+1. Миграция `0002_roles_and_invites.sql` применена. Проверены таблица `invite_codes`, триггер
+   `on_auth_user_created`, функции `is_admin()`/`is_project_member()`, политика чтения проектов и
+   отсутствие старой политики `authenticated full access` — все шесть проверок успешны.
+2. Коммит `ce2538e` задеплоен полным каталогом в production. Vercel MCP в сессии был недоступен,
+   поэтому использован Vercel CLI с теми же project/team ID. В Vercel добавлены production env
+   `NEXT_PUBLIC_SUPABASE_URL` и `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Прод проверен: `/signup` отдаёт 200 и форму с инвайт-кодом; «Проекты» показывает реальные
+   строки; «Доска» показывает 11 задач (5 «К выполнению», 6 «В работе»).
+4. Поведенческий QA: неверный инвайт отклонён; валидный одноразовый инвайт создал профиль
+   `specialist` и пометился использованным. Тестовый пользователь/профиль/инвайт после проверки
+   удалены. Инна успешно вошла временным паролем; RLS вернул только 4 назначенных ей проекта и
+   0 инвайтов.
+5. Пяти сотрудникам назначены уникальные временные пароли. Значения переданы владельцу в чате и
+   намеренно не сохранены в Git.
+6. Добавлены `docs/ONBOARDING.md` и `docs/PROJECT_MEMORY.md`.
 
-1. **Применить миграцию `supabase/migrations/0002_roles_and_invites.sql`** через
-   `mcp__Supabase__apply_migration` (project_id `ihsjgzzdihjesblkuylz`). Она включает ролевой RLS
-   (owner видит всё, specialist — только свои проекты), таблицу invite_codes и триггер регистрации.
-   До применения все залогиненные видят всё (сейчас логин есть только у владельца — не страшно).
-2. **Задеплоить код на Vercel** через `mcp__Vercel__deploy_to_vercel` (target=production,
-   name=agency-os, teamId=team_htNZrI5iP6zK3F0CurE1R8S3). Деплой — полным набором файлов inline
-   (как в прошлый раз; см. DECISIONS.md). В деплой добавились: /board, /personal, /signup,
-   invite-форма, фикс embed-хинтов, фикс today-sort.
-   ВАЖНО: без этого деплоя на проде страница «Проекты» ПУСТАЯ (баг неоднозначного embed).
-3. **Выдать пароли сотрудникам**: после применения 0002 задать 5 сотрудникам временные пароли
-   через SQL (`extensions.crypt('пароль', extensions.gen_salt('bf'))` в auth.users) и передать
-   владельцу; ИЛИ удалить их auth-записи и позвать через инвайт-коды (но на них завязаны
-   responsible_id проектов — проще пароли).
-4. **Ручные шаги владельца в Supabase Dashboard** (сказать ей): Authentication → URL Configuration →
-   Site URL = https://agency-os-lilac-eight.vercel.app; желательно Authentication → Providers →
-   Email → отключить «Confirm email» (инвайт-код уже фильтрует посторонних) — иначе регистрация
-   требует письма-подтверждения.
-5. Написать `docs/ONBOARDING.md` — инструкция сотруднику (ссылка на /signup + код от админа).
+## Остались ручные шаги владельца в Supabase Dashboard
+
+1. Authentication → URL Configuration → Site URL = `https://agency-os-lilac-eight.vercel.app`.
+2. Там же добавить Redirect URL `https://agency-os-lilac-eight.vercel.app/**`.
+3. Authentication → Providers → Email → выключить **Confirm email**, если нужен моментальный вход
+   после регистрации. Сейчас подтверждение включено: QA-регистрация отправила письмо.
 
 ## Запланировано дальше (по приоритету)
 
-1. Привязать GitHub-репозиторий к Vercel (Root Directory=agency-os) — руками владельца, чтобы
-   пуши деплоились сами; добавить env-переменные в Vercel UI.
+1. Привязать GitHub-репозиторий к Vercel (Root Directory=`agency-os`) — руками владельца, чтобы
+   пуши деплоились автоматически. Production env уже добавлены в Vercel.
 2. Наполнение: назначить ответственных 5 проектам без владельца (Дядя Ваня, Капельницы,
    Сад на Бали, CSS // Лондон); KPI-данные реальных проектов.
 3. Канбан: фильтр по проекту/исполнителю; колонка «paused».
@@ -50,19 +55,21 @@
 
 ## Известные баги и техдолг
 
-- Прод (до деплоя из п.2 выше): «Проекты» пустые — PGRST201 ambiguous embed; фикс уже в коде
-  (`profiles!projects_responsible_id_fkey`).
-- `лib/supabase/types.ts` ручной — может разъехаться со схемой; сверять при миграциях.
-- Vercel-деплой не связан с git: код в GitHub и код на проде синхронизируются только вручную.
+- `lib/supabase/types.ts` ручной — может разъехаться со схемой; сверять при миграциях.
+- Vercel-деплой не связан с Git: код в GitHub и код на проде синхронизируются вручную полным
+  деплоем каталога (MCP или CLI).
 - seed.mjs остался от демо-этапа: не запускать на проде (перезальёт демо-данные).
 - Email'ы сотрудников — заглушки `*@prodigital.team`; заменить на реальные при выдаче доступов.
+- В UI пока нет смены пароля; временные пароли нужно передавать сотрудникам лично.
+- `npm ci` сообщает о 2 moderate vulnerabilities; нужен отдельный безопасный dependency audit,
+  не применять `npm audit fix --force` автоматически.
 - Supabase free: БД паузится после ~7 дней без запросов (будит кнопка Restore в дашборде).
 - Vercel Hobby формально некоммерческий; при росте — Pro ($20/мес) или свой хостинг.
 
 ## Учётные данные и идентификаторы
 
 - Supabase: проект `ihsjgzzdihjesblkuylz`, org `kbtyanwnrnwozsorlsuz`, URL
-  https://ihsjgzzdihjesblkuylz.supabase.co (anon key — в .env.local, в Vercel зашит в .env.production
-  внутри деплоя; оба публичные по дизайну).
+  https://ihsjgzzdihjesblkuylz.supabase.co (publishable key хранится как production env Vercel;
+  URL и ключ публичные по дизайну).
 - Vercel: team `team_htNZrI5iP6zK3F0CurE1R8S3`, проект `prj_OsyQpD1tegxeQuqhO8KQHZUCz64n`.
 - Админ: anisimov.katerina@gmail.com (врем. пароль передан владельцу в чате, просили сменить).
