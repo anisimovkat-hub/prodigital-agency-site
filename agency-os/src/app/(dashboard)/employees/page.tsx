@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { InviteForm } from "@/app/(dashboard)/employees/invite-form";
+import { Avatar } from "@/components/avatar";
 import {
   Table,
   TableBody,
@@ -125,12 +126,15 @@ export default async function EmployeesPage() {
             return (
               <TableRow key={profile.id}>
                 <TableCell className="font-medium text-neutral-900">
-                  <Link
-                    href={`/employees/${profile.id}`}
-                    className="hover:underline"
-                  >
-                    {profile.full_name}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Avatar name={profile.full_name} />
+                    <Link
+                      href={`/employees/${profile.id}`}
+                      className="hover:underline"
+                    >
+                      {profile.full_name}
+                    </Link>
+                  </div>
                 </TableCell>
                 <TableCell>{USER_ROLE_LABEL[profile.role]}</TableCell>
                 <TableCell>{profile.position_title ?? "—"}</TableCell>

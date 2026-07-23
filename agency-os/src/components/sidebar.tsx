@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CalendarCheck,
+  CalendarRange,
   SquareKanban,
   FolderKanban,
   ListChecks,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Дашборд", icon: LayoutDashboard },
   { href: "/today", label: "Сегодня", icon: CalendarCheck },
+  { href: "/week", label: "Неделя", icon: CalendarRange },
   { href: "/board", label: "Доска", icon: SquareKanban },
   { href: "/projects", label: "Проекты", icon: FolderKanban },
   { href: "/tasks", label: "Задачи", icon: ListChecks },

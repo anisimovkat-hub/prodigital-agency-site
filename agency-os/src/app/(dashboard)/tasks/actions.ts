@@ -20,6 +20,7 @@ export async function createTask(
     task_type: formData.get("task_type"),
     priority: formData.get("priority"),
     due_date: formData.get("due_date"),
+    estimate_minutes: formData.get("estimate_hours"),
     description: formData.get("description"),
     is_important: formData.get("is_important") === "on",
     is_urgent: formData.get("is_urgent") === "on",
@@ -41,6 +42,7 @@ export async function createTask(
     task_type: parsed.data.task_type,
     priority: parsed.data.priority,
     due_date: parsed.data.due_date || null,
+    estimate_minutes: parsed.data.estimate_minutes,
     description: parsed.data.description || null,
     is_important: parsed.data.is_important ?? false,
     is_urgent: parsed.data.is_urgent ?? false,
@@ -53,6 +55,7 @@ export async function createTask(
 
   revalidatePath("/tasks");
   revalidatePath("/today");
+  revalidatePath("/week");
   revalidatePath("/");
   revalidatePath(`/projects/${parsed.data.project_id}`);
 
@@ -72,6 +75,7 @@ export async function updateTaskStatus(taskId: string, status: string) {
   revalidatePath("/board");
   revalidatePath("/tasks");
   revalidatePath("/today");
+  revalidatePath("/week");
   revalidatePath("/personal");
   revalidatePath("/");
 }
@@ -88,6 +92,7 @@ export async function toggleTaskDone(taskId: string, done: boolean) {
 
   revalidatePath("/today");
   revalidatePath("/tasks");
+  revalidatePath("/week");
   revalidatePath("/");
 }
 

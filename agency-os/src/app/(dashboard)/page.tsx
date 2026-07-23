@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FilterSelect } from "@/components/filter-select";
 import { HealthBadge } from "@/components/badges";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -36,7 +37,7 @@ export default async function DashboardPage({
         .from("projects")
         .select("*, client:clients(id,name), responsible:profiles!projects_responsible_id_fkey(id,full_name)")
         .order("created_at", { ascending: false }),
-      supabase.from("clients").select("id,name").order("name"),
+      supabase.from("clients").select("id,name,status").order("name"),
       supabase
         .from("tasks")
         .select("id,project_id,status,due_date,is_urgent"),
@@ -47,6 +48,46 @@ export default async function DashboardPage({
     ]);
 
   const today = todayISO();
+  const activeProjectsCount = (projects ?? []).filter(
+    (project) => project.stage === "active",
+  ).length;
+  const todayTasksCount = (tasks ?? []).filter(
+    (task) => task.status !== "done" && task.due_date === today,
+  ).length;
+  const overdueTasksCount = (tasks ?? []).filter(
+    (task) =>
+      task.status !== "done" && task.due_date && task.due_date < today,
+  ).length;
+  const activeClientsCount = (clients ?? []).filter(
+    (item) => item.status === "active",
+  ).length;
+
+  const summaries = [
+    {
+      label: "Активные проекты",
+      value: activeProjectsCount,
+      accent: "border-t-blue-500",
+      valueColor: "text-blue-700",
+    },
+    {
+      label: "Задачи на сегодня",
+      value: todayTasksCount,
+      accent: "border-t-amber-500",
+      valueColor: "text-amber-700",
+    },
+    {
+      label: "Просрочено",
+      value: overdueTasksCount,
+      accent: "border-t-red-500",
+      valueColor: "text-red-700",
+    },
+    {
+      label: "Активные клиенты",
+      value: activeClientsCount,
+      accent: "border-t-emerald-500",
+      valueColor: "text-emerald-700",
+    },
+  ];
 
   const taskStatsByProject = new Map<
     string,
@@ -105,6 +146,24 @@ export default async function DashboardPage({
         <p className="text-sm text-neutral-500">
           Проекты агентства, статусы и ключевые показатели.
         </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {summaries.map((summary) => (
+          <Card
+            key={summary.label}
+            className={`border-t-4 ${summary.accent}`}
+          >
+            <CardContent className="p-4">
+              <p className="text-sm text-neutral-500">{summary.label}</p>
+              <p
+                className={`mt-1 text-3xl font-semibold tracking-tight ${summary.valueColor}`}
+              >
+                {summary.value}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-3">

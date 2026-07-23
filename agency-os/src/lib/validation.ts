@@ -15,6 +15,19 @@ const optionalString = z.preprocess((value) => {
   return value;
 }, z.string().optional());
 
+export const estimateMinutesFromHoursSchema = z
+  .preprocess(
+    (value) => {
+      if (value === "" || value === null || value === undefined) return undefined;
+      return value;
+    },
+    z.coerce
+      .number({ message: "Введите число" })
+      .nonnegative("Оценка не может быть отрицательной")
+      .optional(),
+  )
+  .transform((hours) => (hours === undefined ? null : Math.round(hours * 60)));
+
 export const kpiEntrySchema = z.object({
   entry_date: z.string().min(1, "Укажите дату"),
   spend: optionalNonNegativeNumber,
@@ -53,6 +66,7 @@ export const createTaskSchema = z.object({
   task_type: z.enum(TASK_TYPE_VALUES),
   priority: z.enum(TASK_PRIORITY_VALUES),
   due_date: optionalString,
+  estimate_minutes: estimateMinutesFromHoursSchema,
   description: optionalString,
   is_important: z.boolean().optional(),
   is_urgent: z.boolean().optional(),

@@ -30,6 +30,21 @@ export function formatPercent(value: number | null | undefined): string {
   return `${value}%`;
 }
 
+export function formatDuration(minutes: number | null): string {
+  if (minutes === null) return "—";
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  const parts: string[] = [];
+
+  if (hours > 0) parts.push(`${hours} ч`);
+  if (remainingMinutes > 0 || hours === 0) {
+    parts.push(`${remainingMinutes} мин`);
+  }
+
+  return parts.join(" ");
+}
+
 export function isOverdue(
   dueDate: string | null | undefined,
   status: string | null | undefined,

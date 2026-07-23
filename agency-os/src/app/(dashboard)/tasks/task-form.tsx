@@ -94,6 +94,19 @@ export function TaskForm({ profiles, defaultProjectId, projects }: TaskFormProps
         <FieldErrors errors={state?.errors.due_date} />
       </div>
 
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="estimate_hours">Оценка, ч</Label>
+        <Input
+          id="estimate_hours"
+          name="estimate_hours"
+          type="number"
+          min="0"
+          step="0.25"
+          inputMode="decimal"
+        />
+        <FieldErrors errors={state?.errors.estimate_minutes} />
+      </div>
+
       <div className="col-span-2 flex items-end gap-4 pb-2 sm:col-span-4">
         <label className="flex items-center gap-2 text-sm text-neutral-700">
           <Checkbox name="is_important" />

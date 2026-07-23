@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Avatar } from "@/components/avatar";
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { ChecklistItemCheckbox } from "@/components/checklist-item-checkbox";
 import { formatDate } from "@/lib/format";
@@ -75,7 +76,8 @@ export async function TaskDrawer({
           </div>
           <div className="flex justify-between">
             <dt className="text-neutral-500">Исполнитель</dt>
-            <dd className="text-neutral-900">
+            <dd className="flex items-center gap-2 text-neutral-900">
+              <Avatar name={task.assignee?.full_name} />
               {task.assignee?.full_name ?? "—"}
             </dd>
           </div>
@@ -136,8 +138,11 @@ export async function TaskDrawer({
                 key={comment.id}
                 className="rounded-md border border-neutral-200 p-2 text-sm"
               >
-                <div className="flex justify-between text-xs text-neutral-400">
-                  <span>{comment.author?.full_name ?? "—"}</span>
+                <div className="flex items-center justify-between gap-2 text-xs text-neutral-400">
+                  <span className="flex items-center gap-2">
+                    <Avatar name={comment.author?.full_name} />
+                    {comment.author?.full_name ?? "—"}
+                  </span>
                   <span>{formatDate(comment.created_at)}</span>
                 </div>
                 <p className="mt-1 text-neutral-800">{comment.body}</p>

@@ -43,6 +43,22 @@ export function PersonalTaskForm() {
         <Label htmlFor="p_due">Дедлайн</Label>
         <Input id="p_due" name="due_date" type="date" />
       </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="p_estimate">Оценка, ч</Label>
+        <Input
+          id="p_estimate"
+          name="estimate_hours"
+          type="number"
+          min="0"
+          step="0.25"
+          inputMode="decimal"
+        />
+        {state?.errors.estimate_minutes?.map((e) => (
+          <p key={e} className="text-xs text-red-600">
+            {e}
+          </p>
+        ))}
+      </div>
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="p_desc">Описание</Label>
         <Textarea id="p_desc" name="description" rows={2} />

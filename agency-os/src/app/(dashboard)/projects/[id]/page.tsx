@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { KpiForm } from "@/app/(dashboard)/projects/kpi-form";
 import { NotesTabs } from "@/app/(dashboard)/projects/notes-tabs";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
+import { Avatar } from "@/components/avatar";
 import {
   HealthBadge,
   PriorityBadge,
@@ -161,12 +162,15 @@ export default async function ProjectDetailPage({
                 key={member.profile_id}
                 className="flex items-center justify-between"
               >
-                <Link
-                  href={`/employees/${member.profile_id}`}
-                  className="hover:underline"
-                >
-                  {member.profile?.full_name ?? "—"}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Avatar name={member.profile?.full_name} />
+                  <Link
+                    href={`/employees/${member.profile_id}`}
+                    className="hover:underline"
+                  >
+                    {member.profile?.full_name ?? "—"}
+                  </Link>
+                </div>
                 <span className="text-xs text-neutral-400">
                   {member.role_on_project ?? member.profile?.position_title}
                 </span>
@@ -296,4 +300,3 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     </div>
   );
 }
-

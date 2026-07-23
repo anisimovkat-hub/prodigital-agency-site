@@ -202,6 +202,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["task_priority"] | null;
           task_type: Database["public"]["Enums"]["task_type"] | null;
           due_date: string | null;
+          estimate_minutes: number | null;
           is_important: boolean | null;
           is_urgent: boolean | null;
           created_at: string | null;
@@ -218,6 +219,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"] | null;
           task_type?: Database["public"]["Enums"]["task_type"] | null;
           due_date?: string | null;
+          estimate_minutes?: number | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
           created_at?: string | null;
@@ -234,6 +236,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["task_priority"] | null;
           task_type?: Database["public"]["Enums"]["task_type"] | null;
           due_date?: string | null;
+          estimate_minutes?: number | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
           created_at?: string | null;
