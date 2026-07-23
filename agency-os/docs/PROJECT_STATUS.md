@@ -1,11 +1,12 @@
 # Статус проекта Agency OS
 
-Обновлено: 2026-07-23 (сессия Claude Code)
+Обновлено: 2026-07-23 (сессии Claude Code и Codex)
 
 ## Реализовано и работает на проде
 
 - **Инфраструктура**: Supabase-проект `ihsjgzzdihjesblkuylz` (eu-central-1, free) со схемами
-  0001+0002+0003; Vercel-проект `agency-os` (prod: https://agency-os-lilac-eight.vercel.app).
+  0001+0002+0003; Vercel-проект `agency-os` (prod: https://agency-os-lilac-eight.vercel.app,
+  production deployment `dpl_Sur3FPrZzixiATNAKniPJqVW7eyF`, Ready).
   **Vercel привязан к GitHub** (2026-07-23): Production Branch =
   `claude/agency-ops-mvp-design-ykrrn0`, Root Directory = `agency-os` — пуш в ветку деплоится
   автоматически, инлайн-деплои больше не нужны. CI (lint+test+build) в `.github/workflows/ci.yml`.
@@ -20,6 +21,28 @@
   со скриншота + ответственные из Notion), 13 задач с чеклистом, 6 профилей
   (Катерина=owner; Инна, Илона, Екатерина, Софа, Алёна=specialist). Пяти специалистам назначены
   временные пароли; email подтверждены.
+
+## Завершено 2026-07-23
+
+1. Через SQL Editor подтверждено, что 0002 уже применена: существуют `invite_codes`,
+   `is_admin()`, signup-триггер и ролевые политики. Колонка `tasks.estimate_minutes` из 0003
+   также уже присутствует; повторный ALTER не потребовался.
+2. Коммит `f7aec61` задеплоен полным репозиторием в production через допустимый Vercel CLI
+   fallback. Сборка Next.js 16 прошла на Vercel; deployment
+   `dpl_Sur3FPrZzixiATNAKniPJqVW7eyF`, alias — основной production-домен.
+3. Production QA: «Проекты» показывает 31 проект; «Доска» показывает 13 задач
+   (5 «К выполнению», 6 «В работе», 2 «На паузе»), фильтр по проекту «Озимо» оставляет
+   2 задачи. «Неделя» читает `estimate_minutes` без ошибок, дашборд показывает новые сводки.
+4. Auth QA: публичная `/signup` доступна; неверный инвайт отклонён, тестовый auth-user не создан.
+   Триггер `on_auth_user_created` и policy `member reads own projects` активны, старая широкая
+   policy `authenticated full access` для проектов отсутствует. Ранее выполненная проверка
+   валидного инвайта и входа специалиста остаётся актуальной — auth/RLS-код не менялся.
+5. В Supabase Dashboard подтверждено: Site URL уже равен корню production-домена, redirect
+   `https://agency-os-lilac-eight.vercel.app/**` добавлен, Confirm email выключен.
+6. Vercel привязан к GitHub: Production Branch =
+   `claude/agency-ops-mvp-design-ykrrn0`, Root Directory = `agency-os`.
+7. Чат-ассистент внутри приложения отменён: изменения вносятся через Claude Code / Codex
+   по запросу владельца без отдельного платного Anthropic API.
 
 ## Завершено 2026-07-19
 
@@ -39,34 +62,30 @@
    намеренно не сохранены в Git.
 6. Добавлены `docs/ONBOARDING.md` и `docs/PROJECT_MEMORY.md`.
 
-## Завершено 2026-07-23 (Claude Code + Codex)
+## Ручные шаги владельца в Supabase Dashboard
 
-1. Supabase Auth настроен (через браузер владельца): Site URL исправлен на корень домена,
-   добавлен Redirect URL `…/**`, **Confirm email выключен** — регистрация по инвайту без письма.
-2. Vercel привязан к GitHub (репо `anisimovkat-hub/prodigital-agency-site`), Production Branch =
-   `claude/agency-ops-mvp-design-ykrrn0`, Root Directory = `agency-os`; git-деплой проверен.
-3. Codex (коммит `f7aec61`): страница «Неделя», поле `estimate_minutes` (+формы «Оценка, ч»),
-   Trello-полировка доски (цвета приоритетов в `PRIORITY_ACCENT`, компонент Avatar, колонка
-   «На паузе», клиентские фильтры), 4 сводные карточки на дашборде.
-4. Миграция `0003_task_estimate.sql` применена к базе через MCP. Локально: 37 тестов, lint,
-   `npm run build` — зелёные (build у Codex падал только из-за сетевой блокировки Google Fonts
-   в его песочнице).
-5. Чат-ассистент внутри приложения ОТМЕНЁН: владелец не хочет платить за Anthropic API.
-   Изменения вносятся через Claude Code / Codex по запросу в чате.
+По Site URL / Redirect URLs / Confirm email действий больше нет. На 2026-07-23 установлено:
+
+- Site URL: `https://agency-os-lilac-eight.vercel.app`;
+- Redirect URLs содержат `/login` и `https://agency-os-lilac-eight.vercel.app/**`;
+- Authentication → Sign In / Providers → **Confirm email** выключен.
 
 ## Запланировано дальше (по приоритету)
 
 1. Заменить email-заглушки сотрудников на реальные адреса (SQL по auth.users+profiles),
    когда владелец пришлёт список.
-2. Смена пароля в UI (сейчас только через Supabase Dashboard).
-3. Наполнение: назначить ответственных 5 проектам без владельца (Дядя Ваня, Капельницы,
+2. Наполнение: назначить ответственных 5 проектам без владельца (Дядя Ваня, Капельницы,
    Сад на Бали, CSS // Лондон); KPI-данные реальных проектов.
-4. Слить ветку в `main` и переключить Production Branch (когда решим навести порядок).
+3. Заполнить дедлайны и оценки времени реальных задач, чтобы «Неделя» показывала загрузку.
+4. Смена пароля в UI (сейчас только через Supabase Dashboard).
 5. Уведомления (телеграм?) о дедлайнах — идея, не подтверждена.
 
 ## Известные баги и техдолг
 
 - `lib/supabase/types.ts` ручной — может разъехаться со схемой; сверять при миграциях.
+- При CLI fallback 2026-07-23 ошибочно создан пустой Vercel-проект `repo`
+  (`prj_eFA1pFa2Qv8B6OdnCZLHaN0mLAEg`). Он не обслуживает Agency OS; удалить после явного
+  подтверждения владельца. Целевой `agency-os` и его production alias не затронуты.
 - seed.mjs остался от демо-этапа: не запускать на проде (перезальёт демо-данные).
 - Email'ы сотрудников — заглушки `*@prodigital.team`; заменить на реальные при выдаче доступов.
 - В UI пока нет смены пароля; временные пароли нужно передавать сотрудникам лично.

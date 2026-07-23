@@ -7,9 +7,10 @@
 KPI с авторасчётом, заметки. Заменяет связку Notion + Trello + таблицы. Пользователи — владелец
 (админ, видит всё) и ~5 специалистов (видят только свои проекты).
 
-**Продакшн на 2026-07-19:** миграции 0001 и 0002 применены, роли/RLS и инвайты работают;
-коммит `ce2538e` задеплоен в production (`dpl_Heau2u7KpTi8sBZYX4seQqbXMNoM`). Страницы
-«Проекты» и «Доска» проверены на реальных данных. Пять сотрудников получили временные пароли.
+**Продакшн на 2026-07-23:** миграции 0001–0003 применены, роли/RLS и инвайты работают;
+коммит `f7aec61` задеплоен в production (`dpl_Sur3FPrZzixiATNAKniPJqVW7eyF`). Страницы
+«Проекты», «Доска», «Неделя» и дашборд проверены на реальных данных. Пять сотрудников ранее
+получили временные пароли; пароли в Git не хранятся и при деплоях не перевыпускаются.
 
 ## Стек
 
@@ -31,7 +32,8 @@ agency-os/
 ├── supabase/migrations/
 │   ├── 0001_init.sql            # схема: profiles, clients, projects, project_members,
 │   │                            #   tasks(+checklist/comments/attachments), kpi_entries, project_notes
-│   └── 0002_roles_and_invites.sql  # ролевой RLS, invite_codes, триггер регистрации
+│   ├── 0002_roles_and_invites.sql  # ролевой RLS, invite_codes, триггер регистрации
+│   └── 0003_task_estimate.sql      # оценка задач в минутах
 ├── scripts/seed.mjs             # демо-сидинг (не для прода)
 ├── src/
 │   ├── proxy.ts                 # Next 16: замена middleware.ts (авторизация всех роутов)
@@ -40,7 +42,8 @@ agency-os/
 │   │   └── (dashboard)/         # всё под auth: layout с Sidebar
 │   │       ├── page.tsx         # дашборд руководителя (KPI+задачи по проектам)
 │   │       ├── today/           # умная сортировка срочного (lib/today-sort.ts)
-│   │       ├── board/           # канбан (kanban-board.tsx — HTML5 dnd + useOptimistic)
+│   │       ├── week/            # задачи текущей недели + оценки времени
+│   │       ├── board/           # канбан с фильтрами (HTML5 dnd + useOptimistic)
 │   │       ├── tasks/           # таблица+фильтры, task-drawer, task-form, actions.ts
 │   │       ├── personal/        # личные задачи (project_id IS NULL)
 │   │       ├── projects/ [id]/  # + kpi-form, notes-tabs, project-form
@@ -65,13 +68,16 @@ agency-os/
   валидирует `raw_user_meta_data->>'invite_code'`, создаёт профиль с ролью из кода.
   Пользователи без метаданных (созданные админом через SQL) пропускаются триггером.
 - **Личные задачи** = `tasks.project_id IS NULL` + creator/assignee = auth.uid().
+- **Оценка задач хранится в минутах** (`estimate_minutes`), а формы принимают часы и округляют
+  `часы × 60`. Форматирование длительности централизовано в `lib/format.ts`.
 - **PostgREST embed с хинтом**: `profiles!projects_responsible_id_fkey` обязателен —
   без него связь projects→profiles неоднозначна (вторая — через project_members) и запрос падает.
 - **types.ts ведётся вручную** по миграциям (новая таблица → добавить в types.ts).
 - **`src/proxy.ts`** — в Next 16 так называется middleware; matcher покрыт тестом proxy.test.ts.
-- **Деплой полным каталогом** — GitHub пока не подключён к Vercel. Основной путь — Vercel MCP;
-  при его недоступности допустим Vercel CLI, связанный с тем же project/team ID. Production env
-  хранится в настройках проекта Vercel, секреты и временные пароли в Git не попадают.
+- **Автодеплой из рабочей ветки** — Vercel подключён к GitHub: Production Branch =
+  `claude/agency-ops-mvp-design-ykrrn0`, Root Directory = `agency-os`. Ручной fallback через
+  Vercel MCP/CLI должен использовать тот же project/team ID. Production env хранится в
+  настройках проекта Vercel, секреты и временные пароли в Git не попадают.
 
 ## Соглашения
 
