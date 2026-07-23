@@ -41,7 +41,7 @@ agency-os/
 │   │   ├── login/  signup/      # публичные страницы (signup — по инвайт-коду)
 │   │   └── (dashboard)/         # всё под auth: layout с Sidebar
 │   │       ├── page.tsx         # дашборд руководителя (KPI+задачи по проектам)
-│   │       ├── today/           # умная сортировка срочного (lib/today-sort.ts)
+│   │       ├── today/           # срочное + сортировка/перетаскивание столбцов
 │   │       ├── week/            # задачи текущей недели + оценки времени
 │   │       ├── board/           # канбан с фильтрами (HTML5 dnd + useOptimistic)
 │   │       ├── tasks/           # таблица+фильтры, task-drawer, task-form, actions.ts
