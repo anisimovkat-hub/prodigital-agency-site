@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ProjectForm } from "@/app/(dashboard)/projects/project-form";
 import { HealthBadge, ProjectStageBadge } from "@/components/badges";
+import { ProjectBadge } from "@/components/project-badge";
 import {
   Table,
   TableBody,
@@ -69,9 +70,12 @@ export default async function ProjectsPage() {
               <TableCell className="font-medium text-neutral-900">
                 <Link
                   href={`/projects/${project.id}`}
-                  className="hover:underline"
+                  className="inline-flex max-w-60"
                 >
-                  {project.name}
+                  <ProjectBadge
+                    projectId={project.id}
+                    name={project.name}
+                  />
                 </Link>
               </TableCell>
               <TableCell>{project.client?.name ?? "—"}</TableCell>

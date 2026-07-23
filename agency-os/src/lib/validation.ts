@@ -59,6 +59,15 @@ export const TASK_TYPE_VALUES = [
   "other",
 ] as const;
 
+export const TASK_STATUS_VALUES = [
+  "backlog",
+  "todo",
+  "in_progress",
+  "review",
+  "paused",
+  "done",
+] as const;
+
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, "Укажите название задачи"),
   project_id: z.string().uuid("Выберите проект"),
@@ -73,6 +82,38 @@ export const createTaskSchema = z.object({
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
+
+export const updateTaskSchema = z.object({
+  id: z.string().uuid("Некорректный идентификатор задачи"),
+  title: z.string().trim().min(1, "Укажите название задачи"),
+  project_id: optionalUuid,
+  assignee_id: optionalUuid,
+  status: z.enum(TASK_STATUS_VALUES),
+  task_type: z.enum(TASK_TYPE_VALUES),
+  priority: z.enum(TASK_PRIORITY_VALUES),
+  due_date: optionalString,
+  estimate_minutes: estimateMinutesFromHoursSchema,
+  description: optionalString,
+  is_important: z.boolean().optional(),
+  is_urgent: z.boolean().optional(),
+});
+
+export const taskChecklistItemSchema = z.object({
+  task_id: z.string().uuid("Некорректная задача"),
+  title: z.string().trim().min(1, "Напишите пункт чеклиста"),
+});
+
+export const taskCommentSchema = z.object({
+  task_id: z.string().uuid("Некорректная задача"),
+  body: z.string().trim().min(1, "Напишите комментарий"),
+});
+
+export const taskAttachmentSchema = z.object({
+  task_id: z.string().uuid("Некорректная задача"),
+  attachment_id: optionalUuid,
+  title: optionalString,
+  url: z.string().trim().url("Укажите корректную ссылку"),
+});
 
 export const CLIENT_STATUS_VALUES = ["active", "paused", "churned"] as const;
 

@@ -5,6 +5,7 @@ import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { FilterCheckbox } from "@/components/filter-checkbox";
 import { FilterSelect } from "@/components/filter-select";
+import { ProjectBadge } from "@/components/project-badge";
 import {
   Table,
   TableBody,
@@ -160,7 +161,19 @@ export default async function TasksPage({
                   {task.title}
                 </Link>
               </TableCell>
-              <TableCell>{task.project?.name ?? "—"}</TableCell>
+              <TableCell>
+                {task.project ? (
+                  <Link href={`/projects/${task.project.id}`}>
+                    <ProjectBadge
+                      projectId={task.project.id}
+                      name={task.project.name}
+                      className="max-w-52"
+                    />
+                  </Link>
+                ) : (
+                  <ProjectBadge projectId={null} name={null} />
+                )}
+              </TableCell>
               <TableCell>{task.project?.client?.name ?? "—"}</TableCell>
               <TableCell>{task.assignee?.full_name ?? "—"}</TableCell>
               <TableCell>

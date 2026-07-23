@@ -16,6 +16,7 @@ import {
 } from "react";
 
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
+import { ProjectBadge } from "@/components/project-badge";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import {
   Table,
@@ -272,15 +273,16 @@ function TodayCell({
 }) {
   switch (column) {
     case "project":
-      return task.project ? (
+      return (
         <Link
-          href={`/projects/${task.project.id}`}
-          className="font-medium text-neutral-900 hover:underline"
+          href={task.project ? `/projects/${task.project.id}` : "/personal"}
+          className="inline-flex max-w-52"
         >
-          {task.project.name}
+          <ProjectBadge
+            projectId={task.project?.id}
+            name={task.project?.name}
+          />
         </Link>
-      ) : (
-        "—"
       );
     case "title":
       return task.title;

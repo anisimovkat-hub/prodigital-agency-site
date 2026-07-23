@@ -1,7 +1,19 @@
 import { KanbanBoard, type BoardTask } from "@/app/(dashboard)/board/kanban-board";
+import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function BoardPage() {
+type BoardSearchParams = {
+  project?: string;
+  assignee?: string;
+  task?: string;
+};
+
+export default async function BoardPage({
+  searchParams,
+}: {
+  searchParams: Promise<BoardSearchParams>;
+}) {
+  const filters = await searchParams;
   const supabase = await createClient();
 
   const [{ data: tasks }, { data: projects }, { data: profiles }] =
@@ -35,6 +47,26 @@ export default async function BoardPage() {
           name: profile.full_name,
         }))}
       />
+      {filters.task && (
+        <TaskDrawer
+          taskId={filters.task}
+          closeHref={buildBoardHref(filters, { task: undefined })}
+        />
+      )}
     </div>
   );
+}
+
+function buildBoardHref(
+  current: BoardSearchParams,
+  overrides: Partial<
+    Record<keyof BoardSearchParams, string | undefined>
+  >,
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...current, ...overrides })) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return `/board${query ? `?${query}` : ""}`;
 }

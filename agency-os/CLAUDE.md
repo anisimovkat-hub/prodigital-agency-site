@@ -43,8 +43,8 @@ agency-os/
 │   │       ├── page.tsx         # дашборд руководителя (KPI+задачи по проектам)
 │   │       ├── today/           # срочное + сортировка/перетаскивание столбцов
 │   │       ├── week/            # задачи текущей недели + оценки времени
-│   │       ├── board/           # канбан с фильтрами (HTML5 dnd + useOptimistic)
-│   │       ├── tasks/           # таблица+фильтры, task-drawer, task-form, actions.ts
+│   │       ├── board/           # канбан с фильтрами, dnd и общим редактором задачи
+│   │       ├── tasks/           # таблица+фильтры, task-editor/drawer, формы, actions.ts
 │   │       ├── personal/        # личные задачи (project_id IS NULL)
 │   │       ├── projects/ [id]/  # + kpi-form, notes-tabs, project-form
 │   │       ├── clients/ [id]/   # + client-form
@@ -70,6 +70,11 @@ agency-os/
 - **Личные задачи** = `tasks.project_id IS NULL` + creator/assignee = auth.uid().
 - **Оценка задач хранится в минутах** (`estimate_minutes`), а формы принимают часы и округляют
   `часы × 60`. Форматирование длительности централизовано в `lib/format.ts`.
+- **Единый редактор задачи** открывается в боковой панели из таблицы и канбана. Основные поля,
+  описание, чеклист, комментарии и ссылки меняются через Server Actions; RLS остаётся
+  единственным источником прав.
+- **Цвет проекта вычисляется из project.id** (`lib/project-colors.ts`) и показывается через
+  общий `ProjectBadge`. Цвет стабилен между страницами и не требует поля в БД.
 - **PostgREST embed с хинтом**: `profiles!projects_responsible_id_fkey` обязателен —
   без него связь projects→profiles неоднозначна (вторая — через project_members) и запрос падает.
 - **types.ts ведётся вручную** по миграциям (новая таблица → добавить в types.ts).

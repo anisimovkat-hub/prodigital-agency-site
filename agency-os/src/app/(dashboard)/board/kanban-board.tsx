@@ -8,6 +8,7 @@ import { updateTaskStatus } from "@/app/(dashboard)/tasks/actions";
 import { Avatar } from "@/components/avatar";
 import { PriorityBadge } from "@/components/badges";
 import { FilterSelect } from "@/components/filter-select";
+import { ProjectBadge } from "@/components/project-badge";
 import { formatDate, todayISO } from "@/lib/format";
 import { PRIORITY_ACCENT, TASK_STATUS_LABEL } from "@/lib/labels";
 import type { Enums } from "@/lib/supabase/types";
@@ -65,6 +66,12 @@ export function KanbanBoard({
   const projectFilter = searchParams.get("project");
   const assigneeFilter = searchParams.get("assignee");
   const today = todayISO();
+
+  function taskHref(taskId: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("task", taskId);
+    return `/board?${params.toString()}`;
+  }
 
   const filteredTasks = optimisticTasks.filter((task) => {
     if (projectFilter && task.project?.id !== projectFilter) return false;
@@ -142,23 +149,29 @@ export function KanbanBoard({
                 const overdue = !!task.due_date && task.due_date < today;
 
                 return (
-                  <div
+                  <article
                     key={task.id}
                     draggable
-                    onDragStart={(e) =>
-                      e.dataTransfer.setData("text/task-id", task.id)
-                    }
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/task-id", task.id);
+                    }}
                     className={cn(
-                      "cursor-grab rounded-md border border-l-4 border-neutral-200 bg-white p-2.5 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing",
+                      "group relative cursor-grab rounded-md border border-l-4 border-neutral-200 bg-white p-2.5 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing",
                       PRIORITY_ACCENT[priority],
                     )}
                   >
                     <Link
-                      href={`/tasks?task=${task.id}`}
-                      className="text-sm font-medium text-neutral-900 hover:underline"
+                      href={taskHref(task.id)}
+                      draggable={false}
+                      aria-label={`Открыть задачу «${task.title}»`}
+                      className="absolute inset-0 z-10 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
                     >
-                      {task.title}
+                      <span className="sr-only">Открыть редактор задачи</span>
                     </Link>
+                    <p className="text-sm font-medium text-neutral-900 group-hover:underline">
+                      {task.title}
+                    </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
                       <PriorityBadge priority={priority} />
                       {task.due_date && (
@@ -172,13 +185,15 @@ export function KanbanBoard({
                         </span>
                       )}
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-neutral-400">
-                      <span className="truncate">
-                        {task.project?.name ?? "Личное"}
-                      </span>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <ProjectBadge
+                        projectId={task.project?.id}
+                        name={task.project?.name}
+                        className="max-w-44"
+                      />
                       <Avatar name={task.assignee?.full_name} />
                     </div>
-                  </div>
+                  </article>
                 );
               })}
               {columnTasks.length === 0 && (

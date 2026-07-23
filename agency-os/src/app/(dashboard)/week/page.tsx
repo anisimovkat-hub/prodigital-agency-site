@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PriorityBadge } from "@/components/badges";
+import { ProjectBadge } from "@/components/project-badge";
 import { formatDate, formatDuration, todayISO } from "@/lib/format";
 import type { Enums } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/server";
@@ -133,8 +134,12 @@ function WeekTaskCard({ task }: { task: WeekTask }) {
       <dl className="mt-2 grid gap-1 text-xs text-neutral-500">
         <div className="flex justify-between gap-2">
           <dt>Проект</dt>
-          <dd className="truncate text-right text-neutral-700">
-            {task.project?.name ?? "Личное"}
+          <dd className="min-w-0 text-right">
+            <ProjectBadge
+              projectId={task.project?.id}
+              name={task.project?.name}
+              className="max-w-36"
+            />
           </dd>
         </div>
         <div className="flex justify-between gap-2">

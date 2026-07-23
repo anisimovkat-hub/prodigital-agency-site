@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FilterSelect } from "@/components/filter-select";
 import { HealthBadge } from "@/components/badges";
 import { Card, CardContent } from "@/components/ui/card";
+import { ProjectBadge } from "@/components/project-badge";
 import {
   Table,
   TableBody,
@@ -203,9 +204,12 @@ export default async function DashboardPage({
                 <TableCell className="font-medium text-neutral-900">
                   <Link
                     href={`/projects/${project.id}`}
-                    className="hover:underline"
+                    className="inline-flex max-w-60"
                   >
-                    {project.name}
+                    <ProjectBadge
+                      projectId={project.id}
+                      name={project.name}
+                    />
                   </Link>
                 </TableCell>
                 <TableCell>{project.client?.name ?? "—"}</TableCell>
