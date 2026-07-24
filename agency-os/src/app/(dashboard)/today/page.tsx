@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { TodayTable } from "@/app/(dashboard)/today/today-table";
 import { FilterSelect } from "@/components/filter-select";
+import { filterTasksByAudience } from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -30,13 +31,10 @@ export default async function TodayPage({
     supabase.from("profiles").select("id,full_name").order("full_name"),
   ]);
 
-  const filtered = (tasks ?? []).filter((task) => {
-    if (assignee) return task.assignee_id === assignee;
-    if (who === "mine") return task.assignee_id === uid;
-    if (who === "personal") return task.project_id === null;
-    if (who === "team")
-      return !!task.assignee_id && task.assignee_id !== uid;
-    return true;
+  const filtered = filterTasksByAudience(tasks ?? [], {
+    userId: uid,
+    who,
+    assigneeId: assignee,
   });
 
   const sorted = sortTodayTasks(filtered);

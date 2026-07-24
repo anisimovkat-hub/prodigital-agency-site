@@ -205,6 +205,7 @@ export type Database = {
           estimate_minutes: number | null;
           workstream: string | null;
           parent_task_id: string | null;
+          recurring_task_id: string | null;
           is_important: boolean | null;
           is_urgent: boolean | null;
           created_at: string | null;
@@ -224,6 +225,7 @@ export type Database = {
           estimate_minutes?: number | null;
           workstream?: string | null;
           parent_task_id?: string | null;
+          recurring_task_id?: string | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
           created_at?: string | null;
@@ -243,6 +245,7 @@ export type Database = {
           estimate_minutes?: number | null;
           workstream?: string | null;
           parent_task_id?: string | null;
+          recurring_task_id?: string | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
           created_at?: string | null;
@@ -265,6 +268,83 @@ export type Database = {
           },
           {
             foreignKeyName: "tasks_creator_id_fkey";
+            columns: ["creator_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tasks_recurring_task_id_fkey";
+            columns: ["recurring_task_id"];
+            isOneToOne: false;
+            referencedRelation: "recurring_tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      recurring_tasks: {
+        Row: {
+          id: string;
+          title: string;
+          project_id: string | null;
+          workstream: string | null;
+          assignee_id: string | null;
+          creator_id: string | null;
+          task_type: Database["public"]["Enums"]["task_type"];
+          priority: Database["public"]["Enums"]["task_priority"];
+          frequency: string;
+          weekdays: number[] | null;
+          anchor_date: string;
+          is_active: boolean;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          project_id?: string | null;
+          workstream?: string | null;
+          assignee_id?: string | null;
+          creator_id?: string | null;
+          task_type?: Database["public"]["Enums"]["task_type"];
+          priority?: Database["public"]["Enums"]["task_priority"];
+          frequency: string;
+          weekdays?: number[] | null;
+          anchor_date?: string;
+          is_active?: boolean;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          project_id?: string | null;
+          workstream?: string | null;
+          assignee_id?: string | null;
+          creator_id?: string | null;
+          task_type?: Database["public"]["Enums"]["task_type"];
+          priority?: Database["public"]["Enums"]["task_priority"];
+          frequency?: string;
+          weekdays?: number[] | null;
+          anchor_date?: string;
+          is_active?: boolean;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "recurring_tasks_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "recurring_tasks_assignee_id_fkey";
+            columns: ["assignee_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "recurring_tasks_creator_id_fkey";
             columns: ["creator_id"];
             isOneToOne: false;
             referencedRelation: "profiles";

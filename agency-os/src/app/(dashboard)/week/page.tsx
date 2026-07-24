@@ -1,11 +1,16 @@
 import Link from "next/link";
 
 import { PriorityBadge } from "@/components/badges";
+import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
 import { formatDate, formatDuration, todayISO } from "@/lib/format";
 import type { Enums } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/server";
+import { filterTasksByAudience } from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
+import { cn } from "@/lib/utils";
+
+type WeekSearch = { who?: string; assignee?: string };
 
 type WeekTask = {
   id: string;
@@ -14,6 +19,8 @@ type WeekTask = {
   due_date: string | null;
   estimate_minutes: number | null;
   is_important: boolean | null;
+  project_id: string | null;
+  assignee_id: string | null;
   project: { id: string; name: string } | null;
   assignee: { id: string; full_name: string } | null;
 };
@@ -23,22 +30,38 @@ type WeekDay = {
   dateISO: string;
 };
 
-export default async function WeekPage() {
+export default async function WeekPage({
+  searchParams,
+}: {
+  searchParams: Promise<WeekSearch>;
+}) {
+  const { who, assignee } = await searchParams;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const uid = user?.id ?? "";
   const today = todayISO();
   const weekDays = getCurrentWeek(today);
   const weekStart = weekDays[0].dateISO;
   const weekEnd = weekDays.at(-1)!.dateISO;
 
-  const { data } = await supabase
-    .from("tasks")
-    .select(
-      "id,title,priority,due_date,estimate_minutes,is_important,project:projects(id,name),assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-    )
-    .neq("status", "done")
-    .order("created_at", { ascending: true });
+  const [{ data }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select(
+        "id,title,priority,due_date,estimate_minutes,is_important,project_id,assignee_id,project:projects(id,name),assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+      )
+      .neq("status", "done")
+      .order("created_at", { ascending: true }),
+    supabase.from("profiles").select("id,full_name").order("full_name"),
+  ]);
 
-  const tasks = (data ?? []) as WeekTask[];
+  const tasks = filterTasksByAudience((data ?? []) as WeekTask[], {
+    userId: uid,
+    who,
+    assigneeId: assignee,
+  });
   const overdueTasks = sortTodayTasks(
     tasks.filter((task) => task.due_date && task.due_date < today),
     today,
@@ -56,6 +79,41 @@ export default async function WeekPage() {
           Задачи на текущую неделю, с {formatShortDate(weekStart)} по{" "}
           {formatShortDate(weekEnd)}.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex gap-1 border-b border-neutral-200">
+          {[
+            { key: "all", label: "Все", href: "/week" },
+            { key: "mine", label: "Мои", href: "/week?who=mine" },
+            { key: "personal", label: "Личные", href: "/week?who=personal" },
+            { key: "team", label: "Команда", href: "/week?who=team" },
+          ].map((tab) => {
+            const activeKey = assignee ? "assignee" : who ?? "all";
+            return (
+              <Link
+                key={tab.key}
+                href={tab.href}
+                className={cn(
+                  "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                  activeKey === tab.key
+                    ? "border-neutral-900 text-neutral-900"
+                    : "border-transparent text-neutral-500 hover:text-neutral-800",
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
+        </div>
+        <FilterSelect
+          name="assignee"
+          label="Сотрудник"
+          options={(profiles ?? []).map((profile) => ({
+            value: profile.id,
+            label: profile.full_name,
+          }))}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

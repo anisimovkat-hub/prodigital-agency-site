@@ -68,6 +68,65 @@ export const TASK_STATUS_VALUES = [
   "done",
 ] as const;
 
+export const RECURRING_FREQUENCY_VALUES = [
+  "daily",
+  "every_other_day",
+  "weekly",
+] as const;
+
+export type RecurringFrequency =
+  (typeof RECURRING_FREQUENCY_VALUES)[number];
+
+const recurringWeekdaysSchema = z
+  .array(z.coerce.number().int().min(0).max(6))
+  .optional();
+
+export const createRecurringTaskSchema = z
+  .object({
+    title: z.string().trim().min(1, "Укажите название задачи"),
+    project_id: optionalUuid,
+    workstream: optionalString,
+    assignee_id: optionalUuid,
+    task_type: z.enum(TASK_TYPE_VALUES),
+    priority: z.enum(TASK_PRIORITY_VALUES),
+    frequency: z.enum(RECURRING_FREQUENCY_VALUES),
+    weekdays: recurringWeekdaysSchema,
+    anchor_date: z.string().min(1, "Укажите дату отсчёта"),
+  })
+  .superRefine((value, context) => {
+    if (value.frequency === "weekly" && !value.weekdays?.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["weekdays"],
+        message: "Выберите хотя бы один день недели",
+      });
+    }
+  });
+
+export const updateRecurringScheduleSchema = z
+  .object({
+    id: z.string().uuid("Некорректный шаблон"),
+    frequency: z.enum(RECURRING_FREQUENCY_VALUES),
+    weekdays: recurringWeekdaysSchema,
+    anchor_date: z.string().min(1, "Укажите дату отсчёта"),
+  })
+  .superRefine((value, context) => {
+    if (value.frequency === "weekly" && !value.weekdays?.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["weekdays"],
+        message: "Выберите хотя бы один день недели",
+      });
+    }
+  });
+
+export const toggleRecurringTaskSchema = z.object({
+  id: z.string().uuid("Некорректный шаблон"),
+  is_active: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true"),
+});
+
 export const createTaskSchema = z.object({
   title: z.string().trim().min(1, "Укажите название задачи"),
   project_id: z.string().uuid("Выберите проект"),

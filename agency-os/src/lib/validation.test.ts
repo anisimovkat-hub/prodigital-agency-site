@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createRecurringTaskSchema,
   createTaskSchema,
   taskAttachmentSchema,
+  updateRecurringScheduleSchema,
   updateTaskSchema,
 } from "@/lib/validation";
 
@@ -100,5 +102,44 @@ describe("taskAttachmentSchema", () => {
         url: "не ссылка",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("recurring task schemas", () => {
+  const validRecurring = {
+    title: "Опубликовать reels",
+    project_id: "00000000-0000-4000-8000-000000000001",
+    assignee_id: "00000000-0000-4000-8000-000000000002",
+    task_type: "content",
+    priority: "medium",
+    frequency: "daily",
+    weekdays: [],
+    anchor_date: "2026-07-24",
+  };
+
+  it("принимает ежедневный шаблон", () => {
+    expect(createRecurringTaskSchema.safeParse(validRecurring).success).toBe(
+      true,
+    );
+  });
+
+  it("требует дни недели для еженедельного шаблона", () => {
+    const result = createRecurringTaskSchema.safeParse({
+      ...validRecurring,
+      frequency: "weekly",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("принимает несколько дней недели", () => {
+    const result = updateRecurringScheduleSchema.parse({
+      id: "00000000-0000-4000-8000-000000000003",
+      frequency: "weekly",
+      weekdays: ["1", "3", "5"],
+      anchor_date: "2026-07-24",
+    });
+
+    expect(result.weekdays).toEqual([1, 3, 5]);
   });
 });

@@ -1,4 +1,5 @@
 import type { Enums } from "@/lib/supabase/types";
+import type { RecurringFrequency } from "@/lib/validation";
 
 export const PROJECT_HEALTH_LABEL: Record<
   Enums<"project_health">,
@@ -67,4 +68,23 @@ export const USER_ROLE_LABEL: Record<Enums<"user_role">, string> = {
   pm: "Проект-менеджер",
   specialist: "Специалист",
   viewer: "Наблюдатель",
+};
+
+export const RECURRING_FREQUENCY_LABEL: Record<
+  RecurringFrequency,
+  string
+> = {
+  daily: "Каждый день",
+  every_other_day: "Через день",
+  weekly: "По дням недели",
+};
+
+export const WEEKDAY_LABEL: Record<number, string> = {
+  1: "Пн",
+  2: "Вт",
+  3: "Ср",
+  4: "Чт",
+  5: "Пт",
+  6: "Сб",
+  0: "Вс",
 };

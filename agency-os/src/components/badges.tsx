@@ -5,6 +5,7 @@ import {
   PROJECT_STAGE_LABEL,
   TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
+  TASK_TYPE_LABEL,
 } from "@/lib/labels";
 import type { Enums } from "@/lib/supabase/types";
 
@@ -39,6 +40,10 @@ export function PriorityBadge({ priority }: { priority: Enums<"task_priority"> }
   const variant =
     priority === "urgent" ? "red" : priority === "high" ? "yellow" : "neutral";
   return <Badge variant={variant}>{TASK_PRIORITY_LABEL[priority]}</Badge>;
+}
+
+export function TaskTypeBadge({ type }: { type: Enums<"task_type"> }) {
+  return <Badge variant="neutral">{TASK_TYPE_LABEL[type]}</Badge>;
 }
 
 export function OverdueBadge() {
