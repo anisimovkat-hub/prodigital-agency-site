@@ -1,35 +1,97 @@
+import Link from "next/link";
+
 import { TodayTable } from "@/app/(dashboard)/today/today-table";
+import { FilterSelect } from "@/components/filter-select";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { createClient } from "@/lib/supabase/server";
+import { cn } from "@/lib/utils";
 
-export default async function TodayPage() {
+type TodaySearch = { who?: string; assignee?: string };
+
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<TodaySearch>;
+}) {
+  const { who, assignee } = await searchParams;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const uid = user?.id ?? "";
 
-  const { data: tasks } = await supabase
-    .from("tasks")
-    .select(
-      "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-    )
-    .neq("status", "done");
+  const [{ data: tasks }, { data: profiles }] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select(
+        "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+      )
+      .neq("status", "done"),
+    supabase.from("profiles").select("id,full_name").order("full_name"),
+  ]);
 
-  const sorted = sortTodayTasks(tasks ?? []);
+  const filtered = (tasks ?? []).filter((task) => {
+    if (assignee) return task.assignee_id === assignee;
+    if (who === "mine") return task.assignee_id === uid;
+    if (who === "personal") return task.project_id === null;
+    if (who === "team")
+      return !!task.assignee_id && task.assignee_id !== uid;
+    return true;
+  });
+
+  const sorted = sortTodayTasks(filtered);
+
+  const tabs: { key: string; label: string; href: string }[] = [
+    { key: "all", label: "Все", href: "/today" },
+    { key: "mine", label: "Мои", href: "/today?who=mine" },
+    { key: "personal", label: "Личные", href: "/today?who=personal" },
+    { key: "team", label: "Команда", href: "/today?who=team" },
+  ];
+  const activeKey = assignee ? "assignee" : who ?? "all";
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">Сегодня</h1>
         <p className="text-sm text-neutral-500">
-          Просроченные, срочные и сегодняшние задачи по всем проектам.
+          Просроченные, срочные и сегодняшние задачи — рабочие и личные.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex gap-1 border-b border-neutral-200">
+          {tabs.map((tab) => (
+            <Link
+              key={tab.key}
+              href={tab.href}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                activeKey === tab.key
+                  ? "border-neutral-900 text-neutral-900"
+                  : "border-transparent text-neutral-500 hover:text-neutral-800",
+              )}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
+        <FilterSelect
+          name="assignee"
+          label="Сотрудник"
+          options={(profiles ?? []).map((p) => ({
+            value: p.id,
+            label: p.full_name,
+          }))}
+        />
       </div>
 
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-neutral-200 bg-white py-16 text-center">
           <p className="text-base font-medium text-neutral-900">
-            Сегодня задач нет 🎉
+            Здесь задач нет 🎉
           </p>
           <p className="text-sm text-neutral-500">
-            Просроченных и срочных задач тоже нет. Можно выдохнуть.
+            По выбранному фильтру ничего не найдено.
           </p>
         </div>
       ) : (
