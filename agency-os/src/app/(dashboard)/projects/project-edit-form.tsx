@@ -42,7 +42,7 @@ export function ProjectEditForm({
           defaultValue={project.name}
           required
         />
-        <FieldErrors errors={state?.errors.name} />
+        <FieldErrors errors={state?.errors?.name} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -62,7 +62,7 @@ export function ProjectEditForm({
             </option>
           ))}
         </Select>
-        <FieldErrors errors={state?.errors.client_id} />
+        <FieldErrors errors={state?.errors?.client_id} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -134,9 +134,20 @@ export function ProjectEditForm({
       </div>
 
       <div className="col-span-2 sm:col-span-4">
+        <FieldErrors errors={state?.errors?._root} />
         <Button type="submit" disabled={pending}>
           {pending ? "Сохраняем..." : "Сохранить изменения"}
         </Button>
+        <p
+          aria-live="polite"
+          className={
+            state?.success
+              ? "mt-2 text-sm font-medium text-emerald-700"
+              : "sr-only"
+          }
+        >
+          {state?.success ? "Изменения проекта сохранены" : ""}
+        </p>
       </div>
     </form>
   );

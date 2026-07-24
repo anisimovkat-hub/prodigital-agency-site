@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
+import { TaskDueDateCell } from "@/app/(dashboard)/tasks/task-due-date-cell";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { FilterCheckbox } from "@/components/filter-checkbox";
@@ -16,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, isOverdue } from "@/lib/format";
 import {
   TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
@@ -254,16 +254,13 @@ export default async function TasksPage({
               <TableCell>
                 {TASK_TYPE_LABEL[task.task_type ?? "other"]}
               </TableCell>
-              <TableCell>
-                <span
-                  className={
-                    isOverdue(task.due_date, task.status)
-                      ? "text-red-600"
-                      : ""
-                  }
-                >
-                  {formatDate(task.due_date)}
-                </span>
+              <TableCell className="p-1">
+                <TaskDueDateCell
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  dueDate={task.due_date}
+                  status={task.status}
+                />
               </TableCell>
               <TableCell>{task.is_important ? "Да" : "—"}</TableCell>
               <TableCell>{task.is_urgent ? "Да" : "—"}</TableCell>

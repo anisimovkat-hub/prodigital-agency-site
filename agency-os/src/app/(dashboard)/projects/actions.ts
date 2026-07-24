@@ -10,7 +10,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateProjectFormState =
-  | { errors: Record<string, string[]> }
+  | { errors: Record<string, string[]>; success?: false }
+  | { errors?: undefined; success: true }
   | undefined;
 
 export async function addProject(
@@ -78,8 +79,14 @@ export async function updateProject(
   }
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { errors: { _root: ["Нет авторизации. Войдите снова."] } };
+  }
 
-  const { error } = await supabase
+  const { data: updatedProject, error } = await supabase
     .from("projects")
     .update({
       name: parsed.data.name,
@@ -90,10 +97,19 @@ export async function updateProject(
       responsible_id: parsed.data.responsible_id || null,
       short_comment: parsed.data.short_comment || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return { errors: { name: [error.message] } };
+  }
+  if (!updatedProject) {
+    return {
+      errors: {
+        _root: ["Проект не изменён: проверьте права доступа и повторите попытку"],
+      },
+    };
   }
 
   revalidatePath("/projects");
@@ -101,7 +117,7 @@ export async function updateProject(
   revalidatePath("/clients");
   revalidatePath("/");
 
-  return undefined;
+  return { success: true };
 }
 
 export type KpiFormState =

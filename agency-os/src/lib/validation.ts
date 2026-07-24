@@ -159,6 +159,11 @@ export const updateTaskSchema = z.object({
   is_urgent: z.boolean().optional(),
 });
 
+export const updateTaskDueDateSchema = z.object({
+  id: z.string().uuid("Некорректный идентификатор задачи"),
+  due_date: optionalString,
+});
+
 export const createSubtaskSchema = z.object({
   parent_task_id: z.string().uuid("Некорректная родительская задача"),
   title: z.string().trim().min(1, "Укажите название подзадачи"),

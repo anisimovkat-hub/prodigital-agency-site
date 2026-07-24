@@ -108,6 +108,16 @@ export function TaskEditor({
           />
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <span
+            aria-live="polite"
+            className={
+              state?.success
+                ? "text-xs font-medium text-emerald-700"
+                : "sr-only"
+            }
+          >
+            {state?.success ? "Сохранено" : ""}
+          </span>
           <Button type="submit" form={formId} size="sm" disabled={pending}>
             <Save className="size-3.5" aria-hidden />
             {pending ? "Сохраняем..." : "Сохранить"}

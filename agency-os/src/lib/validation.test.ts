@@ -4,6 +4,7 @@ import {
   createRecurringTaskSchema,
   createTaskSchema,
   taskAttachmentSchema,
+  updateTaskDueDateSchema,
   updateRecurringScheduleSchema,
   updateTaskSchema,
 } from "@/lib/validation";
@@ -81,6 +82,26 @@ describe("updateTaskSchema", () => {
     expect(
       updateTaskSchema.safeParse({ ...validUpdate, status: "unknown" }).success,
     ).toBe(false);
+  });
+});
+
+describe("updateTaskDueDateSchema", () => {
+  it("принимает новую дату", () => {
+    const result = updateTaskDueDateSchema.parse({
+      id: "00000000-0000-4000-8000-000000000002",
+      due_date: "2026-07-31",
+    });
+
+    expect(result.due_date).toBe("2026-07-31");
+  });
+
+  it("превращает пустую дату в undefined для очистки дедлайна", () => {
+    const result = updateTaskDueDateSchema.parse({
+      id: "00000000-0000-4000-8000-000000000002",
+      due_date: "",
+    });
+
+    expect(result.due_date).toBeUndefined();
   });
 });
 

@@ -27,7 +27,7 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="name">Название</Label>
         <Input id="name" name="name" required />
-        <FieldErrors errors={state?.errors.name} />
+        <FieldErrors errors={state?.errors?.name} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -42,7 +42,7 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
             </option>
           ))}
         </Select>
-        <FieldErrors errors={state?.errors.client_id} />
+        <FieldErrors errors={state?.errors?.client_id} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -55,7 +55,7 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
             </option>
           ))}
         </Select>
-        <FieldErrors errors={state?.errors.responsible_id} />
+        <FieldErrors errors={state?.errors?.responsible_id} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -67,7 +67,7 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
             </option>
           ))}
         </Select>
-        <FieldErrors errors={state?.errors.health} />
+        <FieldErrors errors={state?.errors?.health} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -79,13 +79,13 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
             </option>
           ))}
         </Select>
-        <FieldErrors errors={state?.errors.stage} />
+        <FieldErrors errors={state?.errors?.stage} />
       </div>
 
       <div className="flex flex-col gap-1">
         <Label htmlFor="budget">Бюджет</Label>
         <Input id="budget" name="budget" type="number" step="0.01" min={0} />
-        <FieldErrors errors={state?.errors.budget} />
+        <FieldErrors errors={state?.errors?.budget} />
       </div>
 
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">

@@ -9,6 +9,7 @@ import {
   taskAttachmentSchema,
   taskChecklistItemSchema,
   taskCommentSchema,
+  updateTaskDueDateSchema,
   updateTaskSchema,
 } from "@/lib/validation";
 import { createClient } from "@/lib/supabase/server";
@@ -112,7 +113,7 @@ export async function updateTask(
   } = await supabase.auth.getUser();
   if (!user) return { errors: { _root: ["Нет авторизации"] } };
 
-  const { error } = await supabase
+  const { data: updatedTask, error } = await supabase
     .from("tasks")
     .update({
       title: parsed.data.title,
@@ -130,10 +131,19 @@ export async function updateTask(
       completed_at:
         parsed.data.status === "done" ? new Date().toISOString() : null,
     })
-    .eq("id", parsed.data.id);
+    .eq("id", parsed.data.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     return { errors: { _root: [error.message] } };
+  }
+  if (!updatedTask) {
+    return {
+      errors: {
+        _root: ["Задача не изменена: проверьте права доступа и повторите попытку"],
+      },
+    };
   }
 
   revalidateTaskViews();
@@ -142,6 +152,54 @@ export async function updateTask(
   }
 
   return { success: true };
+}
+
+export type UpdateTaskDueDateResult =
+  | { success: true; dueDate: string | null }
+  | { success: false; error: string };
+
+export async function updateTaskDueDate(
+  taskId: string,
+  dueDate: string,
+): Promise<UpdateTaskDueDateResult> {
+  const parsed = updateTaskDueDateSchema.safeParse({
+    id: taskId,
+    due_date: dueDate,
+  });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Некорректная дата",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Нет авторизации" };
+
+  const normalizedDueDate = parsed.data.due_date ?? null;
+  const { data: updatedTask, error } = await supabase
+    .from("tasks")
+    .update({ due_date: normalizedDueDate })
+    .eq("id", parsed.data.id)
+    .select("id,due_date,project_id")
+    .maybeSingle();
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedTask) {
+    return {
+      success: false,
+      error: "Задача не изменена: проверьте права доступа",
+    };
+  }
+
+  revalidateTaskViews();
+  if (updatedTask.project_id) {
+    revalidatePath(`/projects/${updatedTask.project_id}`);
+  }
+  return { success: true, dueDate: updatedTask.due_date };
 }
 
 export async function createSubtask(
