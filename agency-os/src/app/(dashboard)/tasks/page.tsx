@@ -6,6 +6,7 @@ import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { FilterCheckbox } from "@/components/filter-checkbox";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
+import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import {
   Table,
   TableBody,
@@ -22,10 +23,10 @@ import {
   TASK_TYPE_LABEL,
 } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { completedTasksVisibleSince } from "@/lib/task-retention";
 
 type SearchParams = {
   project?: string;
-  client?: string;
   assignee?: string;
   status?: string;
   priority?: string;
@@ -33,6 +34,7 @@ type SearchParams = {
   important?: string;
   urgent?: string;
   task?: string;
+  view?: string;
 };
 
 export default async function TasksPage({
@@ -42,27 +44,39 @@ export default async function TasksPage({
 }) {
   const filters = await searchParams;
   const supabase = await createClient();
+  const isCompletedView = filters.view === "completed";
 
-  const [{ data: tasks }, { data: projects }, { data: clients }, { data: profiles }] =
-    await Promise.all([
-      supabase
-        .from("tasks")
-        .select(
-          "*, project:projects(id,name,client_id,client:clients(id,name)), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+  let tasksQuery = supabase
+    .from("tasks")
+    .select(
+      "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+    )
+    .order(isCompletedView ? "completed_at" : "created_at", {
+      ascending: false,
+      nullsFirst: false,
+    });
+
+  tasksQuery = isCompletedView
+    ? tasksQuery
+        .eq("status", "done")
+        .or(
+          `completed_at.gte.${completedTasksVisibleSince().toISOString()},completed_at.is.null`,
         )
-        .order("created_at", { ascending: false }),
+    : tasksQuery.neq("status", "done");
+
+  const [{ data: tasks }, { data: projects }, { data: profiles }] =
+    await Promise.all([
+      tasksQuery,
       supabase.from("projects").select("id,name").order("name"),
-      supabase.from("clients").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
     ]);
 
   const filtered = (tasks ?? []).filter((task) => {
     if (filters.project && task.project_id !== filters.project) return false;
-    if (filters.client && task.project?.client_id !== filters.client)
-      return false;
     if (filters.assignee && task.assignee_id !== filters.assignee)
       return false;
-    if (filters.status && task.status !== filters.status) return false;
+    if (!isCompletedView && filters.status && task.status !== filters.status)
+      return false;
     if (filters.priority && task.priority !== filters.priority) return false;
     if (filters.type && task.task_type !== filters.type) return false;
     if (filters.important === "1" && !task.is_important) return false;
@@ -75,10 +89,45 @@ export default async function TasksPage({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Задачи</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">
+          {isCompletedView ? "Выполненные задачи" : "Задачи"}
+        </h1>
         <p className="text-sm text-neutral-500">
-          Все задачи агентства с фильтрами.
+          {isCompletedView
+            ? "Задачи хранятся здесь 1 месяц, затем уходят в архив."
+            : "Активные задачи агентства с фильтрами."}
         </p>
+      </div>
+
+      <div className="flex w-fit rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+        <Link
+          href={buildHref(filters, {
+            view: undefined,
+            status: filters.status === "done" ? undefined : filters.status,
+            task: undefined,
+          })}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            !isCompletedView
+              ? "bg-white text-neutral-900 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-900"
+          }`}
+        >
+          Активные задачи
+        </Link>
+        <Link
+          href={buildHref(filters, {
+            view: "completed",
+            status: undefined,
+            task: undefined,
+          })}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            isCompletedView
+              ? "bg-white text-neutral-900 shadow-sm"
+              : "text-neutral-500 hover:text-neutral-900"
+          }`}
+        >
+          Выполненные задачи
+        </Link>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -88,11 +137,6 @@ export default async function TasksPage({
           options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
         />
         <FilterSelect
-          name="client"
-          label="Клиент"
-          options={(clients ?? []).map((c) => ({ value: c.id, label: c.name }))}
-        />
-        <FilterSelect
           name="assignee"
           label="Исполнитель"
           options={(profiles ?? []).map((p) => ({
@@ -100,11 +144,15 @@ export default async function TasksPage({
             label: p.full_name,
           }))}
         />
-        <FilterSelect
-          name="status"
-          label="Статус"
-          options={enumOptions(TASK_STATUS_LABEL)}
-        />
+        {!isCompletedView && (
+          <FilterSelect
+            name="status"
+            label="Статус"
+            options={enumOptions(TASK_STATUS_LABEL).filter(
+              ({ value }) => value !== "done",
+            )}
+          />
+        )}
         <FilterSelect
           name="priority"
           label="Приоритет"
@@ -119,27 +167,32 @@ export default async function TasksPage({
         <FilterCheckbox name="urgent" label="Срочно" />
       </div>
 
-      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
-          + Новая задача
-        </summary>
-        <div className="mt-4">
-          <TaskForm
-            projects={(projects ?? []).map((p) => ({ id: p.id, name: p.name }))}
-            profiles={(profiles ?? []).map((p) => ({
-              id: p.id,
-              full_name: p.full_name,
-            }))}
-          />
-        </div>
-      </details>
+      {!isCompletedView && (
+        <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+            + Новая задача
+          </summary>
+          <div className="mt-4">
+            <TaskForm
+              projects={(projects ?? []).map((p) => ({
+                id: p.id,
+                name: p.name,
+              }))}
+              profiles={(profiles ?? []).map((p) => ({
+                id: p.id,
+                full_name: p.full_name,
+              }))}
+            />
+          </div>
+        </details>
+      )}
 
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-16 text-center">Готово</TableHead>
             <TableHead>Задача</TableHead>
             <TableHead>Проект</TableHead>
-            <TableHead>Клиент</TableHead>
             <TableHead>Исполнитель</TableHead>
             <TableHead>Статус</TableHead>
             <TableHead>Приоритет</TableHead>
@@ -150,9 +203,26 @@ export default async function TasksPage({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filtered.length === 0 && <TableEmpty colSpan={10} />}
+          {filtered.length === 0 && (
+            <TableEmpty colSpan={10}>
+              {isCompletedView
+                ? "Выполненных задач за последний месяц нет."
+                : "Активных задач пока нет."}
+            </TableEmpty>
+          )}
           {filtered.map((task) => (
             <TableRow key={task.id}>
+              <TableCell className="text-center">
+                <TaskDoneCheckbox
+                  taskId={task.id}
+                  done={task.status === "done"}
+                  label={
+                    task.status === "done"
+                      ? `Вернуть задачу «${task.title}» в активные`
+                      : `Отметить задачу «${task.title}» выполненной`
+                  }
+                />
+              </TableCell>
               <TableCell className="font-medium text-neutral-900">
                 <Link
                   href={buildHref(filters, { task: task.id })}
@@ -174,7 +244,6 @@ export default async function TasksPage({
                   <ProjectBadge projectId={null} name={null} />
                 )}
               </TableCell>
-              <TableCell>{task.project?.client?.name ?? "—"}</TableCell>
               <TableCell>{task.assignee?.full_name ?? "—"}</TableCell>
               <TableCell>
                 <TaskStatusBadge status={task.status ?? "todo"} />

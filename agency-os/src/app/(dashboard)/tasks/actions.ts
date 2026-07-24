@@ -159,7 +159,12 @@ export async function updateTaskStatus(taskId: string, status: string) {
 
 export async function toggleTaskDone(taskId: string, done: boolean) {
   const supabase = await createClient();
-  await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false };
+
+  const { error } = await supabase
     .from("tasks")
     .update({
       status: done ? "done" : "todo",
@@ -167,10 +172,16 @@ export async function toggleTaskDone(taskId: string, done: boolean) {
     })
     .eq("id", taskId);
 
+  if (error) return { success: false };
+
   revalidatePath("/today");
   revalidatePath("/tasks");
   revalidatePath("/week");
+  revalidatePath("/board");
+  revalidatePath("/personal");
   revalidatePath("/");
+
+  return { success: true };
 }
 
 export async function toggleChecklistItem(itemId: string, isDone: boolean) {
