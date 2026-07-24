@@ -76,6 +76,7 @@ export const createTaskSchema = z.object({
   priority: z.enum(TASK_PRIORITY_VALUES),
   due_date: optionalString,
   estimate_minutes: estimateMinutesFromHoursSchema,
+  workstream: optionalString,
   description: optionalString,
   is_important: z.boolean().optional(),
   is_urgent: z.boolean().optional(),
@@ -93,9 +94,17 @@ export const updateTaskSchema = z.object({
   priority: z.enum(TASK_PRIORITY_VALUES),
   due_date: optionalString,
   estimate_minutes: estimateMinutesFromHoursSchema,
+  workstream: optionalString,
   description: optionalString,
   is_important: z.boolean().optional(),
   is_urgent: z.boolean().optional(),
+});
+
+export const createSubtaskSchema = z.object({
+  parent_task_id: z.string().uuid("Некорректная родительская задача"),
+  title: z.string().trim().min(1, "Укажите название подзадачи"),
+  assignee_id: optionalUuid,
+  due_date: optionalString,
 });
 
 export const taskChecklistItemSchema = z.object({

@@ -4,6 +4,7 @@ import {
   ExternalLink,
   Link2,
   ListChecks,
+  ListTree,
   MessageSquare,
   Paperclip,
   Save,
@@ -16,6 +17,7 @@ import {
   addChecklistItem,
   addTaskAttachment,
   addTaskComment,
+  createSubtask,
   deleteTaskAttachment,
   updateTask,
   updateTaskAttachment,
@@ -24,6 +26,7 @@ import {
 } from "@/app/(dashboard)/tasks/actions";
 import { Avatar } from "@/components/avatar";
 import { ChecklistItemCheckbox } from "@/components/checklist-item-checkbox";
+import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import { ProjectBadge } from "@/components/project-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -53,6 +56,13 @@ type TaskComment = Tables<"task_comments"> & {
   author: { full_name: string } | null;
 };
 
+export type SubtaskRow = {
+  id: string;
+  title: string;
+  status: Tables<"tasks">["status"];
+  assignee: { id: string; full_name: string } | null;
+};
+
 type TaskEditorProps = {
   task: EditableTask;
   projects: { id: string; name: string }[];
@@ -60,6 +70,8 @@ type TaskEditorProps = {
   checklist: Tables<"task_checklist_items">[];
   comments: TaskComment[];
   attachments: Tables<"task_attachments">[];
+  subtasks: SubtaskRow[];
+  workstreamOptions: string[];
   closeHref: string;
 };
 
@@ -70,6 +82,8 @@ export function TaskEditor({
   checklist,
   comments,
   attachments,
+  subtasks,
+  workstreamOptions,
   closeHref,
 }: TaskEditorProps) {
   const formId = `task-editor-${task.id}`;
@@ -237,6 +251,22 @@ export function TaskEditor({
               />
               <FieldErrors errors={state?.errors?.estimate_minutes} />
             </EditorField>
+
+            <EditorField label="Направление" htmlFor={`${formId}-workstream`}>
+              <Input
+                id={`${formId}-workstream`}
+                name="workstream"
+                list={`${formId}-workstream-options`}
+                defaultValue={task.workstream ?? ""}
+                placeholder="Напр. Сайт или Таргет"
+              />
+              <datalist id={`${formId}-workstream-options`}>
+                {workstreamOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+              <FieldErrors errors={state?.errors?.workstream} />
+            </EditorField>
           </div>
 
           <div className="flex flex-wrap gap-5 rounded-md bg-neutral-50 px-3 py-2.5">
@@ -305,11 +335,92 @@ export function TaskEditor({
           </Button>
         </form>
 
+        <SubtasksSection
+          taskId={task.id}
+          subtasks={subtasks}
+          profiles={profiles}
+        />
         <ChecklistSection taskId={task.id} checklist={checklist} />
         <CommentsSection taskId={task.id} comments={comments} />
         <AttachmentsSection taskId={task.id} attachments={attachments} />
       </div>
     </aside>
+  );
+}
+
+function SubtasksSection({
+  taskId,
+  subtasks,
+  profiles,
+}: {
+  taskId: string;
+  subtasks: SubtaskRow[];
+  profiles: { id: string; full_name: string }[];
+}) {
+  const [state, formAction, pending] = useActionState<
+    TaskRelatedFormState,
+    FormData
+  >(createSubtask, undefined);
+  const formRef = useRef<HTMLFormElement>(null);
+  useResetFormOnSuccess(formRef, state);
+
+  return (
+    <EditorSection icon={ListTree} title="Подзадачи">
+      <ul className="flex flex-col gap-1.5">
+        {subtasks.length === 0 && (
+          <li className="text-sm text-neutral-400">Подзадач пока нет</li>
+        )}
+        {subtasks.map((subtask) => (
+          <li
+            key={subtask.id}
+            className="flex items-center gap-2 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1.5 text-sm"
+          >
+            <TaskDoneCheckbox
+              taskId={subtask.id}
+              done={subtask.status === "done"}
+            />
+            <Link
+              href={`/tasks?task=${subtask.id}`}
+              className={
+                subtask.status === "done"
+                  ? "flex-1 truncate text-neutral-400 line-through hover:underline"
+                  : "flex-1 truncate text-neutral-800 hover:underline"
+              }
+            >
+              {subtask.title}
+            </Link>
+            {subtask.assignee && (
+              <span className="flex shrink-0 items-center gap-1 text-xs text-neutral-500">
+                <Avatar name={subtask.assignee.full_name} />
+                {subtask.assignee.full_name.split(" ")[0]}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      <form
+        ref={formRef}
+        action={formAction}
+        className="mt-3 grid gap-2 sm:grid-cols-[2fr_1fr_auto]"
+      >
+        <input type="hidden" name="parent_task_id" value={taskId} />
+        <Input name="title" placeholder="Новая подзадача" />
+        <Select name="assignee_id" defaultValue="" aria-label="Исполнитель подзадачи">
+          <option value="">Исполнитель…</option>
+          {profiles.map((profile) => (
+            <option key={profile.id} value={profile.id}>
+              {profile.full_name}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" size="sm" variant="outline" disabled={pending}>
+          {pending ? "Добавляем..." : "Добавить"}
+        </Button>
+        <div className="sm:col-span-3">
+          <RelatedErrors state={state} />
+        </div>
+      </form>
+    </EditorSection>
   );
 }
 

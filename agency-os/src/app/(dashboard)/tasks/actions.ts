@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import {
+  createSubtaskSchema,
   createTaskSchema,
   flattenZodErrors,
   taskAttachmentSchema,
@@ -38,6 +39,7 @@ export async function createTask(
     priority: formData.get("priority"),
     due_date: formData.get("due_date"),
     estimate_minutes: formData.get("estimate_hours"),
+    workstream: formData.get("workstream"),
     description: formData.get("description"),
     is_important: formData.get("is_important") === "on",
     is_urgent: formData.get("is_urgent") === "on",
@@ -60,6 +62,7 @@ export async function createTask(
     priority: parsed.data.priority,
     due_date: parsed.data.due_date || null,
     estimate_minutes: parsed.data.estimate_minutes,
+    workstream: parsed.data.workstream || null,
     description: parsed.data.description || null,
     is_important: parsed.data.is_important ?? false,
     is_urgent: parsed.data.is_urgent ?? false,
@@ -93,6 +96,7 @@ export async function updateTask(
     priority: formData.get("priority"),
     due_date: formData.get("due_date"),
     estimate_minutes: formData.get("estimate_hours"),
+    workstream: formData.get("workstream"),
     description: formData.get("description"),
     is_important: formData.get("is_important") === "on",
     is_urgent: formData.get("is_urgent") === "on",
@@ -119,6 +123,7 @@ export async function updateTask(
       priority: parsed.data.priority,
       due_date: parsed.data.due_date ?? null,
       estimate_minutes: parsed.data.estimate_minutes,
+      workstream: parsed.data.workstream ?? null,
       description: parsed.data.description ?? null,
       is_important: parsed.data.is_important ?? false,
       is_urgent: parsed.data.is_urgent ?? false,
@@ -136,6 +141,52 @@ export async function updateTask(
     revalidatePath(`/projects/${parsed.data.project_id}`);
   }
 
+  return { success: true };
+}
+
+export async function createSubtask(
+  _prevState: TaskRelatedFormState,
+  formData: FormData,
+): Promise<TaskRelatedFormState> {
+  const parsed = createSubtaskSchema.safeParse({
+    parent_task_id: formData.get("parent_task_id"),
+    title: formData.get("title"),
+    assignee_id: formData.get("assignee_id"),
+    due_date: formData.get("due_date"),
+  });
+  if (!parsed.success) {
+    return { errors: parsed.error.issues.map((issue) => issue.message) };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { errors: ["Нет авторизации"] };
+
+  // Подзадача наследует проект и направление родителя — так работают RLS и группировка
+  const { data: parent } = await supabase
+    .from("tasks")
+    .select("project_id, workstream")
+    .eq("id", parsed.data.parent_task_id)
+    .maybeSingle();
+  if (!parent) return { errors: ["Родительская задача не найдена"] };
+
+  const { error } = await supabase.from("tasks").insert({
+    title: parsed.data.title,
+    parent_task_id: parsed.data.parent_task_id,
+    project_id: parent.project_id,
+    workstream: parent.workstream,
+    assignee_id: parsed.data.assignee_id || null,
+    due_date: parsed.data.due_date || null,
+    creator_id: user.id,
+    task_type: "other",
+    priority: "medium",
+  });
+
+  if (error) return { errors: [error.message] };
+  revalidateTaskViews();
+  if (parent.project_id) revalidatePath(`/projects/${parent.project_id}`);
   return { success: true };
 }
 

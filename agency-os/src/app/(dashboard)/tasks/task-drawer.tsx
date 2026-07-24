@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   TaskEditor,
   type EditableTask,
+  type SubtaskRow,
 } from "@/app/(dashboard)/tasks/task-editor";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,8 +21,10 @@ export async function TaskDrawer({
     { data: checklist },
     { data: comments },
     { data: attachments },
+    { data: subtasks },
     { data: projects },
     { data: profiles },
+    { data: workstreamRows },
   ] = await Promise.all([
       supabase
         .from("tasks")
@@ -45,11 +48,27 @@ export async function TaskDrawer({
         .select("*")
         .eq("task_id", taskId)
         .order("created_at"),
+      supabase
+        .from("tasks")
+        .select(
+          "id,title,status,assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+        )
+        .eq("parent_task_id", taskId)
+        .order("created_at"),
       supabase.from("projects").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase.from("tasks").select("workstream").not("workstream", "is", null),
     ]);
 
   if (!task) return null;
+
+  const workstreamOptions = [
+    ...new Set(
+      (workstreamRows ?? [])
+        .map((row) => row.workstream)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ].sort();
 
   return (
     <>
@@ -66,6 +85,8 @@ export async function TaskDrawer({
         checklist={checklist ?? []}
         comments={comments ?? []}
         attachments={attachments ?? []}
+        subtasks={(subtasks ?? []) as SubtaskRow[]}
+        workstreamOptions={workstreamOptions}
         closeHref={closeHref}
       />
     </>

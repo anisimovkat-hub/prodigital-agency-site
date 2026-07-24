@@ -203,6 +203,8 @@ export type Database = {
           task_type: Database["public"]["Enums"]["task_type"] | null;
           due_date: string | null;
           estimate_minutes: number | null;
+          workstream: string | null;
+          parent_task_id: string | null;
           is_important: boolean | null;
           is_urgent: boolean | null;
           created_at: string | null;
@@ -220,6 +222,8 @@ export type Database = {
           task_type?: Database["public"]["Enums"]["task_type"] | null;
           due_date?: string | null;
           estimate_minutes?: number | null;
+          workstream?: string | null;
+          parent_task_id?: string | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
           created_at?: string | null;
@@ -237,6 +241,8 @@ export type Database = {
           task_type?: Database["public"]["Enums"]["task_type"] | null;
           due_date?: string | null;
           estimate_minutes?: number | null;
+          workstream?: string | null;
+          parent_task_id?: string | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
           created_at?: string | null;

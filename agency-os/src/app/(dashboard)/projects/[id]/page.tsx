@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { KpiForm } from "@/app/(dashboard)/projects/kpi-form";
 import { NotesTabs } from "@/app/(dashboard)/projects/notes-tabs";
+import { ProjectEditForm } from "@/app/(dashboard)/projects/project-edit-form";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { Avatar } from "@/components/avatar";
 import {
@@ -53,6 +54,7 @@ export default async function ProjectDetailPage({
     { data: tasks },
     { data: notes },
     { data: profiles },
+    { data: clients },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -79,6 +81,7 @@ export default async function ProjectDetailPage({
       .eq("project_id", id)
       .order("created_at", { ascending: false }),
     supabase.from("profiles").select("id,full_name").order("full_name"),
+    supabase.from("clients").select("id,name").order("name"),
   ]);
 
   if (!project) notFound();
@@ -97,6 +100,22 @@ export default async function ProjectDetailPage({
         <HealthBadge health={project.health ?? "green"} />
         <ProjectStageBadge stage={project.stage ?? "active"} />
       </div>
+
+      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          Редактировать проект
+        </summary>
+        <div className="mt-4">
+          <ProjectEditForm
+            project={project}
+            clients={(clients ?? []).map((c) => ({ id: c.id, name: c.name }))}
+            profiles={(profiles ?? []).map((p) => ({
+              id: p.id,
+              full_name: p.full_name,
+            }))}
+          />
+        </div>
+      </details>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>

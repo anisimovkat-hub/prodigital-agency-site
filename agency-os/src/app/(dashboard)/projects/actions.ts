@@ -54,6 +54,56 @@ export async function addProject(
   return undefined;
 }
 
+export async function updateProject(
+  _prevState: CreateProjectFormState,
+  formData: FormData,
+): Promise<CreateProjectFormState> {
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) {
+    return { errors: { name: ["Некорректный проект"] } };
+  }
+
+  const parsed = createProjectSchema.safeParse({
+    name: formData.get("name"),
+    client_id: formData.get("client_id"),
+    health: formData.get("health"),
+    stage: formData.get("stage"),
+    budget: formData.get("budget"),
+    responsible_id: formData.get("responsible_id"),
+    short_comment: formData.get("short_comment"),
+  });
+
+  if (!parsed.success) {
+    return { errors: flattenZodErrors(parsed.error) };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      name: parsed.data.name,
+      client_id: parsed.data.client_id,
+      health: parsed.data.health,
+      stage: parsed.data.stage,
+      budget: parsed.data.budget ?? null,
+      responsible_id: parsed.data.responsible_id || null,
+      short_comment: parsed.data.short_comment || null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return { errors: { name: [error.message] } };
+  }
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${id}`);
+  revalidatePath("/clients");
+  revalidatePath("/");
+
+  return undefined;
+}
+
 export type KpiFormState =
   | { errors: Record<string, string[]> }
   | undefined;

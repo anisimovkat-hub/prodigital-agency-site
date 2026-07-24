@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ClientEditForm } from "@/app/(dashboard)/clients/client-edit-form";
 import { ClientStatusBadge, HealthBadge, ProjectStageBadge } from "@/components/badges";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -54,6 +55,15 @@ export default async function ClientDetailPage({
         </h1>
         <ClientStatusBadge status={client.status ?? "active"} />
       </div>
+
+      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          Редактировать клиента
+        </summary>
+        <div className="mt-4">
+          <ClientEditForm client={client} />
+        </div>
+      </details>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
