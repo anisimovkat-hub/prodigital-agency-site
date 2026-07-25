@@ -37,9 +37,34 @@ type DashTask = {
   is_urgent: boolean | null;
   assignee_id: string | null;
   creator_id: string | null;
+  project_id: string | null;
   assignee: { id: string; full_name: string } | null;
   project: { id: string; name: string } | null;
 };
+
+function DayTaskRow({ task, today }: { task: DashTask; today: string }) {
+  const overdue = !!task.due_date && task.due_date < today;
+  return (
+    <li className="flex items-center gap-2 py-2">
+      <Link
+        href={`/tasks?task=${task.id}`}
+        className="min-w-0 flex-1 truncate text-sm text-neutral-800 hover:underline"
+      >
+        {task.title}
+      </Link>
+      <ProjectBadge
+        projectId={task.project?.id}
+        name={task.project?.name ?? "Личное"}
+        className="max-w-36 shrink-0"
+      />
+      <span
+        className={`shrink-0 text-xs ${overdue ? "text-red-600" : "text-neutral-500"}`}
+      >
+        {formatDate(task.due_date)}
+      </span>
+    </li>
+  );
+}
 
 export default async function DashboardPage({
   searchParams,
@@ -182,13 +207,14 @@ export default async function DashboardPage({
   const byDue = (a: DashTask, b: DashTask) =>
     (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1;
 
-  const myDay = allTasks
+  const myToday = allTasks
+    .filter((t) => isOpen(t) && t.assignee_id === uid && t.due_date === today)
+    .sort(byDue);
+
+  const myOverdue = allTasks
     .filter(
       (t) =>
-        isOpen(t) &&
-        t.assignee_id === uid &&
-        !!t.due_date &&
-        t.due_date <= today,
+        isOpen(t) && t.assignee_id === uid && !!t.due_date && t.due_date < today,
     )
     .sort(byDue);
 
@@ -219,6 +245,62 @@ export default async function DashboardPage({
     })
     .sort((a, b) => a.open - b.open);
 
+  // ── Требует внимания ──
+  const unassigned = allTasks.filter(
+    (t) => isOpen(t) && !!t.project_id && !t.assignee_id,
+  );
+  const projectsWithOpenTask = new Set<string>();
+  for (const t of allTasks) {
+    if (isOpen(t) && t.project_id) projectsWithOpenTask.add(t.project_id);
+  }
+  const activeProjects = (projects ?? []).filter((p) => p.stage === "active");
+  const redProjects = activeProjects.filter((p) => p.health === "red");
+  const quietProjects = activeProjects.filter(
+    (p) => !projectsWithOpenTask.has(p.id),
+  );
+
+  const attentionTones = {
+    red: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+    amber: "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
+  } as const;
+  const attention = [
+    {
+      key: "my-overdue",
+      count: myOverdue.length,
+      label: "Мои просроченные",
+      href: "/today?who=mine",
+      tone: "red" as const,
+    },
+    {
+      key: "delegated-overdue",
+      count: staleDelegated.length,
+      label: "Делегированные просрочены",
+      href: "/personal?view=delegated",
+      tone: "red" as const,
+    },
+    {
+      key: "red-projects",
+      count: redProjects.length,
+      label: "Проекты в красной зоне",
+      href: "/?health=red",
+      tone: "red" as const,
+    },
+    {
+      key: "unassigned",
+      count: unassigned.length,
+      label: "Задачи без исполнителя",
+      href: "/tasks",
+      tone: "amber" as const,
+    },
+    {
+      key: "quiet-projects",
+      count: quietProjects.length,
+      label: "Проекты без активных задач",
+      href: "/projects",
+      tone: "amber" as const,
+    },
+  ].filter((item) => item.count > 0);
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -246,6 +328,36 @@ export default async function DashboardPage({
         ))}
       </div>
 
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="mb-3 text-sm font-semibold text-neutral-900">
+            Требует внимания
+          </h2>
+          {attention.length === 0 ? (
+            <p className="rounded-md bg-emerald-50 px-3 py-4 text-center text-sm font-medium text-emerald-700">
+              Всё под контролем 👍
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {attention.map((item) => (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-md border px-3 py-2.5 transition-colors ${attentionTones[item.tone]}`}
+                >
+                  <span className="text-2xl font-semibold tabular-nums">
+                    {item.count}
+                  </span>
+                  <span className="text-sm font-medium leading-tight">
+                    {item.label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardContent className="p-4">
@@ -266,38 +378,29 @@ export default async function DashboardPage({
                 className="mb-4 border-b border-neutral-100 pb-4"
               />
             )}
+            {myOverdue.length > 0 && (
+              <div className="mb-3">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-red-500">
+                  Просрочено · {myOverdue.length}
+                </p>
+                <ul className="flex flex-col divide-y divide-neutral-100">
+                  {myOverdue.map((task) => (
+                    <DayTaskRow key={task.id} task={task} today={today} />
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">
-              Задачи
+              Сегодня
             </p>
-            {myDay.length === 0 ? (
+            {myToday.length === 0 ? (
               <p className="py-6 text-center text-sm text-neutral-400">
-                На сегодня у вас задач нет 🎉
+                На сегодня задач нет 🎉
               </p>
             ) : (
               <ul className="flex flex-col divide-y divide-neutral-100">
-                {myDay.map((task) => (
-                  <li key={task.id} className="flex items-center gap-2 py-2">
-                    <Link
-                      href={`/tasks?task=${task.id}`}
-                      className="min-w-0 flex-1 truncate text-sm text-neutral-800 hover:underline"
-                    >
-                      {task.title}
-                    </Link>
-                    <ProjectBadge
-                      projectId={task.project?.id}
-                      name={task.project?.name ?? "Личное"}
-                      className="max-w-36 shrink-0"
-                    />
-                    <span
-                      className={`shrink-0 text-xs ${
-                        task.due_date && task.due_date < today
-                          ? "text-red-600"
-                          : "text-neutral-500"
-                      }`}
-                    >
-                      {formatDate(task.due_date)}
-                    </span>
-                  </li>
+                {myToday.map((task) => (
+                  <DayTaskRow key={task.id} task={task} today={today} />
                 ))}
               </ul>
             )}
