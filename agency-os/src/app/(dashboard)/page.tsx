@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FilterSelect } from "@/components/filter-select";
 import { HealthBadge } from "@/components/badges";
+import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProjectBadge } from "@/components/project-badge";
 import {
@@ -14,12 +15,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  dateISOInTimeZone,
+} from "@/lib/calendar-events";
+import {
   formatCurrency,
   formatDate,
   formatNumber,
   formatPercent,
   todayISO,
 } from "@/lib/format";
+import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { PROJECT_HEALTH_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import type { Enums } from "@/lib/supabase/types";
@@ -72,7 +77,14 @@ export default async function DashboardPage({
     supabase.from("profiles").select("id,full_name,role").order("full_name"),
   ]);
 
-  const today = todayISO();
+  const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
+  const showPersonalCalendar = currentProfile?.role === "owner";
+  const today = showPersonalCalendar
+    ? dateISOInTimeZone(new Date())
+    : todayISO();
+  const calendar = showPersonalCalendar
+    ? await getPersonalCalendarEvents(today, today)
+    : null;
   const activeProjectsCount = (projects ?? []).filter(
     (project) => project.stage === "active",
   ).length;
@@ -245,6 +257,18 @@ export default async function DashboardPage({
                 сегодня и просроченное
               </span>
             </div>
+            {calendar && calendar.events.length > 0 && (
+              <PersonalCalendarSchedule
+                events={calendar.events}
+                timeZone={calendar.timeZone}
+                title="Расписание"
+                compact
+                className="mb-4 border-b border-neutral-100 pb-4"
+              />
+            )}
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">
+              Задачи
+            </p>
             {myDay.length === 0 ? (
               <p className="py-6 text-center text-sm text-neutral-400">
                 На сегодня у вас задач нет 🎉

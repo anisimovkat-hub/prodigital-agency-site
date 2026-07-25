@@ -1,6 +1,15 @@
 # Agency OS — заметка-память
 
-Обновлено: 2026-07-24 (вечер)
+Обновлено: 2026-07-25
+
+## Свежее (2026-07-25, личный Google Calendar)
+- Личный Google Calendar Катерины подключён read-only через server-only iCal: события видны
+  только владельцу в «Сегодня», «Неделе», «Личном» и блоке дашборда «Мой день».
+- Питание, спорт, звонки, встречи, поездки, здоровье и прочие события имеют разные цветные
+  карточки; повторяющиеся события/исключения и часовой пояс `Asia/Bangkok` поддержаны.
+- Календарные события не дублируются в `tasks` и редактируются в Google Calendar. Закрытый URL
+  хранится только в sensitive env Vercel `GOOGLE_CALENDAR_ICAL_URL`, в Git его нет.
+- `node-ical` добавлен для RFC 5545/RRULE; парсер и классификация покрыты unit-тестами.
 
 ## Свежее (2026-07-24, надёжное сохранение)
 - Проверено на production: смена ответственного проекта «Сад на Бали // Единорожки» на Инну
@@ -61,7 +70,7 @@
   signup проверен, тестовые записи удалены.
 - Vercel связан с GitHub: Production Branch = `claude/agency-ops-mvp-design-ykrrn0`,
   Root Directory = `agency-os`; `main` для production не используется. Production env Supabase
-  находятся в Vercel Project Settings.
+  и закрытый URL личного Google Calendar находятся в Vercel Project Settings.
 - Supabase Auth настроен: Site URL — корень production-домена, redirect `/**` добавлен,
   Confirm email выключен. Ручных шагов по этим настройкам нет.
 - Следующие задачи: реальные email сотрудников, UI смены пароля, ответственные для проектов без

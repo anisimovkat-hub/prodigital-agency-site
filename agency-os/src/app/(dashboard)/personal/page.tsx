@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { PersonalTaskForm } from "@/app/(dashboard)/personal/personal-form";
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
+import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import {
   Table,
@@ -13,6 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, isOverdue } from "@/lib/format";
+import { dateISOInTimeZone } from "@/lib/calendar-events";
+import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { createClient } from "@/lib/supabase/server";
 import type { Enums } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
@@ -42,24 +45,33 @@ export default async function PersonalPage({
   } = await supabase.auth.getUser();
   const uid = user!.id;
 
-  const { data: mine } = await supabase
-    .from("tasks")
-    .select(
-      "id,title,description,status,priority,due_date, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-    )
-    .is("project_id", null)
-    .eq("assignee_id", uid)
-    .order("created_at", { ascending: false });
+  const [{ data: mine }, { data: handed }, { data: profile }] =
+    await Promise.all([
+      supabase
+        .from("tasks")
+        .select(
+          "id,title,description,status,priority,due_date, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+        )
+        .is("project_id", null)
+        .eq("assignee_id", uid)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select(
+          "id,title,description,status,priority,due_date, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+        )
+        .eq("creator_id", uid)
+        .neq("assignee_id", uid)
+        .not("assignee_id", "is", null)
+        .order("created_at", { ascending: false }),
+      supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),
+    ]);
 
-  const { data: handed } = await supabase
-    .from("tasks")
-    .select(
-      "id,title,description,status,priority,due_date, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-    )
-    .eq("creator_id", uid)
-    .neq("assignee_id", uid)
-    .not("assignee_id", "is", null)
-    .order("created_at", { ascending: false });
+  const calendarToday = dateISOInTimeZone(new Date());
+  const calendar =
+    profile?.role === "owner" && !delegated
+      ? await getPersonalCalendarEvents(calendarToday, calendarToday)
+      : null;
 
   const tasks = (delegated ? handed : mine) ?? [];
 
@@ -80,6 +92,16 @@ export default async function PersonalPage({
           Делегированные ({(handed ?? []).length})
         </Tab>
       </div>
+
+      {calendar && calendar.events.length > 0 && (
+        <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+          <PersonalCalendarSchedule
+            events={calendar.events}
+            timeZone={calendar.timeZone}
+            title="Моё расписание на сегодня"
+          />
+        </div>
+      )}
 
       {!delegated && (
         <details className="group rounded-lg border border-neutral-200 bg-white p-4">

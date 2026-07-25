@@ -2,8 +2,11 @@ import Link from "next/link";
 
 import { PriorityBadge } from "@/components/badges";
 import { FilterSelect } from "@/components/filter-select";
+import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { ProjectBadge } from "@/components/project-badge";
+import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { formatDate, formatDuration, todayISO } from "@/lib/format";
+import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import type { Enums } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/server";
 import { filterTasksByAudience } from "@/lib/task-audience-filter";
@@ -41,10 +44,6 @@ export default async function WeekPage({
     data: { user },
   } = await supabase.auth.getUser();
   const uid = user?.id ?? "";
-  const today = todayISO();
-  const weekDays = getCurrentWeek(today);
-  const weekStart = weekDays[0].dateISO;
-  const weekEnd = weekDays.at(-1)!.dateISO;
 
   const [{ data }, { data: profiles }] = await Promise.all([
     supabase
@@ -54,8 +53,21 @@ export default async function WeekPage({
       )
       .neq("status", "done")
       .order("created_at", { ascending: true }),
-    supabase.from("profiles").select("id,full_name").order("full_name"),
+    supabase.from("profiles").select("id,full_name,role").order("full_name"),
   ]);
+
+  const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
+  const showPersonalCalendar =
+    currentProfile?.role === "owner" && !assignee && who !== "team";
+  const today = showPersonalCalendar
+    ? dateISOInTimeZone(new Date())
+    : todayISO();
+  const weekDays = getCurrentWeek(today);
+  const weekStart = weekDays[0].dateISO;
+  const weekEnd = weekDays.at(-1)!.dateISO;
+  const calendar = showPersonalCalendar
+    ? await getPersonalCalendarEvents(weekStart, weekEnd)
+    : null;
 
   const tasks = filterTasksByAudience((data ?? []) as WeekTask[], {
     userId: uid,
@@ -76,8 +88,8 @@ export default async function WeekPage({
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">Неделя</h1>
         <p className="text-sm text-neutral-500">
-          Задачи на текущую неделю, с {formatShortDate(weekStart)} по{" "}
-          {formatShortDate(weekEnd)}.
+          Задачи и личное расписание на текущую неделю, с{" "}
+          {formatShortDate(weekStart)} по {formatShortDate(weekEnd)}.
         </p>
       </div>
 
@@ -132,6 +144,9 @@ export default async function WeekPage({
               today,
             );
             const totalEstimate = sumEstimate(dayTasks);
+            const dayEvents =
+              calendar?.events.filter((event) => event.date === day.dateISO) ??
+              [];
 
             return (
               <section
@@ -142,10 +157,18 @@ export default async function WeekPage({
                   {formatDayHeading(day.date)} · Σ{" "}
                   {formatDuration(totalEstimate)}
                 </h2>
+                {dayEvents.length > 0 && (
+                  <PersonalCalendarSchedule
+                    events={dayEvents}
+                    timeZone={calendar?.timeZone ?? "Asia/Bangkok"}
+                    compact
+                    showHeading={false}
+                  />
+                )}
                 {dayTasks.map((task) => (
                   <WeekTaskCard key={task.id} task={task} />
                 ))}
-                {dayTasks.length === 0 && (
+                {dayTasks.length === 0 && dayEvents.length === 0 && (
                   <p className="px-1 py-3 text-xs text-neutral-400">Свободно</p>
                 )}
               </section>

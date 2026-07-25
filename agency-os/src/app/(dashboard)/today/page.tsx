@@ -2,6 +2,9 @@ import Link from "next/link";
 
 import { TodayTable } from "@/app/(dashboard)/today/today-table";
 import { FilterSelect } from "@/components/filter-select";
+import { PersonalCalendarSchedule } from "@/components/personal-calendar";
+import { dateISOInTimeZone } from "@/lib/calendar-events";
+import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { filterTasksByAudience } from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { createClient } from "@/lib/supabase/server";
@@ -28,8 +31,16 @@ export default async function TodayPage({
         "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
       )
       .neq("status", "done"),
-    supabase.from("profiles").select("id,full_name").order("full_name"),
+    supabase.from("profiles").select("id,full_name,role").order("full_name"),
   ]);
+
+  const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
+  const showPersonalCalendar =
+    currentProfile?.role === "owner" && !assignee && who !== "team";
+  const calendarToday = dateISOInTimeZone(new Date());
+  const calendar = showPersonalCalendar
+    ? await getPersonalCalendarEvents(calendarToday, calendarToday)
+    : null;
 
   const filtered = filterTasksByAudience(tasks ?? [], {
     userId: uid,
@@ -82,6 +93,15 @@ export default async function TodayPage({
           }))}
         />
       </div>
+
+      {calendar && calendar.events.length > 0 && (
+        <div className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+          <PersonalCalendarSchedule
+            events={calendar.events}
+            timeZone={calendar.timeZone}
+          />
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-neutral-200 bg-white py-16 text-center">
