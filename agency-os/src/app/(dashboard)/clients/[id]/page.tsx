@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/server";
 const LINK_LABELS: Record<string, string> = {
   website: "Сайт",
   ad_accounts: "Рекламные кабинеты",
+  drive: "Материалы (Диск)",
   sheets: "Таблицы",
   reports: "Отчёты",
   telegram: "Telegram",
