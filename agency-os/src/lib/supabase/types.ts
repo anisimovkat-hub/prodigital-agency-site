@@ -108,6 +108,7 @@ export type Database = {
           responsible_id: string | null;
           short_comment: string | null;
           links: Json | null;
+          ad_platforms: string | null;
           started_at: string | null;
           created_at: string | null;
           updated_at: string | null;
@@ -122,6 +123,7 @@ export type Database = {
           responsible_id?: string | null;
           short_comment?: string | null;
           links?: Json | null;
+          ad_platforms?: string | null;
           started_at?: string | null;
           created_at?: string | null;
           updated_at?: string | null;
@@ -136,6 +138,7 @@ export type Database = {
           responsible_id?: string | null;
           short_comment?: string | null;
           links?: Json | null;
+          ad_platforms?: string | null;
           started_at?: string | null;
           created_at?: string | null;
           updated_at?: string | null;

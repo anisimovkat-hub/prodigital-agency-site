@@ -139,6 +139,7 @@ export default async function ProjectDetailPage({
             <Row label="Ответственный">
               {project.responsible?.full_name ?? "—"}
             </Row>
+            <Row label="Площадки">{project.ad_platforms ?? "—"}</Row>
             <Row label="Бюджет">{formatCurrency(project.budget)}</Row>
             <Row label="Старт">{formatDate(project.started_at)}</Row>
             {project.short_comment && (
