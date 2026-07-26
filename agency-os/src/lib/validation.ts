@@ -60,7 +60,6 @@ export const TASK_TYPE_VALUES = [
 ] as const;
 
 export const TASK_STATUS_VALUES = [
-  "backlog",
   "todo",
   "in_progress",
   "review",

@@ -74,10 +74,23 @@ export default async function WeekPage({
     who,
     assigneeId: assignee,
   });
-  const overdueTasks = sortTodayTasks(
-    tasks.filter((task) => task.due_date && task.due_date < today),
-    today,
-  );
+  const priorityRank: Record<string, number> = {
+    urgent: 0,
+    high: 1,
+    medium: 2,
+    low: 3,
+  };
+  const overdueTasks = tasks
+    .filter((task) => task.due_date && task.due_date < today)
+    .sort((a, b) => {
+      const byPriority =
+        (priorityRank[a.priority ?? "medium"] ?? 2) -
+        (priorityRank[b.priority ?? "medium"] ?? 2);
+      if (byPriority !== 0) return byPriority;
+      if (!!a.is_important !== !!b.is_important) return a.is_important ? -1 : 1;
+      return (a.due_date ?? "") < (b.due_date ?? "") ? -1 : 1;
+    });
+  const overdueMany = overdueTasks.length > 5;
   const undatedTasks = sortTodayTasks(
     tasks.filter((task) => !task.due_date),
     today,
@@ -128,10 +141,23 @@ export default async function WeekPage({
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <TaskGroup title="Просрочено" tasks={overdueTasks} />
-        <TaskGroup title="Без даты" tasks={undatedTasks} />
-      </div>
+      {overdueTasks.length === 0 ? (
+        <TaskGroup title="Без даты" tasks={undatedTasks} columns={2} />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-4">
+          <div className={overdueMany ? "lg:col-span-2" : "lg:col-span-3"}>
+            <TaskGroup title="Без даты" tasks={undatedTasks} columns={2} />
+          </div>
+          <div className={overdueMany ? "lg:col-span-2" : "lg:col-span-1"}>
+            <TaskGroup
+              title="Просрочено"
+              tasks={overdueTasks}
+              columns={overdueMany ? 2 : 1}
+              accent
+            />
+          </div>
+        </div>
+      )}
 
       <div className="overflow-x-auto pb-2">
         <div className="grid min-w-[112rem] grid-cols-7 gap-3">
@@ -180,15 +206,46 @@ export default async function WeekPage({
   );
 }
 
-function TaskGroup({ title, tasks }: { title: string; tasks: WeekTask[] }) {
+function TaskGroup({
+  title,
+  tasks,
+  columns = 2,
+  accent = false,
+}: {
+  title: string;
+  tasks: WeekTask[];
+  columns?: 1 | 2;
+  accent?: boolean;
+}) {
   return (
-    <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+    <section
+      className={cn(
+        "rounded-lg border p-3",
+        accent
+          ? "border-red-200 bg-red-50"
+          : "border-neutral-200 bg-neutral-50",
+      )}
+    >
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-neutral-800">{title}</h2>
-        <span className="text-xs text-neutral-400">{tasks.length}</span>
+        <h2
+          className={cn(
+            "text-sm font-semibold",
+            accent ? "text-red-700" : "text-neutral-800",
+          )}
+        >
+          {title}
+        </h2>
+        <span
+          className={cn(
+            "text-xs",
+            accent ? "text-red-500" : "text-neutral-400",
+          )}
+        >
+          {tasks.length}
+        </span>
       </div>
       {tasks.length > 0 ? (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className={cn("grid gap-2", columns === 2 && "sm:grid-cols-2")}>
           {tasks.map((task) => (
             <WeekTaskCard key={task.id} task={task} />
           ))}

@@ -15,7 +15,6 @@ import type { Enums } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
 
 const COLUMNS: Enums<"task_status">[] = [
-  "backlog",
   "todo",
   "in_progress",
   "review",
