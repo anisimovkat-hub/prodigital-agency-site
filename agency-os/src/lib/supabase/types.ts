@@ -600,6 +600,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      time_entries: {
+        Row: {
+          id: string;
+          user_id: string;
+          project_id: string | null;
+          started_at: string;
+          ended_at: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          project_id?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          project_id?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

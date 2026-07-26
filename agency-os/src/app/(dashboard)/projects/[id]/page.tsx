@@ -41,6 +41,19 @@ const LINK_LABELS: Record<string, string> = {
   notion: "Notion",
 };
 
+// Часы за период из интервалов учёта времени (открытый интервал — до «сейчас»).
+function sumTrackedHours(
+  rows: { started_at: string; ended_at: string | null }[],
+): number {
+  const nowMs = Date.now();
+  const totalMs = rows.reduce((sum, row) => {
+    const start = new Date(row.started_at).getTime();
+    const end = row.ended_at ? new Date(row.ended_at).getTime() : nowMs;
+    return sum + Math.max(0, end - start);
+  }, 0);
+  return totalMs / 3_600_000;
+}
+
 export default async function ProjectDetailPage({
   params,
 }: {
@@ -48,6 +61,11 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const monthStartISO = monthStart.toISOString();
 
   const [
     { data: project },
@@ -57,6 +75,7 @@ export default async function ProjectDetailPage({
     { data: notes },
     { data: profiles },
     { data: clients },
+    { data: timeRows },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -84,9 +103,20 @@ export default async function ProjectDetailPage({
       .order("created_at", { ascending: false }),
     supabase.from("profiles").select("id,full_name").order("full_name"),
     supabase.from("clients").select("id,name").order("name"),
+    supabase
+      .from("time_entries")
+      .select("started_at,ended_at")
+      .eq("project_id", id)
+      .gte("started_at", monthStartISO),
   ]);
 
   if (!project) notFound();
+
+  const monthHours = sumTrackedHours(timeRows ?? []);
+  const perHour =
+    project.monthly_fee && monthHours > 0
+      ? project.monthly_fee / monthHours
+      : null;
 
   const links = (project.links ?? {}) as Record<string, string | undefined>;
   const linkEntries = Object.entries(LINK_LABELS).filter(
@@ -148,6 +178,10 @@ export default async function ProjectDetailPage({
                 : "—"}
             </Row>
             <Row label="Доход/мес">{formatCurrency(project.monthly_fee)}</Row>
+            <Row label="Часы (мес)">
+              {monthHours > 0 ? `${monthHours.toFixed(1)} ч` : "—"}
+            </Row>
+            <Row label="₽/час">{perHour ? formatCurrency(perHour) : "—"}</Row>
             <Row label="Бюджет">{formatCurrency(project.budget)}</Row>
             <Row label="Старт">{formatDate(project.started_at)}</Row>
             {project.short_comment && (
