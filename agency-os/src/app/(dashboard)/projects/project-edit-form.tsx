@@ -11,9 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PROJECT_HEALTH_LABEL, PROJECT_STAGE_LABEL } from "@/lib/labels";
+import {
+  PROJECT_HEALTH_LABEL,
+  PROJECT_OWNERSHIP_MODE_LABEL,
+  PROJECT_STAGE_LABEL,
+} from "@/lib/labels";
 import type { Tables } from "@/lib/supabase/types";
-import { PROJECT_HEALTH_VALUES, PROJECT_STAGE_VALUES } from "@/lib/validation";
+import {
+  PROJECT_HEALTH_VALUES,
+  PROJECT_OWNERSHIP_MODE_VALUES,
+  PROJECT_STAGE_VALUES,
+} from "@/lib/validation";
 
 type ProjectEditFormProps = {
   project: Tables<"projects">;
@@ -120,6 +128,34 @@ export function ProjectEditForm({
           step="0.01"
           min={0}
           defaultValue={project.budget ?? ""}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="edit-mode">Режим ведения</Label>
+        <Select
+          id="edit-mode"
+          name="ownership_mode"
+          defaultValue={project.ownership_mode ?? ""}
+        >
+          <option value="">— не задан</option>
+          {PROJECT_OWNERSHIP_MODE_VALUES.map((value) => (
+            <option key={value} value={value}>
+              {PROJECT_OWNERSHIP_MODE_LABEL[value]}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="edit-monthly-fee">Доход/мес, ₽</Label>
+        <Input
+          id="edit-monthly-fee"
+          name="monthly_fee"
+          type="number"
+          step="0.01"
+          min={0}
+          defaultValue={project.monthly_fee ?? ""}
         />
       </div>
 

@@ -208,6 +208,18 @@ export type CreateClientInput = z.infer<typeof createClientSchema>;
 
 export const PROJECT_HEALTH_VALUES = ["green", "yellow", "red"] as const;
 export const PROJECT_STAGE_VALUES = ["active", "paused", "finished"] as const;
+export const PROJECT_OWNERSHIP_MODE_VALUES = [
+  "self",
+  "launching",
+  "testing",
+  "one_off",
+  "needs_owner",
+] as const;
+
+const optionalOwnershipMode = z.preprocess(
+  (value) => (value === "" || value === null || value === undefined ? undefined : value),
+  z.enum(PROJECT_OWNERSHIP_MODE_VALUES).optional(),
+);
 
 export const createProjectSchema = z.object({
   name: z.string().trim().min(1, "Укажите название проекта"),
@@ -215,6 +227,8 @@ export const createProjectSchema = z.object({
   health: z.enum(PROJECT_HEALTH_VALUES),
   stage: z.enum(PROJECT_STAGE_VALUES),
   budget: optionalNonNegativeNumber,
+  monthly_fee: optionalNonNegativeNumber,
+  ownership_mode: optionalOwnershipMode,
   responsible_id: optionalUuid,
   short_comment: optionalString,
 });

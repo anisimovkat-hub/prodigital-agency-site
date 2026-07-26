@@ -105,6 +105,8 @@ export type Database = {
           health: Database["public"]["Enums"]["project_health"] | null;
           stage: Database["public"]["Enums"]["project_stage"] | null;
           budget: number | null;
+          monthly_fee: number | null;
+          ownership_mode: string | null;
           responsible_id: string | null;
           short_comment: string | null;
           links: Json | null;
@@ -121,6 +123,8 @@ export type Database = {
           health?: Database["public"]["Enums"]["project_health"] | null;
           stage?: Database["public"]["Enums"]["project_stage"] | null;
           budget?: number | null;
+          monthly_fee?: number | null;
+          ownership_mode?: string | null;
           responsible_id?: string | null;
           short_comment?: string | null;
           links?: Json | null;
@@ -137,6 +141,8 @@ export type Database = {
           health?: Database["public"]["Enums"]["project_health"] | null;
           stage?: Database["public"]["Enums"]["project_stage"] | null;
           budget?: number | null;
+          monthly_fee?: number | null;
+          ownership_mode?: string | null;
           responsible_id?: string | null;
           short_comment?: string | null;
           links?: Json | null;

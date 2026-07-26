@@ -29,6 +29,7 @@ import {
   formatPercent,
 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { PROJECT_OWNERSHIP_MODE_LABEL } from "@/lib/labels";
 
 const LINK_LABELS: Record<string, string> = {
   website: "Сайт",
@@ -140,6 +141,13 @@ export default async function ProjectDetailPage({
               {project.responsible?.full_name ?? "—"}
             </Row>
             <Row label="Площадки">{project.ad_platforms ?? "—"}</Row>
+            <Row label="Режим ведения">
+              {project.ownership_mode
+                ? PROJECT_OWNERSHIP_MODE_LABEL[project.ownership_mode] ??
+                  project.ownership_mode
+                : "—"}
+            </Row>
+            <Row label="Доход/мес">{formatCurrency(project.monthly_fee)}</Row>
             <Row label="Бюджет">{formatCurrency(project.budget)}</Row>
             <Row label="Старт">{formatDate(project.started_at)}</Row>
             {project.short_comment && (

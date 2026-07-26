@@ -24,6 +24,8 @@ export async function addProject(
     health: formData.get("health"),
     stage: formData.get("stage"),
     budget: formData.get("budget"),
+    monthly_fee: formData.get("monthly_fee"),
+    ownership_mode: formData.get("ownership_mode"),
     responsible_id: formData.get("responsible_id"),
     short_comment: formData.get("short_comment"),
   });
@@ -40,6 +42,8 @@ export async function addProject(
     health: parsed.data.health,
     stage: parsed.data.stage,
     budget: parsed.data.budget ?? null,
+    monthly_fee: parsed.data.monthly_fee ?? null,
+    ownership_mode: parsed.data.ownership_mode ?? null,
     responsible_id: parsed.data.responsible_id || null,
     short_comment: parsed.data.short_comment || null,
   });
@@ -70,6 +74,8 @@ export async function updateProject(
     health: formData.get("health"),
     stage: formData.get("stage"),
     budget: formData.get("budget"),
+    monthly_fee: formData.get("monthly_fee"),
+    ownership_mode: formData.get("ownership_mode"),
     responsible_id: formData.get("responsible_id"),
     short_comment: formData.get("short_comment"),
   });
@@ -94,6 +100,8 @@ export async function updateProject(
       health: parsed.data.health,
       stage: parsed.data.stage,
       budget: parsed.data.budget ?? null,
+      monthly_fee: parsed.data.monthly_fee ?? null,
+      ownership_mode: parsed.data.ownership_mode ?? null,
       responsible_id: parsed.data.responsible_id || null,
       short_comment: parsed.data.short_comment || null,
     })

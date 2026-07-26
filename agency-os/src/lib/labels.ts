@@ -16,6 +16,14 @@ export const PROJECT_STAGE_LABEL: Record<Enums<"project_stage">, string> = {
   finished: "Завершён",
 };
 
+export const PROJECT_OWNERSHIP_MODE_LABEL: Record<string, string> = {
+  self: "Веду сама",
+  launching: "На запуске",
+  testing: "Тест / под вопросом",
+  one_off: "Разовый",
+  needs_owner: "Нужен ответственный",
+};
+
 export const CLIENT_STATUS_LABEL: Record<Enums<"client_status">, string> = {
   active: "Активен",
   paused: "Пауза",
