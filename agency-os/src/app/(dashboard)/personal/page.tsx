@@ -18,7 +18,9 @@ import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { createClient } from "@/lib/supabase/server";
 import type { Enums } from "@/lib/supabase/types";
-import { cn } from "@/lib/utils";
+
+const TASK_SELECT =
+  "id,title,description,status,priority,due_date,created_at, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)";
 
 type PersonalTask = {
   id: string;
@@ -27,70 +29,65 @@ type PersonalTask = {
   status: Enums<"task_status"> | null;
   priority: Enums<"task_priority"> | null;
   due_date: string | null;
+  created_at: string | null;
   project: { id: string; name: string } | null;
   assignee: { id: string; full_name: string } | null;
 };
 
-export default async function PersonalPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ view?: string }>;
-}) {
-  const { view } = await searchParams;
-  const delegated = view === "delegated";
-
+export default async function PersonalPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const uid = user!.id;
 
-  const [{ data: mine }, { data: handed }, { data: profile }] =
+  // Личные проекты (флаг is_personal) — напр. «Личный бренд». RLS отдаёт их
+  // только владельцу/участнику, поэтому клиентские проекты сюда не попадают.
+  const { data: personalProjects } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("is_personal", true);
+  const personalProjectIds = (personalProjects ?? []).map((p) => p.id);
+
+  const [{ data: lifeTasks }, { data: brandTasks }, { data: profile }] =
     await Promise.all([
+      // Личные дела: задачи без проекта, назначенные на меня
       supabase
         .from("tasks")
-        .select(
-          "id,title,description,status,priority,due_date, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-        )
+        .select(TASK_SELECT)
         .is("project_id", null)
         .eq("assignee_id", uid)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("tasks")
-        .select(
-          "id,title,description,status,priority,due_date, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-        )
-        .eq("creator_id", uid)
-        .neq("assignee_id", uid)
-        .not("assignee_id", "is", null)
-        .order("created_at", { ascending: false }),
+      // Задачи личных проектов (личный бренд и т.п.)
+      personalProjectIds.length > 0
+        ? supabase
+            .from("tasks")
+            .select(TASK_SELECT)
+            .in("project_id", personalProjectIds)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as PersonalTask[] }),
       supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),
     ]);
 
+  const tasks = [
+    ...((lifeTasks ?? []) as PersonalTask[]),
+    ...((brandTasks ?? []) as PersonalTask[]),
+  ].sort((a, b) => (a.created_at ?? "") < (b.created_at ?? "") ? 1 : -1);
+
   const calendarToday = dateISOInTimeZone(new Date());
   const calendar =
-    profile?.role === "owner" && !delegated
+    profile?.role === "owner"
       ? await getPersonalCalendarEvents(calendarToday, calendarToday)
       : null;
-
-  const tasks = (delegated ? handed : mine) ?? [];
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">Личное</h1>
         <p className="text-sm text-neutral-500">
-          Ваши задачи и то, что вы делегировали коллегам.
+          Личные дела и проекты личного бренда, плюс ваше расписание. Клиентские
+          проекты сюда не попадают — они в «Задачах» и «Проектах».
         </p>
-      </div>
-
-      <div className="flex gap-1 border-b border-neutral-200">
-        <Tab href="/personal" active={!delegated}>
-          Мои ({(mine ?? []).length})
-        </Tab>
-        <Tab href="/personal?view=delegated" active={delegated}>
-          Делегированные ({(handed ?? []).length})
-        </Tab>
       </div>
 
       {calendar && calendar.events.length > 0 && (
@@ -103,30 +100,20 @@ export default async function PersonalPage({
         </div>
       )}
 
-      {!delegated && (
-        <details className="group rounded-lg border border-neutral-200 bg-white p-4">
-          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
-            + Новая личная задача
-          </summary>
-          <div className="mt-4">
-            <PersonalTaskForm />
-          </div>
-        </details>
-      )}
-
-      {delegated && (
-        <p className="text-sm text-neutral-500">
-          Задачи, которые вы создали и назначили на другого сотрудника. Чтобы
-          делегировать любую задачу — откройте её и смените «Исполнителя».
-        </p>
-      )}
+      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+          + Новая личная задача
+        </summary>
+        <div className="mt-4">
+          <PersonalTaskForm />
+        </div>
+      </details>
 
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Задача</TableHead>
-            {delegated && <TableHead>Проект</TableHead>}
-            {delegated && <TableHead>Исполнитель</TableHead>}
+            <TableHead>Проект</TableHead>
             <TableHead>Приоритет</TableHead>
             <TableHead>Дедлайн</TableHead>
             <TableHead>Статус</TableHead>
@@ -135,13 +122,12 @@ export default async function PersonalPage({
         </TableHeader>
         <TableBody>
           {tasks.length === 0 && (
-            <TableEmpty colSpan={delegated ? 7 : 5}>
-              {delegated
-                ? "Делегированных задач пока нет."
-                : "Личных задач пока нет."}
+            <TableEmpty colSpan={6}>
+              Личных задач пока нет. Добавьте личное дело выше или задачу в
+              проекте личного бренда.
             </TableEmpty>
           )}
-          {(tasks as PersonalTask[]).map((task) => (
+          {tasks.map((task) => (
             <TableRow key={task.id}>
               <TableCell className="font-medium text-neutral-900">
                 <Link
@@ -156,12 +142,9 @@ export default async function PersonalPage({
                   </p>
                 )}
               </TableCell>
-              {delegated && (
-                <TableCell>{task.project?.name ?? "Личное"}</TableCell>
-              )}
-              {delegated && (
-                <TableCell>{task.assignee?.full_name ?? "—"}</TableCell>
-              )}
+              <TableCell className="text-neutral-600">
+                {task.project?.name ?? "Личное"}
+              </TableCell>
               <TableCell>
                 <PriorityBadge priority={task.priority ?? "medium"} />
               </TableCell>
@@ -188,29 +171,5 @@ export default async function PersonalPage({
         </TableBody>
       </Table>
     </div>
-  );
-}
-
-function Tab({
-  href,
-  active,
-  children,
-}: {
-  href: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-        active
-          ? "border-neutral-900 text-neutral-900"
-          : "border-transparent text-neutral-500 hover:text-neutral-800",
-      )}
-    >
-      {children}
-    </Link>
   );
 }

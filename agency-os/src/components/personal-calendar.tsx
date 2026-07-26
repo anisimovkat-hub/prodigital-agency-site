@@ -8,6 +8,7 @@ import {
   Stethoscope,
   Utensils,
   UsersRound,
+  Video,
 } from "lucide-react";
 
 import type {
@@ -177,6 +178,20 @@ export function CalendarEventCard({
               <MapPin className="size-3 shrink-0" aria-hidden="true" />
               <span className="truncate">{event.location}</span>
             </p>
+          )}
+          {event.meetingUrl && (
+            <a
+              href={event.meetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(
+                "mt-1.5 inline-flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 font-medium text-white hover:bg-blue-700",
+                compact ? "text-[11px]" : "text-xs",
+              )}
+            >
+              <Video className="size-3 shrink-0" aria-hidden="true" />
+              Присоединиться
+            </a>
           )}
         </div>
       </div>

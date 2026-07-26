@@ -25,6 +25,7 @@ DTSTART;TZID=Asia/Bangkok:20260728T140000
 DTEND;TZID=Asia/Bangkok:20260728T150000
 SUMMARY:Созвон с командой
 LOCATION:Google Meet
+DESCRIPTION:Подключайтесь по ссылке: https://meet.google.com/abc-defg-hij
 END:VEVENT
 BEGIN:VEVENT
 UID:cancelled
@@ -51,6 +52,7 @@ describe("parseCalendarEvents", () => {
     expect(result.events.find((event) => event.title.includes("Созвон"))).toMatchObject({
       category: "call",
       location: "Google Meet",
+      meetingUrl: "https://meet.google.com/abc-defg-hij",
     });
   });
 });

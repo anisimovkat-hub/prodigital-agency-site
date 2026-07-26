@@ -25,6 +25,7 @@ export type PersonalCalendarEvent = {
   allDay: boolean;
   category: CalendarEventCategory;
   location: string | null;
+  meetingUrl: string | null;
 };
 
 export type ParsedCalendarEvents = {
@@ -232,11 +233,32 @@ function toPersonalCalendarEvent(
     allDay: instance.isFullDay,
     category: classifyCalendarEvent(title),
     location: event.location ? parameterValue(event.location).trim() || null : null,
+    meetingUrl: extractMeetingUrl(event),
   };
 }
 
 function parameterValue(value: ParameterValue): string {
   return typeof value === "string" ? value : value.val;
+}
+
+// Достаёт ссылку на встречу/созвон из места или описания события. Возвращает
+// только сам URL (не всё приватное описание), предпочитая известные площадки.
+function extractMeetingUrl(event: VEvent): string | null {
+  const parts: string[] = [];
+  if (event.location) parts.push(parameterValue(event.location));
+  const description = (event as { description?: ParameterValue }).description;
+  if (description) parts.push(parameterValue(description));
+
+  const urls = parts.join(" ").match(/https?:\/\/[^\s<>"']+/g);
+  if (!urls || urls.length === 0) return null;
+
+  const cleaned = urls.map((url) => url.replace(/[.,);]+$/, ""));
+  const preferred = cleaned.find((url) =>
+    /(meet\.google|zoom\.us|teams\.microsoft|telemost\.yandex|whereby\.com|jit\.si|webinar|contactout|talk\.)/i.test(
+      url,
+    ),
+  );
+  return preferred ?? cleaned[0];
 }
 
 function compareCalendarEvents(
