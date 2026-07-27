@@ -28,7 +28,7 @@ function matchProjectId(
     const tokens = project.name
       .toLocaleLowerCase("ru-RU")
       .split(/[^a-zа-я0-9]+/i)
-      .filter((token) => token.length >= 4 && !GENERIC_TOKENS.has(token));
+      .filter((token) => token.length >= 3 && !GENERIC_TOKENS.has(token));
     if (tokens.some((token) => acc.includes(token))) return project.id;
   }
   return null;
@@ -66,6 +66,7 @@ export async function syncMetaAds(): Promise<SyncMetaState> {
           platform: "meta",
           external_id: a.externalId,
           name: a.name,
+          currency: a.currency,
         })),
         { onConflict: "platform,external_id" },
       )

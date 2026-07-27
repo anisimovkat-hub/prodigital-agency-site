@@ -14,6 +14,7 @@ type AdAccountRow = {
   id: string;
   name: string | null;
   external_id: string;
+  currency: string | null;
   project: { name: string } | null;
 };
 
@@ -52,7 +53,7 @@ export default async function AdsPage() {
   const [{ data: accounts }, { data: metrics }] = await Promise.all([
     supabase
       .from("ad_accounts")
-      .select("id,name,external_id, project:projects(name)")
+      .select("id,name,external_id,currency, project:projects(name)")
       .eq("platform", "meta")
       .order("name"),
     supabase
@@ -91,6 +92,7 @@ export default async function AdsPage() {
           <TableRow>
             <TableHead>Кабинет</TableHead>
             <TableHead>Проект</TableHead>
+            <TableHead>Валюта</TableHead>
             <TableHead>Расход 30д</TableHead>
             <TableHead>Лиды 30д</TableHead>
             <TableHead>CPL</TableHead>
@@ -99,7 +101,7 @@ export default async function AdsPage() {
         </TableHeader>
         <TableBody>
           {rows.length === 0 && (
-            <TableEmpty colSpan={6}>
+            <TableEmpty colSpan={7}>
               Кабинетов пока нет. Нажмите «Обновить статистику Меты» — подтянем
               кабинеты и метрики из токена.
             </TableEmpty>
@@ -116,6 +118,9 @@ export default async function AdsPage() {
                 </TableCell>
                 <TableCell className="text-neutral-600">
                   {account.project?.name ?? "— не привязан"}
+                </TableCell>
+                <TableCell className="text-neutral-500">
+                  {account.currency ?? "—"}
                 </TableCell>
                 <TableCell>{fmt(spend)}</TableCell>
                 <TableCell>{fmt(leads)}</TableCell>

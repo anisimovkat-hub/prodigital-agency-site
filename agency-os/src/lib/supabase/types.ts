@@ -633,6 +633,7 @@ export type Database = {
           platform: string;
           external_id: string;
           name: string | null;
+          currency: string | null;
           project_id: string | null;
           is_active: boolean;
           created_at: string | null;
@@ -642,6 +643,7 @@ export type Database = {
           platform?: string;
           external_id: string;
           name?: string | null;
+          currency?: string | null;
           project_id?: string | null;
           is_active?: boolean;
           created_at?: string | null;
@@ -651,6 +653,7 @@ export type Database = {
           platform?: string;
           external_id?: string;
           name?: string | null;
+          currency?: string | null;
           project_id?: string | null;
           is_active?: boolean;
           created_at?: string | null;

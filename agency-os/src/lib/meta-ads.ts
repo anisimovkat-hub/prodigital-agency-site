@@ -5,7 +5,11 @@ import "server-only";
 const API_VERSION = "v23.0";
 const BASE = `https://graph.facebook.com/${API_VERSION}`;
 
-export type MetaAccount = { externalId: string; name: string | null };
+export type MetaAccount = {
+  externalId: string;
+  name: string | null;
+  currency: string | null;
+};
 export type MetaDailyMetric = {
   date: string;
   spend: number;
@@ -15,7 +19,7 @@ export type MetaDailyMetric = {
 };
 
 type MetaAction = { action_type?: string; value?: string };
-type MetaAccountRow = { account_id?: string; name?: string };
+type MetaAccountRow = { account_id?: string; name?: string; currency?: string };
 type MetaInsightRow = {
   date_start?: string;
   spend?: string;
@@ -56,13 +60,17 @@ function metaError(json: MetaListResponse<unknown>, status: number): string {
 
 // Все рекламные кабинеты, доступные системному пользователю токена.
 export async function fetchMetaAccounts(): Promise<MetaAccount[]> {
-  const url = `${BASE}/me/adaccounts?fields=account_id,name&limit=500&access_token=${encodeURIComponent(token())}`;
+  const url = `${BASE}/me/adaccounts?fields=account_id,name,currency&limit=500&access_token=${encodeURIComponent(token())}`;
   const res = await fetch(url, { cache: "no-store" });
   const json = (await res.json()) as MetaListResponse<MetaAccountRow>;
   if (!res.ok) throw new Error(metaError(json, res.status));
   return (json.data ?? [])
     .filter((row) => row.account_id)
-    .map((row) => ({ externalId: `act_${row.account_id}`, name: row.name ?? null }));
+    .map((row) => ({
+      externalId: `act_${row.account_id}`,
+      name: row.name ?? null,
+      currency: row.currency ?? null,
+    }));
 }
 
 // Суточные метрики каб. за период [since, until] (YYYY-MM-DD).
