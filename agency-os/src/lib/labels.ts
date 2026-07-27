@@ -18,6 +18,7 @@ export const PROJECT_STAGE_LABEL: Record<Enums<"project_stage">, string> = {
 
 export const PROJECT_OWNERSHIP_MODE_LABEL: Record<string, string> = {
   self: "Веду сама",
+  delegated: "Делегирован",
   launching: "На запуске",
   testing: "Тест / под вопросом",
   one_off: "Разовый",

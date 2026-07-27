@@ -210,6 +210,7 @@ export const PROJECT_HEALTH_VALUES = ["green", "yellow", "red"] as const;
 export const PROJECT_STAGE_VALUES = ["active", "paused", "finished"] as const;
 export const PROJECT_OWNERSHIP_MODE_VALUES = [
   "self",
+  "delegated",
   "launching",
   "testing",
   "one_off",

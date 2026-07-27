@@ -15,10 +15,35 @@ import {
 import { formatCurrency } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
+function formatHours(hours: number): string {
+  if (hours <= 0) return "—";
+  return `${hours.toFixed(1).replace(".", ",")} ч`;
+}
+
+// Часы за период по проектам (открытый интервал считается до «сейчас»).
+function sumHoursByProject(
+  rows: { project_id: string | null; started_at: string; ended_at: string | null }[],
+): Map<string, number> {
+  const nowMs = Date.now();
+  const byProject = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.project_id) continue;
+    const start = new Date(row.started_at).getTime();
+    const end = row.ended_at ? new Date(row.ended_at).getTime() : nowMs;
+    const hours = Math.max(0, end - start) / 3_600_000;
+    byProject.set(row.project_id, (byProject.get(row.project_id) ?? 0) + hours);
+  }
+  return byProject;
+}
+
 export default async function ProjectsPage() {
   const supabase = await createClient();
 
-  const [{ data: projects }, { data: clients }, { data: profiles }] =
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [{ data: projects }, { data: clients }, { data: profiles }, { data: timeRows }] =
     await Promise.all([
       supabase
         .from("projects")
@@ -26,7 +51,13 @@ export default async function ProjectsPage() {
         .order("created_at", { ascending: false }),
       supabase.from("clients").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase
+        .from("time_entries")
+        .select("project_id,started_at,ended_at")
+        .gte("started_at", monthStart.toISOString()),
     ]);
+
+  const hoursByProject = sumHoursByProject(timeRows ?? []);
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,11 +91,13 @@ export default async function ProjectsPage() {
             <TableHead>Статус</TableHead>
             <TableHead>Стадия</TableHead>
             <TableHead>Ответственный</TableHead>
+            <TableHead>Доход/мес</TableHead>
+            <TableHead>Загрузка, ч</TableHead>
             <TableHead>Бюджет</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {(projects ?? []).length === 0 && <TableEmpty colSpan={6} />}
+          {(projects ?? []).length === 0 && <TableEmpty colSpan={8} />}
           {(projects ?? []).map((project) => (
             <TableRow key={project.id}>
               <TableCell className="font-medium text-neutral-900">
@@ -86,6 +119,8 @@ export default async function ProjectsPage() {
                 <ProjectStageBadge stage={project.stage ?? "active"} />
               </TableCell>
               <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
+              <TableCell>{formatCurrency(project.monthly_fee)}</TableCell>
+              <TableCell>{formatHours(hoursByProject.get(project.id) ?? 0)}</TableCell>
               <TableCell>{formatCurrency(project.budget)}</TableCell>
             </TableRow>
           ))}
