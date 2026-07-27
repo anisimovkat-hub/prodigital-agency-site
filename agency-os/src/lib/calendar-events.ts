@@ -50,7 +50,10 @@ export function parseCalendarEvents(
     )
     .filter(
       (event): event is PersonalCalendarEvent =>
-        event !== null && event.date >= fromDate && event.date <= toDate,
+        event !== null &&
+        event.category !== "meal" &&
+        event.date >= fromDate &&
+        event.date <= toDate,
     )
     .sort(compareCalendarEvents);
 
@@ -149,6 +152,13 @@ export function classifyCalendarEvent(title: string): CalendarEventCategory {
       "ужин",
       "питание",
       "перекус",
+      "ланч",
+      "бранч",
+      "полдник",
+      "breakfast",
+      "lunch",
+      "dinner",
+      "supper",
     ])
   ) {
     return "meal";

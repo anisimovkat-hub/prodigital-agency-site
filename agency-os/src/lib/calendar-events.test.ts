@@ -38,17 +38,13 @@ END:VEVENT
 END:VCALENDAR`;
 
 describe("parseCalendarEvents", () => {
-  it("разворачивает повторы, сохраняет часовой пояс и исключает отменённое", () => {
+  it("сохраняет часовой пояс и исключает питание и отменённые события", () => {
     const result = parseCalendarEvents(ICS, "2026-07-27", "2026-08-02");
 
     expect(result.timeZone).toBe("Asia/Bangkok");
-    expect(result.events).toHaveLength(4);
-    expect(result.events.map((event) => event.date)).toEqual([
-      "2026-07-27",
-      "2026-07-28",
-      "2026-07-28",
-      "2026-07-29",
-    ]);
+    expect(result.events).toHaveLength(1);
+    expect(result.events.map((event) => event.date)).toEqual(["2026-07-28"]);
+    expect(result.events.some((event) => event.category === "meal")).toBe(false);
     expect(result.events.find((event) => event.title.includes("Созвон"))).toMatchObject({
       category: "call",
       location: "Google Meet",
@@ -65,6 +61,7 @@ describe("classifyCalendarEvent", () => {
     ["Пилатес", "sport"],
     ["Созвон CSS", "call"],
     ["Ужин", "meal"],
+    ["Lunch", "meal"],
     ["Личное время", "personal"],
   ] as const)("определяет категорию «%s»", (title, category) => {
     expect(classifyCalendarEvent(title)).toBe(category);
