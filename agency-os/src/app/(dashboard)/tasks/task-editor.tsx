@@ -98,6 +98,22 @@ export function TaskEditor({
     UpdateTaskFormState,
     FormData
   >(updateTask, undefined);
+  const savedTask = state?.success ? state.task : task;
+  const formVersion = JSON.stringify([
+    savedTask.id,
+    savedTask.title,
+    savedTask.project_id,
+    savedTask.assignee_id,
+    savedTask.status,
+    savedTask.task_type,
+    savedTask.priority,
+    savedTask.due_date,
+    savedTask.estimate_minutes,
+    savedTask.workstream,
+    savedTask.description,
+    savedTask.is_important,
+    savedTask.is_urgent,
+  ]);
   const [description, setDescription] = useState(task.description ?? "");
   const [timerNow, setTimerNow] = useState(() =>
     new Date(timeSnapshotAt).getTime(),
@@ -178,18 +194,19 @@ export function TaskEditor({
 
       <div className="flex flex-col gap-7 p-5">
         <form
+          key={formVersion}
           id={formId}
           action={formAction}
           className="flex flex-col gap-5"
         >
-          <input type="hidden" name="id" value={task.id} />
+          <input type="hidden" name="id" value={savedTask.id} />
 
           <div className="flex flex-col gap-1">
             <Label htmlFor={`${formId}-title`}>Название</Label>
             <Input
               id={`${formId}-title`}
               name="title"
-              defaultValue={task.title}
+              defaultValue={savedTask.title}
               required
               className="h-auto min-h-11 px-3 py-2 text-lg font-semibold"
             />
@@ -201,7 +218,7 @@ export function TaskEditor({
               <Select
                 id={`${formId}-project`}
                 name="project_id"
-                defaultValue={task.project_id ?? ""}
+                defaultValue={savedTask.project_id ?? ""}
                 className="w-full"
               >
                 <option value="">Личное / без проекта</option>
@@ -218,7 +235,7 @@ export function TaskEditor({
               <Select
                 id={`${formId}-status`}
                 name="status"
-                defaultValue={task.status ?? "todo"}
+                defaultValue={savedTask.status ?? "todo"}
                 className="w-full"
               >
                 {TASK_STATUS_VALUES.map((status) => (
@@ -234,7 +251,7 @@ export function TaskEditor({
               <Select
                 id={`${formId}-assignee`}
                 name="assignee_id"
-                defaultValue={task.assignee_id ?? ""}
+                defaultValue={savedTask.assignee_id ?? ""}
                 className="w-full"
               >
                 <option value="">Не назначен</option>
@@ -251,7 +268,7 @@ export function TaskEditor({
               <Select
                 id={`${formId}-priority`}
                 name="priority"
-                defaultValue={task.priority ?? "medium"}
+                defaultValue={savedTask.priority ?? "medium"}
                 className="w-full"
               >
                 {TASK_PRIORITY_VALUES.map((priority) => (
@@ -267,7 +284,7 @@ export function TaskEditor({
               <Select
                 id={`${formId}-type`}
                 name="task_type"
-                defaultValue={task.task_type ?? "other"}
+                defaultValue={savedTask.task_type ?? "other"}
                 className="w-full"
               >
                 {TASK_TYPE_VALUES.map((type) => (
@@ -284,7 +301,7 @@ export function TaskEditor({
                 id={`${formId}-due`}
                 name="due_date"
                 type="date"
-                defaultValue={task.due_date ?? ""}
+                defaultValue={savedTask.due_date ?? ""}
               />
               <FieldErrors errors={state?.errors?.due_date} />
             </EditorField>
@@ -298,9 +315,9 @@ export function TaskEditor({
                 step="0.25"
                 inputMode="decimal"
                 defaultValue={
-                  task.estimate_minutes === null
+                  savedTask.estimate_minutes === null
                     ? ""
-                    : task.estimate_minutes / 60
+                    : savedTask.estimate_minutes / 60
                 }
               />
               <FieldErrors errors={state?.errors?.estimate_minutes} />
@@ -311,7 +328,7 @@ export function TaskEditor({
                 id={`${formId}-workstream`}
                 name="workstream"
                 list={`${formId}-workstream-options`}
-                defaultValue={task.workstream ?? ""}
+                defaultValue={savedTask.workstream ?? ""}
                 placeholder="Напр. Сайт или Таргет"
               />
               <datalist id={`${formId}-workstream-options`}>
@@ -327,14 +344,14 @@ export function TaskEditor({
             <label className="flex items-center gap-2 text-sm text-neutral-700">
               <Checkbox
                 name="is_important"
-                defaultChecked={task.is_important ?? false}
+                defaultChecked={savedTask.is_important ?? false}
               />
               Важно
             </label>
             <label className="flex items-center gap-2 text-sm text-neutral-700">
               <Checkbox
                 name="is_urgent"
-                defaultChecked={task.is_urgent ?? false}
+                defaultChecked={savedTask.is_urgent ?? false}
               />
               Срочно
             </label>

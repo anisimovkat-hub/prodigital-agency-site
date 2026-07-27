@@ -11,8 +11,25 @@ import { createClient } from "@/lib/supabase/server";
 
 export type CreateProjectFormState =
   | { errors: Record<string, string[]>; success?: false }
-  | { errors?: undefined; success: true }
+  | {
+      errors?: undefined;
+      success: true;
+      project?: SavedProjectFormValues;
+    }
   | undefined;
+
+export type SavedProjectFormValues = {
+  id: string;
+  name: string;
+  client_id: string | null;
+  health: "green" | "yellow" | "red" | null;
+  stage: "active" | "paused" | "finished" | null;
+  budget: number | null;
+  monthly_fee: number | null;
+  ownership_mode: string | null;
+  responsible_id: string | null;
+  short_comment: string | null;
+};
 
 export async function addProject(
   _prevState: CreateProjectFormState,
@@ -106,7 +123,9 @@ export async function updateProject(
       short_comment: parsed.data.short_comment || null,
     })
     .eq("id", id)
-    .select("id")
+    .select(
+      "id,name,client_id,health,stage,budget,monthly_fee,ownership_mode,responsible_id,short_comment",
+    )
     .maybeSingle();
 
   if (error) {
@@ -125,7 +144,7 @@ export async function updateProject(
   revalidatePath("/clients");
   revalidatePath("/");
 
-  return { success: true };
+  return { success: true, project: updatedProject };
 }
 
 export type KpiFormState =

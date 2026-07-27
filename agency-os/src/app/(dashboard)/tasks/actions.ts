@@ -20,8 +20,40 @@ export type CreateTaskFormState =
 
 export type UpdateTaskFormState =
   | { errors: Record<string, string[]>; success?: false }
-  | { errors?: undefined; success: true }
+  | { errors?: undefined; success: true; task: SavedTaskFormValues }
   | undefined;
+
+export type SavedTaskFormValues = {
+  id: string;
+  title: string;
+  project_id: string | null;
+  assignee_id: string | null;
+  status:
+    | "backlog"
+    | "todo"
+    | "in_progress"
+    | "review"
+    | "done"
+    | "paused"
+    | null;
+  task_type:
+    | "ads"
+    | "creative"
+    | "analytics"
+    | "website"
+    | "content"
+    | "report"
+    | "communication"
+    | "other"
+    | null;
+  priority: "low" | "medium" | "high" | "urgent" | null;
+  due_date: string | null;
+  estimate_minutes: number | null;
+  workstream: string | null;
+  description: string | null;
+  is_important: boolean | null;
+  is_urgent: boolean | null;
+};
 
 export type TaskRelatedFormState =
   | { errors: string[]; success?: false }
@@ -132,7 +164,9 @@ export async function updateTask(
         parsed.data.status === "done" ? new Date().toISOString() : null,
     })
     .eq("id", parsed.data.id)
-    .select("id")
+    .select(
+      "id,title,project_id,assignee_id,status,task_type,priority,due_date,estimate_minutes,workstream,description,is_important,is_urgent",
+    )
     .maybeSingle();
 
   if (error) {
@@ -151,7 +185,7 @@ export async function updateTask(
     revalidatePath(`/projects/${parsed.data.project_id}`);
   }
 
-  return { success: true };
+  return { success: true, task: updatedTask };
 }
 
 export type UpdateTaskDueDateResult =

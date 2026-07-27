@@ -22,13 +22,11 @@ export function TaskDueDateCell({
   status,
 }: TaskDueDateCellProps) {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(dueDate ?? "");
   const [savedDueDate, setSavedDueDate] = useState(dueDate);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function cancelEditing() {
-    setValue(savedDueDate ?? "");
     setMessage(null);
     setEditing(false);
   }
@@ -36,16 +34,18 @@ export function TaskDueDateCell({
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
+    const dueDateValue = new FormData(event.currentTarget).get("due_date");
+    const nextDueDate =
+      typeof dueDateValue === "string" ? dueDateValue : "";
 
     startTransition(async () => {
-      const result = await updateTaskDueDate(taskId, value);
+      const result = await updateTaskDueDate(taskId, nextDueDate);
       if (!result.success) {
         setMessage(result.error);
         return;
       }
 
       setSavedDueDate(result.dueDate);
-      setValue(result.dueDate ?? "");
       setMessage("Сохранено");
       setEditing(false);
     });
@@ -97,9 +97,9 @@ export function TaskDueDateCell({
     >
       <div className="flex items-center gap-1">
         <Input
+          name="due_date"
           type="date"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
+          defaultValue={savedDueDate ?? ""}
           disabled={pending}
           autoFocus
           aria-label={`Дедлайн задачи «${taskTitle}»`}

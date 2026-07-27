@@ -38,16 +38,34 @@ export function ProjectEditForm({
     CreateProjectFormState,
     FormData
   >(updateProject, undefined);
+  const savedProject =
+    state?.success && state.project ? state.project : project;
+  const formVersion = JSON.stringify([
+    savedProject.id,
+    savedProject.name,
+    savedProject.client_id,
+    savedProject.responsible_id,
+    savedProject.health,
+    savedProject.stage,
+    savedProject.budget,
+    savedProject.ownership_mode,
+    savedProject.monthly_fee,
+    savedProject.short_comment,
+  ]);
 
   return (
-    <form action={formAction} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <input type="hidden" name="id" value={project.id} />
+    <form
+      key={formVersion}
+      action={formAction}
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+    >
+      <input type="hidden" name="id" value={savedProject.id} />
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="edit-name">Название</Label>
         <Input
           id="edit-name"
           name="name"
-          defaultValue={project.name}
+          defaultValue={savedProject.name}
           required
         />
         <FieldErrors errors={state?.errors?.name} />
@@ -58,7 +76,7 @@ export function ProjectEditForm({
         <Select
           id="edit-client"
           name="client_id"
-          defaultValue={project.client_id ?? ""}
+          defaultValue={savedProject.client_id ?? ""}
           required
         >
           <option value="" disabled>
@@ -78,7 +96,7 @@ export function ProjectEditForm({
         <Select
           id="edit-responsible"
           name="responsible_id"
-          defaultValue={project.responsible_id ?? ""}
+          defaultValue={savedProject.responsible_id ?? ""}
         >
           <option value="">Не назначен</option>
           {profiles.map((profile) => (
@@ -94,7 +112,7 @@ export function ProjectEditForm({
         <Select
           id="edit-health"
           name="health"
-          defaultValue={project.health ?? "green"}
+          defaultValue={savedProject.health ?? "green"}
         >
           {PROJECT_HEALTH_VALUES.map((value) => (
             <option key={value} value={value}>
@@ -109,7 +127,7 @@ export function ProjectEditForm({
         <Select
           id="edit-stage"
           name="stage"
-          defaultValue={project.stage ?? "active"}
+          defaultValue={savedProject.stage ?? "active"}
         >
           {PROJECT_STAGE_VALUES.map((value) => (
             <option key={value} value={value}>
@@ -127,7 +145,7 @@ export function ProjectEditForm({
           type="number"
           step="0.01"
           min={0}
-          defaultValue={project.budget ?? ""}
+          defaultValue={savedProject.budget ?? ""}
         />
       </div>
 
@@ -136,7 +154,7 @@ export function ProjectEditForm({
         <Select
           id="edit-mode"
           name="ownership_mode"
-          defaultValue={project.ownership_mode ?? ""}
+          defaultValue={savedProject.ownership_mode ?? ""}
         >
           <option value="">— не задан</option>
           {PROJECT_OWNERSHIP_MODE_VALUES.map((value) => (
@@ -155,7 +173,7 @@ export function ProjectEditForm({
           type="number"
           step="0.01"
           min={0}
-          defaultValue={project.monthly_fee ?? ""}
+          defaultValue={savedProject.monthly_fee ?? ""}
         />
       </div>
 
@@ -165,7 +183,7 @@ export function ProjectEditForm({
           id="edit-comment"
           name="short_comment"
           rows={2}
-          defaultValue={project.short_comment ?? ""}
+          defaultValue={savedProject.short_comment ?? ""}
         />
       </div>
 
