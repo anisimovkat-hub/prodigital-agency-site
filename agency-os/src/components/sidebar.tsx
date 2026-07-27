@@ -14,6 +14,7 @@ import {
   Users,
   Building2,
   Repeat2,
+  Megaphone,
   LogOut,
   Menu,
   X,
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { href: "/personal", label: "Личное", icon: UserRound },
   { href: "/employees", label: "Сотрудники", icon: Users },
   { href: "/clients", label: "Клиенты", icon: Building2 },
+  { href: "/ads", label: "Реклама", icon: Megaphone },
 ];
 
 export function Sidebar() {

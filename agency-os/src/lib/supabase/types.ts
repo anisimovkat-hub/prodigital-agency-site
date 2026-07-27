@@ -627,6 +627,69 @@ export type Database = {
         };
         Relationships: [];
       };
+      ad_accounts: {
+        Row: {
+          id: string;
+          platform: string;
+          external_id: string;
+          name: string | null;
+          project_id: string | null;
+          is_active: boolean;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          platform?: string;
+          external_id: string;
+          name?: string | null;
+          project_id?: string | null;
+          is_active?: boolean;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          platform?: string;
+          external_id?: string;
+          name?: string | null;
+          project_id?: string | null;
+          is_active?: boolean;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
+      ad_metrics: {
+        Row: {
+          id: string;
+          ad_account_id: string;
+          date: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          leads: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          ad_account_id: string;
+          date: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          leads?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          ad_account_id?: string;
+          date?: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          leads?: number;
+          created_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
