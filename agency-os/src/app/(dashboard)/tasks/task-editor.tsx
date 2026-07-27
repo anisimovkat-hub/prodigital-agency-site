@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Paperclip,
   Save,
+  Clock3,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -34,7 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatTimerDuration } from "@/lib/format";
 import {
   TASK_PRIORITY_LABEL,
   TASK_STATUS_LABEL,
@@ -73,6 +74,9 @@ type TaskEditorProps = {
   subtasks: SubtaskRow[];
   workstreamOptions: string[];
   closeHref: string;
+  trackedSeconds: number;
+  trackingActive: boolean;
+  timeSnapshotAt: string;
 };
 
 export function TaskEditor({
@@ -85,6 +89,9 @@ export function TaskEditor({
   subtasks,
   workstreamOptions,
   closeHref,
+  trackedSeconds,
+  trackingActive,
+  timeSnapshotAt,
 }: TaskEditorProps) {
   const formId = `task-editor-${task.id}`;
   const [state, formAction, pending] = useActionState<
@@ -92,7 +99,26 @@ export function TaskEditor({
     FormData
   >(updateTask, undefined);
   const [description, setDescription] = useState(task.description ?? "");
+  const [timerNow, setTimerNow] = useState(() =>
+    new Date(timeSnapshotAt).getTime(),
+  );
   const descriptionLinks = extractLinks(description);
+  const liveTrackedSeconds =
+    trackedSeconds +
+    (trackingActive
+      ? Math.max(
+          0,
+          Math.floor(
+            (timerNow - new Date(timeSnapshotAt).getTime()) / 1_000,
+          ),
+        )
+      : 0);
+
+  useEffect(() => {
+    if (!trackingActive) return;
+    const timer = window.setInterval(() => setTimerNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [trackingActive]);
 
   return (
     <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-y-auto border-l border-neutral-200 bg-white shadow-2xl">
@@ -106,6 +132,24 @@ export function TaskEditor({
             name={task.project?.name}
             className="mt-1 max-w-72"
           />
+          {(trackedSeconds > 0 || trackingActive) && (
+            <p
+              className={
+                trackingActive
+                  ? "mt-1 flex items-center gap-1 text-xs font-medium text-amber-700"
+                  : "mt-1 flex items-center gap-1 text-xs text-neutral-500"
+              }
+            >
+              <Clock3
+                className={trackingActive ? "size-3.5 animate-pulse" : "size-3.5"}
+                aria-hidden
+              />
+              {trackingActive ? "В работе" : "Затрачено"} ·{" "}
+              <span className="font-mono tabular-nums">
+                {formatTimerDuration(liveTrackedSeconds)}
+              </span>
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span

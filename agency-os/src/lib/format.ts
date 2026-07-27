@@ -45,6 +45,14 @@ export function formatDuration(minutes: number | null): string {
   return parts.join(" ");
 }
 
+export function formatTimerDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = String(Math.floor(seconds / 3_600)).padStart(2, "0");
+  const minutes = String(Math.floor((seconds % 3_600) / 60)).padStart(2, "0");
+  const remainder = String(seconds % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${remainder}`;
+}
+
 export function isOverdue(
   dueDate: string | null | undefined,
   status: string | null | undefined,

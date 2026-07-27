@@ -6,6 +6,7 @@ import {
   type SubtaskRow,
 } from "@/app/(dashboard)/tasks/task-editor";
 import { createClient } from "@/lib/supabase/server";
+import { sumRawTaskTime } from "@/lib/time-analytics";
 
 export async function TaskDrawer({
   taskId,
@@ -15,6 +16,7 @@ export async function TaskDrawer({
   closeHref: string;
 }) {
   const supabase = await createClient();
+  const timeSnapshotAt = new Date();
 
   const [
     { data: task },
@@ -25,6 +27,7 @@ export async function TaskDrawer({
     { data: projects },
     { data: profiles },
     { data: workstreamRows },
+    { data: timeEntries },
   ] = await Promise.all([
       supabase
         .from("tasks")
@@ -58,6 +61,10 @@ export async function TaskDrawer({
       supabase.from("projects").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase.from("tasks").select("workstream").not("workstream", "is", null),
+      supabase
+        .from("task_time_entries")
+        .select("task_id,started_at,ended_at")
+        .eq("task_id", taskId),
     ]);
 
   if (!task) return null;
@@ -69,6 +76,8 @@ export async function TaskDrawer({
         .filter((value): value is string => Boolean(value)),
     ),
   ].sort();
+  const trackedSeconds =
+    sumRawTaskTime(timeEntries ?? [], timeSnapshotAt).get(task.id) ?? 0;
 
   return (
     <>
@@ -88,6 +97,9 @@ export async function TaskDrawer({
         subtasks={(subtasks ?? []) as SubtaskRow[]}
         workstreamOptions={workstreamOptions}
         closeHref={closeHref}
+        trackedSeconds={Math.round(trackedSeconds)}
+        trackingActive={task.status === "in_progress"}
+        timeSnapshotAt={timeSnapshotAt.toISOString()}
       />
     </>
   );

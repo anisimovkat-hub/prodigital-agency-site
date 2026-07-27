@@ -627,6 +627,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      task_time_entries: {
+        Row: {
+          id: string;
+          task_id: string;
+          task_title: string;
+          task_type: Database["public"]["Enums"]["task_type"] | null;
+          workstream: string | null;
+          project_id: string | null;
+          user_id: string | null;
+          started_at: string;
+          ended_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          task_title: string;
+          task_type?: Database["public"]["Enums"]["task_type"] | null;
+          workstream?: string | null;
+          project_id?: string | null;
+          user_id?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          task_title?: string;
+          task_type?: Database["public"]["Enums"]["task_type"] | null;
+          workstream?: string | null;
+          project_id?: string | null;
+          user_id?: string | null;
+          started_at?: string;
+          ended_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_time_entries_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "task_time_entries_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       ad_accounts: {
         Row: {
           id: string;

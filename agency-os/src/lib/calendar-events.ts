@@ -33,14 +33,44 @@ export type ParsedCalendarEvents = {
   timeZone: string;
 };
 
+export function mergeCalendarEvents(
+  calendars: ParsedCalendarEvents[],
+): ParsedCalendarEvents {
+  if (calendars.length === 0) {
+    return { events: [], timeZone: PERSONAL_CALENDAR_TIME_ZONE };
+  }
+
+  const events = calendars
+    .flatMap((calendar) => calendar.events)
+    .sort(compareCalendarEvents);
+  const seen = new Set<string>();
+
+  return {
+    events: events.filter((event) => {
+      const key = [
+        event.title.trim().toLocaleLowerCase("ru-RU"),
+        event.start,
+        event.end,
+      ].join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }),
+    timeZone: calendars[0].timeZone,
+  };
+}
+
 export function parseCalendarEvents(
   source: string,
   fromDate: string,
   toDate: string,
+  displayTimeZone?: string,
 ): ParsedCalendarEvents {
   const calendar = ical.sync.parseICS(source);
   const timeZone =
-    calendar.vcalendar?.["WR-TIMEZONE"] ?? PERSONAL_CALENDAR_TIME_ZONE;
+    displayTimeZone ??
+    calendar.vcalendar?.["WR-TIMEZONE"] ??
+    PERSONAL_CALENDAR_TIME_ZONE;
   const expansionFrom = shiftISODate(fromDate, -1);
   const expansionTo = shiftISODate(toDate, 1);
   const instances = collectInstances(calendar, expansionFrom, expansionTo);

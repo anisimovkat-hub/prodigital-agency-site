@@ -1,15 +1,16 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Clock3 } from "lucide-react";
 
 import { updateTaskStatus } from "@/app/(dashboard)/tasks/actions";
 import { Avatar } from "@/components/avatar";
 import { PriorityBadge } from "@/components/badges";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
-import { formatDate, todayISO } from "@/lib/format";
+import { formatDate, formatTimerDuration, todayISO } from "@/lib/format";
 import { PRIORITY_ACCENT, TASK_STATUS_LABEL } from "@/lib/labels";
 import type { Enums } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ export type BoardTask = {
   is_urgent: boolean | null;
   project: { id: string; name: string } | null;
   assignee: { id: string; full_name: string } | null;
+  tracked_seconds: number;
 };
 
 type FilterOption = { id: string; name: string };
@@ -49,10 +51,12 @@ export function KanbanBoard({
   tasks,
   projects,
   profiles,
+  timeSnapshotAt,
 }: {
   tasks: BoardTask[];
   projects: FilterOption[];
   profiles: FilterOption[];
+  timeSnapshotAt: string;
 }) {
   const [, startTransition] = useTransition();
   const searchParams = useSearchParams();
@@ -62,9 +66,19 @@ export function KanbanBoard({
       state.map((t) => (t.id === move.id ? { ...t, status: move.status } : t)),
   );
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [timerNow, setTimerNow] = useState(() =>
+    new Date(timeSnapshotAt).getTime(),
+  );
   const projectFilter = searchParams.get("project");
   const assigneeFilter = searchParams.get("assignee");
   const today = todayISO();
+
+  useEffect(() => {
+    if (!optimisticTasks.some((task) => task.status === "in_progress")) return;
+    const timer = window.setInterval(() => setTimerNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [optimisticTasks]);
 
   function taskHref(taskId: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -84,8 +98,10 @@ export function KanbanBoard({
     const id = e.dataTransfer.getData("text/task-id");
     if (!id) return;
     startTransition(async () => {
+      setStatusError(null);
       moveOptimistic({ id, status });
-      await updateTaskStatus(id, status);
+      const result = await updateTaskStatus(id, status);
+      if (!result.success) setStatusError(result.error);
     });
   }
 
@@ -109,6 +125,14 @@ export function KanbanBoard({
           }))}
         />
       </div>
+      {statusError && (
+        <p
+          role="alert"
+          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          Не удалось переместить задачу: {statusError}
+        </p>
+      )}
 
       <div className="flex gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((status) => {
@@ -146,6 +170,17 @@ export function KanbanBoard({
               {columnTasks.map((task) => {
                 const priority = task.priority ?? "medium";
                 const overdue = !!task.due_date && task.due_date < today;
+                const running = task.status === "in_progress";
+                const elapsedSinceSnapshot = running
+                  ? Math.max(
+                      0,
+                      Math.floor(
+                        (timerNow - new Date(timeSnapshotAt).getTime()) / 1_000,
+                      ),
+                    )
+                  : 0;
+                const trackedSeconds =
+                  task.tracked_seconds + elapsedSinceSnapshot;
 
                 return (
                   <article
@@ -192,6 +227,23 @@ export function KanbanBoard({
                       />
                       <Avatar name={task.assignee?.full_name} />
                     </div>
+                    {(trackedSeconds > 0 || running) && (
+                      <div
+                        className={cn(
+                          "mt-2 flex items-center gap-1 border-t border-neutral-100 pt-2 text-xs font-medium",
+                          running ? "text-amber-700" : "text-neutral-500",
+                        )}
+                      >
+                        <Clock3
+                          className={cn("size-3.5", running && "animate-pulse")}
+                          aria-hidden
+                        />
+                        {running ? "В работе: " : "Затрачено: "}
+                        <span className="font-mono tabular-nums">
+                          {formatTimerDuration(trackedSeconds)}
+                        </span>
+                      </div>
+                    )}
                   </article>
                 );
               })}

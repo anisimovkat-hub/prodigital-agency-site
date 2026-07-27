@@ -22,8 +22,10 @@ import {
   TASK_STATUS_LABEL,
   TASK_TYPE_LABEL,
 } from "@/lib/labels";
+import { formatDuration } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { completedTasksVisibleSince } from "@/lib/task-retention";
+import { sumRawTaskTime } from "@/lib/time-analytics";
 
 type SearchParams = {
   project?: string;
@@ -45,6 +47,7 @@ export default async function TasksPage({
   const filters = await searchParams;
   const supabase = await createClient();
   const isCompletedView = filters.view === "completed";
+  const timeSnapshotAt = new Date();
 
   let tasksQuery = supabase
     .from("tasks")
@@ -64,12 +67,24 @@ export default async function TasksPage({
         )
     : tasksQuery.neq("status", "done");
 
-  const [{ data: tasks }, { data: projects }, { data: profiles }] =
+  const [
+    { data: tasks },
+    { data: projects },
+    { data: profiles },
+    { data: timeEntries },
+  ] =
     await Promise.all([
       tasksQuery,
       supabase.from("projects").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase
+        .from("task_time_entries")
+        .select("task_id,started_at,ended_at"),
     ]);
+  const trackedSeconds = sumRawTaskTime(
+    timeEntries ?? [],
+    timeSnapshotAt,
+  );
 
   const filtered = (tasks ?? []).filter((task) => {
     if (filters.project && task.project_id !== filters.project) return false;
@@ -198,13 +213,14 @@ export default async function TasksPage({
             <TableHead>Приоритет</TableHead>
             <TableHead>Тип</TableHead>
             <TableHead>Дедлайн</TableHead>
+            <TableHead>Затрачено</TableHead>
             <TableHead>Важно</TableHead>
             <TableHead>Срочно</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 && (
-            <TableEmpty colSpan={10}>
+            <TableEmpty colSpan={11}>
               {isCompletedView
                 ? "Выполненных задач за последний месяц нет."
                 : "Активных задач пока нет."}
@@ -261,6 +277,13 @@ export default async function TasksPage({
                   dueDate={task.due_date}
                   status={task.status}
                 />
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-neutral-600">
+                {trackedSeconds.has(task.id)
+                  ? formatDuration(
+                      Math.round((trackedSeconds.get(task.id) ?? 0) / 60),
+                    )
+                  : "—"}
               </TableCell>
               <TableCell>{task.is_important ? "Да" : "—"}</TableCell>
               <TableCell>{task.is_urgent ? "Да" : "—"}</TableCell>

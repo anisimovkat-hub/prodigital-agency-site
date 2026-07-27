@@ -30,6 +30,10 @@ import {
 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { PROJECT_OWNERSHIP_MODE_LABEL } from "@/lib/labels";
+import {
+  allocateTaskTime,
+  type TaskTimeEntry,
+} from "@/lib/time-analytics";
 
 const LINK_LABELS: Record<string, string> = {
   website: "Сайт",
@@ -41,19 +45,6 @@ const LINK_LABELS: Record<string, string> = {
   notion: "Notion",
 };
 
-// Часы за период из интервалов учёта времени (открытый интервал — до «сейчас»).
-function sumTrackedHours(
-  rows: { started_at: string; ended_at: string | null }[],
-): number {
-  const nowMs = Date.now();
-  const totalMs = rows.reduce((sum, row) => {
-    const start = new Date(row.started_at).getTime();
-    const end = row.ended_at ? new Date(row.ended_at).getTime() : nowMs;
-    return sum + Math.max(0, end - start);
-  }, 0);
-  return totalMs / 3_600_000;
-}
-
 export default async function ProjectDetailPage({
   params,
 }: {
@@ -61,8 +52,9 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const now = new Date();
 
-  const monthStart = new Date();
+  const monthStart = new Date(now);
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
   const monthStartISO = monthStart.toISOString();
@@ -104,15 +96,27 @@ export default async function ProjectDetailPage({
     supabase.from("profiles").select("id,full_name").order("full_name"),
     supabase.from("clients").select("id,name").order("name"),
     supabase
-      .from("time_entries")
-      .select("started_at,ended_at")
+      .from("task_time_entries")
+      .select(
+        "id,task_id,task_title,task_type,workstream,project_id,user_id,started_at,ended_at",
+      )
       .eq("project_id", id)
-      .gte("started_at", monthStartISO),
+      .lt("started_at", now.toISOString())
+      .or(`ended_at.gte.${monthStartISO},ended_at.is.null`),
   ]);
 
   if (!project) notFound();
 
-  const monthHours = sumTrackedHours(timeRows ?? []);
+  const monthAllocation = allocateTaskTime(
+    (timeRows ?? []) as TaskTimeEntry[],
+    {
+      from: monthStart,
+      to: now,
+      now,
+    },
+  );
+  const monthHours =
+    (monthAllocation.byProjectSeconds.get(id) ?? 0) / 3_600;
   const perHour =
     project.monthly_fee && monthHours > 0
       ? project.monthly_fee / monthHours
@@ -178,7 +182,7 @@ export default async function ProjectDetailPage({
                 : "—"}
             </Row>
             <Row label="Доход/мес">{formatCurrency(project.monthly_fee)}</Row>
-            <Row label="Часы (мес)">
+            <Row label="Трудозатраты (мес)">
               {monthHours > 0 ? `${monthHours.toFixed(1)} ч` : "—"}
             </Row>
             <Row label="₽/час">{perHour ? formatCurrency(perHour) : "—"}</Row>

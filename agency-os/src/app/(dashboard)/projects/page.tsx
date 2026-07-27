@@ -14,32 +14,21 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import {
+  allocateTaskTime,
+  type TaskTimeEntry,
+} from "@/lib/time-analytics";
 
 function formatHours(hours: number): string {
   if (hours <= 0) return "—";
   return `${hours.toFixed(1).replace(".", ",")} ч`;
 }
 
-// Часы за период по проектам (открытый интервал считается до «сейчас»).
-function sumHoursByProject(
-  rows: { project_id: string | null; started_at: string; ended_at: string | null }[],
-): Map<string, number> {
-  const nowMs = Date.now();
-  const byProject = new Map<string, number>();
-  for (const row of rows) {
-    if (!row.project_id) continue;
-    const start = new Date(row.started_at).getTime();
-    const end = row.ended_at ? new Date(row.ended_at).getTime() : nowMs;
-    const hours = Math.max(0, end - start) / 3_600_000;
-    byProject.set(row.project_id, (byProject.get(row.project_id) ?? 0) + hours);
-  }
-  return byProject;
-}
-
 export default async function ProjectsPage() {
   const supabase = await createClient();
+  const now = new Date();
 
-  const monthStart = new Date();
+  const monthStart = new Date(now);
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
 
@@ -52,12 +41,25 @@ export default async function ProjectsPage() {
       supabase.from("clients").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase
-        .from("time_entries")
-        .select("project_id,started_at,ended_at")
-        .gte("started_at", monthStart.toISOString()),
+        .from("task_time_entries")
+        .select(
+          "id,task_id,task_title,task_type,workstream,project_id,user_id,started_at,ended_at",
+        )
+        .lt("started_at", now.toISOString())
+        .or(`ended_at.gte.${monthStart.toISOString()},ended_at.is.null`),
     ]);
 
-  const hoursByProject = sumHoursByProject(timeRows ?? []);
+  const allocation = allocateTaskTime((timeRows ?? []) as TaskTimeEntry[], {
+    from: monthStart,
+    to: now,
+    now,
+  });
+  const hoursByProject = new Map(
+    [...allocation.byProjectSeconds].map(([projectId, seconds]) => [
+      projectId,
+      seconds / 3_600,
+    ]),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -92,7 +94,7 @@ export default async function ProjectsPage() {
             <TableHead>Стадия</TableHead>
             <TableHead>Ответственный</TableHead>
             <TableHead>Доход/мес</TableHead>
-            <TableHead>Загрузка, ч</TableHead>
+            <TableHead>Трудозатраты, мес</TableHead>
             <TableHead>Бюджет</TableHead>
           </TableRow>
         </TableHeader>

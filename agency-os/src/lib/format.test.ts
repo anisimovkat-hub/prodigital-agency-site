@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDuration } from "@/lib/format";
+import { formatDuration, formatTimerDuration } from "@/lib/format";
 
 describe("formatDuration", () => {
   it("возвращает прочерк для отсутствующей оценки", () => {
@@ -21,5 +21,15 @@ describe("formatDuration", () => {
 
   it("форматирует нулевую оценку", () => {
     expect(formatDuration(0)).toBe("0 мин");
+  });
+});
+
+describe("formatTimerDuration", () => {
+  it("форматирует накопленные секунды как таймер", () => {
+    expect(formatTimerDuration(3_661)).toBe("01:01:01");
+  });
+
+  it("не показывает отрицательное время", () => {
+    expect(formatTimerDuration(-10)).toBe("00:00:00");
   });
 });

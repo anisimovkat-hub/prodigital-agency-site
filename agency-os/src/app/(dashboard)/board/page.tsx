@@ -1,6 +1,7 @@
 import { KanbanBoard, type BoardTask } from "@/app/(dashboard)/board/kanban-board";
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
 import { createClient } from "@/lib/supabase/server";
+import { sumRawTaskTime } from "@/lib/time-analytics";
 
 type BoardSearchParams = {
   project?: string;
@@ -15,8 +16,14 @@ export default async function BoardPage({
 }) {
   const filters = await searchParams;
   const supabase = await createClient();
+  const timeSnapshotAt = new Date();
 
-  const [{ data: tasks }, { data: projects }, { data: profiles }] =
+  const [
+    { data: tasks },
+    { data: projects },
+    { data: profiles },
+    { data: timeEntries },
+  ] =
     await Promise.all([
       supabase
         .from("tasks")
@@ -26,7 +33,21 @@ export default async function BoardPage({
         .order("created_at", { ascending: false }),
       supabase.from("projects").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase
+        .from("task_time_entries")
+        .select("task_id,started_at,ended_at"),
     ]);
+  const trackedSeconds = sumRawTaskTime(
+    timeEntries ?? [],
+    timeSnapshotAt,
+  );
+  const boardTasks = ((tasks ?? []) as Omit<
+    BoardTask,
+    "tracked_seconds"
+  >[]).map((task) => ({
+    ...task,
+    tracked_seconds: Math.round(trackedSeconds.get(task.id) ?? 0),
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -37,7 +58,7 @@ export default async function BoardPage({
         </p>
       </div>
       <KanbanBoard
-        tasks={(tasks ?? []) as BoardTask[]}
+        tasks={boardTasks}
         projects={(projects ?? []).map((project) => ({
           id: project.id,
           name: project.name,
@@ -46,6 +67,7 @@ export default async function BoardPage({
           id: profile.id,
           name: profile.full_name,
         }))}
+        timeSnapshotAt={timeSnapshotAt.toISOString()}
       />
       {filters.task && (
         <TaskDrawer

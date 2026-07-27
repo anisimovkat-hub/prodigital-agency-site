@@ -249,21 +249,50 @@ export async function createSubtask(
 }
 
 export async function updateTaskStatus(taskId: string, status: string) {
+  if (
+    ![
+      "backlog",
+      "todo",
+      "in_progress",
+      "review",
+      "paused",
+      "done",
+    ].includes(status)
+  ) {
+    return { success: false as const, error: "Некорректный статус задачи" };
+  }
+
   const supabase = await createClient();
-  await supabase
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false as const, error: "Нет авторизации" };
+  }
+
+  const { data: updatedTask, error } = await supabase
     .from("tasks")
     .update({
       status: status as never,
       completed_at: status === "done" ? new Date().toISOString() : null,
     })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .select("id,project_id")
+    .maybeSingle();
 
-  revalidatePath("/board");
-  revalidatePath("/tasks");
-  revalidatePath("/today");
-  revalidatePath("/week");
-  revalidatePath("/personal");
-  revalidatePath("/");
+  if (error) return { success: false as const, error: error.message };
+  if (!updatedTask) {
+    return {
+      success: false as const,
+      error: "Задача не изменена: проверьте права доступа",
+    };
+  }
+
+  revalidateTaskViews();
+  if (updatedTask.project_id) {
+    revalidatePath(`/projects/${updatedTask.project_id}`);
+  }
+  return { success: true as const };
 }
 
 export async function toggleTaskDone(taskId: string, done: boolean) {
@@ -283,12 +312,7 @@ export async function toggleTaskDone(taskId: string, done: boolean) {
 
   if (error) return { success: false };
 
-  revalidatePath("/today");
-  revalidatePath("/tasks");
-  revalidatePath("/week");
-  revalidatePath("/board");
-  revalidatePath("/personal");
-  revalidatePath("/");
+  revalidateTaskViews();
 
   return { success: true };
 }
@@ -462,5 +486,8 @@ function revalidateTaskViews() {
   revalidatePath("/today");
   revalidatePath("/week");
   revalidatePath("/personal");
+  revalidatePath("/time");
+  revalidatePath("/projects");
+  revalidatePath("/projects/[id]", "page");
   revalidatePath("/");
 }
