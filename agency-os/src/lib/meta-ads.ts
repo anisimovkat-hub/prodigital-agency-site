@@ -17,15 +17,49 @@ export type MetaDailyMetric = {
   clicks: number;
   leads: number;
 };
+export type MetaCampaign = {
+  externalId: string;
+  name: string | null;
+  objective: string | null;
+  status: string | null;
+};
+// Конверсия по конкретной цели: action_type сохраняем как есть, без схлопывания.
+export type MetaConversion = {
+  actionType: string;
+  count: number;
+  value: number;
+};
+export type MetaCampaignDailyMetric = {
+  campaignExternalId: string;
+  campaignName: string | null;
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  conversions: MetaConversion[];
+};
 
 type MetaAction = { action_type?: string; value?: string };
 type MetaAccountRow = { account_id?: string; name?: string; currency?: string };
+type MetaCampaignRow = {
+  id?: string;
+  name?: string;
+  objective?: string;
+  status?: string;
+};
 type MetaInsightRow = {
   date_start?: string;
   spend?: string;
   impressions?: string;
   clicks?: string;
   actions?: MetaAction[];
+};
+type MetaCampaignInsightRow = MetaInsightRow & {
+  campaign_id?: string;
+  campaign_name?: string;
+  reach?: string;
+  action_values?: MetaAction[];
 };
 type MetaListResponse<T> = {
   data?: T[];
@@ -106,6 +140,104 @@ export async function fetchMetaInsights(
       });
     }
     url = json.paging?.next ?? null;
+  }
+  return out;
+}
+
+// Постраничный обход списочного эндпоинта Graph API (paging.next).
+async function fetchAllPages<T>(firstUrl: string): Promise<T[]> {
+  let url: string | null = firstUrl;
+  const out: T[] = [];
+  let guard = 0;
+  while (url && guard < 50) {
+    guard += 1;
+    const res = await fetch(url, { cache: "no-store" });
+    const json = (await res.json()) as MetaListResponse<T>;
+    if (!res.ok) throw new Error(metaError(json, res.status));
+    out.push(...(json.data ?? []));
+    url = json.paging?.next ?? null;
+  }
+  return out;
+}
+
+// Кампании кабинета: нужны имя, цель и статус (в insights их нет).
+export async function fetchMetaCampaigns(
+  externalId: string,
+): Promise<MetaCampaign[]> {
+  const params = new URLSearchParams({
+    fields: "id,name,objective,status",
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaCampaignRow>(
+    `${BASE}/${externalId}/campaigns?${params.toString()}`,
+  );
+  return rows
+    .filter((row) => row.id)
+    .map((row) => ({
+      externalId: String(row.id),
+      name: row.name ?? null,
+      objective: row.objective ?? null,
+      status: row.status ?? null,
+    }));
+}
+
+// Суточные метрики кампаний за период. Все action_type из actions отдаются как есть:
+// у разных кампаний разные цели (лид, сообщение, покупка, свой пиксель).
+export async function fetchMetaCampaignInsights(
+  externalId: string,
+  since: string,
+  until: string,
+): Promise<MetaCampaignDailyMetric[]> {
+  const params = new URLSearchParams({
+    fields:
+      "campaign_id,campaign_name,spend,impressions,clicks,reach,actions,action_values",
+    level: "campaign",
+    time_increment: "1",
+    time_range: JSON.stringify({ since, until }),
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaCampaignInsightRow>(
+    `${BASE}/${externalId}/insights?${params.toString()}`,
+  );
+  const out: MetaCampaignDailyMetric[] = [];
+  for (const row of rows) {
+    if (!row.campaign_id || !row.date_start) continue;
+    out.push({
+      campaignExternalId: row.campaign_id,
+      campaignName: row.campaign_name ?? null,
+      date: row.date_start,
+      spend: Number(row.spend ?? 0),
+      impressions: Number(row.impressions ?? 0),
+      clicks: Number(row.clicks ?? 0),
+      reach: Number(row.reach ?? 0),
+      conversions: toConversions(row.actions, row.action_values),
+    });
+  }
+  return out;
+}
+
+// actions = количество конверсий, action_values = их денежная ценность (может не быть).
+function toConversions(
+  actions: MetaAction[] | undefined,
+  actionValues: MetaAction[] | undefined,
+): MetaConversion[] {
+  if (!Array.isArray(actions)) return [];
+  const values = new Map<string, number>();
+  for (const item of actionValues ?? []) {
+    if (item.action_type) values.set(item.action_type, Number(item.value ?? 0));
+  }
+  const out: MetaConversion[] = [];
+  for (const action of actions) {
+    if (!action.action_type) continue;
+    const count = Number(action.value ?? 0);
+    if (!Number.isFinite(count)) continue;
+    out.push({
+      actionType: action.action_type,
+      count,
+      value: values.get(action.action_type) ?? 0,
+    });
   }
   return out;
 }

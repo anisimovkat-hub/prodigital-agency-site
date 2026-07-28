@@ -625,7 +625,22 @@ export type Database = {
           ended_at?: string | null;
           created_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "time_entries_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       task_time_entries: {
         Row: {
@@ -712,7 +727,15 @@ export type Database = {
           is_active?: boolean;
           created_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "ad_accounts_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       ad_metrics: {
         Row: {
@@ -745,11 +768,164 @@ export type Database = {
           leads?: number;
           created_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "ad_metrics_ad_account_id_fkey";
+            columns: ["ad_account_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_campaigns: {
+        Row: {
+          id: string;
+          ad_account_id: string;
+          external_id: string;
+          name: string | null;
+          objective: string | null;
+          status: string | null;
+          project_id: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          ad_account_id: string;
+          external_id: string;
+          name?: string | null;
+          objective?: string | null;
+          status?: string | null;
+          project_id?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          ad_account_id?: string;
+          external_id?: string;
+          name?: string | null;
+          objective?: string | null;
+          status?: string | null;
+          project_id?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_campaigns_ad_account_id_fkey";
+            columns: ["ad_account_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_accounts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ad_campaigns_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_campaign_metrics: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          date: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          reach: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          date: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          reach?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          date?: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          reach?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_campaign_metrics_campaign_id_fkey";
+            columns: ["campaign_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_campaigns";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_conversions: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          date: string;
+          action_type: string;
+          count: number;
+          value: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          date: string;
+          action_type: string;
+          count?: number;
+          value?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          date?: string;
+          action_type?: string;
+          count?: number;
+          value?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_conversions_campaign_id_fkey";
+            columns: ["campaign_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_campaigns";
+            referencedColumns: ["id"];
+          },
+        ];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      // Свод по кампаниям за период (миграция 0014): одна строка на кампанию,
+      // конверсии по всем целям — массивом в jsonb.
+      ad_campaign_period_summary: {
+        Args: { p_since: string; p_until: string };
+        Returns: {
+          campaign_id: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          reach: number;
+          conversions: {
+            action_type: string;
+            count: number;
+            value: number;
+          }[];
+        }[];
+      };
+    };
     Enums: {
       user_role: "owner" | "pm" | "specialist" | "viewer";
       project_health: "green" | "yellow" | "red";
