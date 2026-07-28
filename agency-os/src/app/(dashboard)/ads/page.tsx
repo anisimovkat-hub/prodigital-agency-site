@@ -1,15 +1,10 @@
 import { AdTimeseriesChart } from "@/app/(dashboard)/ads/ad-timeseries-chart";
+import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/ads/ad-tree-table";
 import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/ads/ads-filters";
-import { SyncMetaButton } from "@/app/(dashboard)/ads/sync-button";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  SyncMetaButton,
+  SyncMetaDetailsButton,
+} from "@/app/(dashboard)/ads/sync-button";
 import {
   actionTypeLabel,
   defaultDateRange,
@@ -133,6 +128,8 @@ export default async function AdsPage({
     { data: campaigns },
     { data: allProjects },
     { data: customConversions },
+    { data: adSetRows },
+    { data: adRows },
   ] = await Promise.all([
     supabase
       .from("ad_accounts")
@@ -145,6 +142,8 @@ export default async function AdsPage({
       .order("name"),
     supabase.from("projects").select("id,name").order("name"),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
+    supabase.from("ad_sets").select("id,name,status,campaign_id"),
+    supabase.from("ads").select("id,name,status,adset_id"),
   ]);
 
   const accountRows = (accounts ?? []) as AccountRow[];
@@ -166,11 +165,16 @@ export default async function AdsPage({
     projectsWithAds.has(p.id),
   );
 
-  // Период за срез: одна строка на кампанию + конверсии по всем целям.
-  const { data: periodSummary } = await supabase.rpc(
-    "ad_campaign_period_summary",
-    { p_since: from, p_until: to },
-  );
+  // Своды за период по трём уровням (кампании / группы / объявления) — параллельно.
+  const [
+    { data: periodSummary },
+    { data: adsetSummary },
+    { data: adSummary },
+  ] = await Promise.all([
+    supabase.rpc("ad_campaign_period_summary", { p_since: from, p_until: to }),
+    supabase.rpc("ad_set_period_summary", { p_since: from, p_until: to }),
+    supabase.rpc("ad_ad_period_summary", { p_since: from, p_until: to }),
+  ]);
 
   // Цели для дропдауна — goal-типы, реально встретившиеся в периоде.
   const goalTypes = new Set<string>();
@@ -243,14 +247,133 @@ export default async function AdsPage({
     }
   }
   const summaries = summarizeCampaigns(metricRows, conversions);
-  const campaignTable = filteredCampaigns
-    .map((campaign) => ({
-      campaign,
-      account: accountById.get(campaign.ad_account_id) ?? null,
-      stats: summaries.get(campaign.id) ?? null,
-    }))
-    .filter((row) => row.stats)
-    .sort((a, b) => (b.stats?.spend ?? 0) - (a.stats?.spend ?? 0));
+
+  // Своды по группам и объявлениям (та же функция; ключ = id сущности).
+  const toSummaryInput = (
+    rows: { id: string; spend: number; impressions: number; clicks: number }[],
+    convSource: {
+      id: string;
+      conversions: { action_type: string; count: number; value: number }[];
+    }[],
+  ) => {
+    const metrics = rows.map((r) => ({
+      campaign_id: r.id,
+      spend: r.spend,
+      impressions: r.impressions,
+      clicks: r.clicks,
+    }));
+    const convs: ConversionRow[] = [];
+    for (const row of convSource) {
+      for (const item of row.conversions ?? []) {
+        convs.push({
+          campaign_id: row.id,
+          action_type: item.action_type,
+          count: Number(item.count ?? 0),
+          value: Number(item.value ?? 0),
+        });
+      }
+    }
+    return summarizeCampaigns(metrics, convs);
+  };
+
+  const adsetSummaries = toSummaryInput(
+    (adsetSummary ?? []).map((r) => ({
+      id: r.adset_id,
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      clicks: Number(r.clicks ?? 0),
+    })),
+    (adsetSummary ?? []).map((r) => ({ id: r.adset_id, conversions: r.conversions })),
+  );
+  const adSummaries = toSummaryInput(
+    (adSummary ?? []).map((r) => ({
+      id: r.ad_id,
+      spend: Number(r.spend ?? 0),
+      impressions: Number(r.impressions ?? 0),
+      clicks: Number(r.clicks ?? 0),
+    })),
+    (adSummary ?? []).map((r) => ({ id: r.ad_id, conversions: r.conversions })),
+  );
+
+  // Группировка сущностей для дерева.
+  const adSetsByCampaign = new Map<string, typeof adSetRows>();
+  for (const row of adSetRows ?? []) {
+    const list = adSetsByCampaign.get(row.campaign_id) ?? [];
+    list.push(row);
+    adSetsByCampaign.set(row.campaign_id, list);
+  }
+  const adsByAdset = new Map<string, typeof adRows>();
+  for (const row of adRows ?? []) {
+    const list = adsByAdset.get(row.adset_id) ?? [];
+    list.push(row);
+    adsByAdset.set(row.adset_id, list);
+  }
+
+  const buildRow = (
+    id: string,
+    name: string | null,
+    status: string | null,
+    level: number,
+    stats: NonNullable<ReturnType<typeof summaries.get>>,
+    rowCurrency: string | null,
+    children: AdTreeRow[],
+  ): AdTreeRow => ({
+    id,
+    name: name ?? "Без названия",
+    status,
+    level,
+    spend: stats.spend,
+    impressions: stats.impressions,
+    clicks: stats.clicks,
+    ctr: stats.ctr,
+    cpc: stats.cpc,
+    cpm: stats.cpm,
+    results: stats.primaryGoal ? stats.primaryGoal.count : null,
+    goalLabel: stats.primaryGoal ? label(stats.primaryGoal.actionType) : null,
+    cpa: stats.cpa,
+    currency: rowCurrency,
+    children,
+  });
+
+  const bySpendDesc = (a: AdTreeRow, b: AdTreeRow) => b.spend - a.spend;
+
+  const tree: AdTreeRow[] = filteredCampaigns
+    .map((campaign) => {
+      const stats = summaries.get(campaign.id);
+      if (!stats) return null;
+      const rowCurrency =
+        accountById.get(campaign.ad_account_id)?.currency ?? null;
+      const adsets = (adSetsByCampaign.get(campaign.id) ?? [])
+        .map((adset) => {
+          const asStats = adsetSummaries.get(adset.id);
+          if (!asStats) return null;
+          const ads = (adsByAdset.get(adset.id) ?? [])
+            .map((ad) => {
+              const adStats = adSummaries.get(ad.id);
+              if (!adStats) return null;
+              return buildRow(ad.id, ad.name, ad.status, 2, adStats, rowCurrency, []);
+            })
+            .filter((r): r is AdTreeRow => r !== null)
+            .sort(bySpendDesc);
+          return buildRow(adset.id, adset.name, adset.status, 1, asStats, rowCurrency, ads);
+        })
+        .filter((r): r is AdTreeRow => r !== null)
+        .sort(bySpendDesc);
+      return buildRow(
+        campaign.id,
+        campaign.name,
+        campaign.status,
+        0,
+        stats,
+        rowCurrency,
+        adsets,
+      );
+    })
+    .filter((r): r is AdTreeRow => r !== null)
+    .sort(bySpendDesc);
+
+  // Есть ли вообще детализация (группы) в срезе — для подсказки.
+  const hasDetails = tree.some((c) => c.children.length > 0);
 
   const current: AdsFilterValues = {
     from,
@@ -273,8 +396,9 @@ export default async function AdsPage({
             Аналитика по кабинетам, кампаниям и целям. Суммы — в валюте кабинета.
           </p>
         </div>
-        <div className="rounded-lg border border-neutral-200 bg-white p-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-3">
           <SyncMetaButton />
+          <SyncMetaDetailsButton />
         </div>
       </div>
 
@@ -333,85 +457,26 @@ export default async function AdsPage({
 
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold text-neutral-900">
-          Кампании за период
+          Кампании → группы → объявления
         </h2>
         <p className="text-sm text-neutral-500">
-          «Главная цель» выбирается по данным самой кампании, CPA считается по ней.
-          Под названием — все цели за период.
+          Разворачивайте строки, как в рекламном кабинете. «Результат» — главная цель
+          строки, CPA считается по ней. Суммы — в валюте кабинета.
         </p>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Кампания</TableHead>
-              <TableHead>Проект</TableHead>
-              <TableHead>Кабинет</TableHead>
-              <TableHead>Расход</TableHead>
-              <TableHead>Главная цель</TableHead>
-              <TableHead>Конверсий</TableHead>
-              <TableHead>CPA</TableHead>
-              <TableHead>CTR</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {campaignTable.length === 0 && (
-              <TableEmpty colSpan={8}>
-                Нет кампаний с данными за выбранный период и фильтры.
-              </TableEmpty>
-            )}
-            {campaignTable.map(({ campaign, account, stats }) => (
-              <TableRow key={campaign.id}>
-                <TableCell className="max-w-xs">
-                  <div className="font-medium text-neutral-900">
-                    {campaign.name ?? "Без названия"}
-                  </div>
-                  {stats && stats.goals.length > 0 && (
-                    <div className="text-xs text-neutral-500">
-                      {stats.goals
-                        .map(
-                          (goal) =>
-                            `${label(goal.actionType)}: ${fmt(goal.count)}`,
-                        )
-                        .join(" · ")}
-                    </div>
-                  )}
-                  {campaign.status && campaign.status !== "ACTIVE" && (
-                    <div className="text-xs text-neutral-400">
-                      статус: {campaign.status}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="text-neutral-600">
-                  {campaign.project?.name ?? "— не привязана"}
-                </TableCell>
-                <TableCell className="text-neutral-500">
-                  {account?.name ?? "—"}
-                </TableCell>
-                <TableCell>
-                  {stats ? fmtMoney(stats.spend) : "—"}{" "}
-                  <span className="text-xs text-neutral-400">
-                    {account?.currency ?? ""}
-                  </span>
-                </TableCell>
-                <TableCell className="text-neutral-600">
-                  {stats?.primaryGoal
-                    ? label(stats.primaryGoal.actionType)
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  {stats?.primaryGoal ? fmt(stats.primaryGoal.count) : "—"}
-                </TableCell>
-                <TableCell>
-                  {stats?.cpa === null || stats?.cpa === undefined
-                    ? "—"
-                    : fmtMoney(stats.cpa)}
-                </TableCell>
-                <TableCell className="text-neutral-500">
-                  {fmtPercent(stats?.ctr ?? null)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {!hasDetails && (
+          <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+            Детали по группам и объявлениям ещё не загружены. Нажмите «Загрузить
+            детали (группы и объявления)» — после этого строки кампаний можно будет
+            разворачивать.
+          </p>
+        )}
+        {tree.length === 0 ? (
+          <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+            Нет кампаний с данными за выбранный период и фильтры.
+          </p>
+        ) : (
+          <AdTreeTable rows={tree} />
+        )}
       </section>
     </div>
   );

@@ -43,6 +43,29 @@ export type MetaCampaignDailyMetric = {
   reach: number;
   conversions: MetaConversion[];
 };
+export type MetaAdset = {
+  externalId: string;
+  name: string | null;
+  status: string | null;
+  campaignExternalId: string | null;
+};
+export type MetaAd = {
+  externalId: string;
+  name: string | null;
+  status: string | null;
+  adsetExternalId: string | null;
+};
+// Суточная метрика произвольной сущности (группы или объявления); parentExternalId
+// пусто для метрик, где связь берём из справочника сущностей, а не из insights.
+export type MetaEntityDailyMetric = {
+  entityExternalId: string;
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  conversions: MetaConversion[];
+};
 
 type MetaAction = { action_type?: string; value?: string };
 type MetaAccountRow = { account_id?: string; name?: string; currency?: string };
@@ -63,6 +86,24 @@ type MetaInsightRow = {
 type MetaCampaignInsightRow = MetaInsightRow & {
   campaign_id?: string;
   campaign_name?: string;
+  reach?: string;
+  action_values?: MetaAction[];
+};
+type MetaAdsetRow = {
+  id?: string;
+  name?: string;
+  status?: string;
+  campaign_id?: string;
+};
+type MetaAdRow = {
+  id?: string;
+  name?: string;
+  status?: string;
+  adset_id?: string;
+};
+type MetaEntityInsightRow = MetaInsightRow & {
+  adset_id?: string;
+  ad_id?: string;
   reach?: string;
   action_values?: MetaAction[];
 };
@@ -150,11 +191,13 @@ export async function fetchMetaInsights(
 }
 
 // Постраничный обход списочного эндпоинта Graph API (paging.next).
+// Лимит страниц высокий: level=ad с time_increment=1 за длинный период даёт
+// много страниц (объявление × день), обрезать выдачу нельзя.
 async function fetchAllPages<T>(firstUrl: string): Promise<T[]> {
   let url: string | null = firstUrl;
   const out: T[] = [];
   let guard = 0;
-  while (url && guard < 50) {
+  while (url && guard < 400) {
     guard += 1;
     const res = await fetch(url, { cache: "no-store" });
     const json = (await res.json()) as MetaListResponse<T>;
@@ -233,6 +276,99 @@ export async function fetchMetaCampaignInsights(
     out.push({
       campaignExternalId: row.campaign_id,
       campaignName: row.campaign_name ?? null,
+      date: row.date_start,
+      spend: Number(row.spend ?? 0),
+      impressions: Number(row.impressions ?? 0),
+      clicks: Number(row.clicks ?? 0),
+      reach: Number(row.reach ?? 0),
+      conversions: toConversions(row.actions, row.action_values),
+    });
+  }
+  return out;
+}
+
+// Группы объявлений кабинета: id, имя, статус, внешний id кампании-родителя.
+export async function fetchMetaAdsets(externalId: string): Promise<MetaAdset[]> {
+  const params = new URLSearchParams({
+    fields: "id,name,status,campaign_id",
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaAdsetRow>(
+    `${BASE}/${externalId}/adsets?${params.toString()}`,
+  );
+  return rows
+    .filter((row) => row.id)
+    .map((row) => ({
+      externalId: String(row.id),
+      name: row.name ?? null,
+      status: row.status ?? null,
+      campaignExternalId: row.campaign_id ?? null,
+    }));
+}
+
+// Объявления кабинета: id, имя, статус, внешний id группы-родителя.
+export async function fetchMetaAds(externalId: string): Promise<MetaAd[]> {
+  const params = new URLSearchParams({
+    fields: "id,name,status,adset_id",
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaAdRow>(
+    `${BASE}/${externalId}/ads?${params.toString()}`,
+  );
+  return rows
+    .filter((row) => row.id)
+    .map((row) => ({
+      externalId: String(row.id),
+      name: row.name ?? null,
+      status: row.status ?? null,
+      adsetExternalId: row.adset_id ?? null,
+    }));
+}
+
+// Суточные метрики групп объявлений (level=adset). Все action_type — как есть.
+export async function fetchMetaAdsetInsights(
+  externalId: string,
+  since: string,
+  until: string,
+): Promise<MetaEntityDailyMetric[]> {
+  return fetchEntityInsights(externalId, since, until, "adset");
+}
+
+// Суточные метрики объявлений (level=ad).
+export async function fetchMetaAdInsights(
+  externalId: string,
+  since: string,
+  until: string,
+): Promise<MetaEntityDailyMetric[]> {
+  return fetchEntityInsights(externalId, since, until, "ad");
+}
+
+async function fetchEntityInsights(
+  externalId: string,
+  since: string,
+  until: string,
+  level: "adset" | "ad",
+): Promise<MetaEntityDailyMetric[]> {
+  const idField = level === "adset" ? "adset_id" : "ad_id";
+  const params = new URLSearchParams({
+    fields: `${idField},spend,impressions,clicks,reach,actions,action_values`,
+    level,
+    time_increment: "1",
+    time_range: JSON.stringify({ since, until }),
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaEntityInsightRow>(
+    `${BASE}/${externalId}/insights?${params.toString()}`,
+  );
+  const out: MetaEntityDailyMetric[] = [];
+  for (const row of rows) {
+    const entityId = level === "adset" ? row.adset_id : row.ad_id;
+    if (!entityId || !row.date_start) continue;
+    out.push({
+      entityExternalId: entityId,
       date: row.date_start,
       spend: Number(row.spend ?? 0),
       impressions: Number(row.impressions ?? 0),

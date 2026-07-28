@@ -937,6 +937,234 @@ export type Database = {
           },
         ];
       };
+      ad_sets: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          external_id: string;
+          name: string | null;
+          status: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          external_id: string;
+          name?: string | null;
+          status?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          external_id?: string;
+          name?: string | null;
+          status?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_sets_campaign_id_fkey";
+            columns: ["campaign_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_campaigns";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ads: {
+        Row: {
+          id: string;
+          adset_id: string;
+          external_id: string;
+          name: string | null;
+          status: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          adset_id: string;
+          external_id: string;
+          name?: string | null;
+          status?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          adset_id?: string;
+          external_id?: string;
+          name?: string | null;
+          status?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ads_adset_id_fkey";
+            columns: ["adset_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_sets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_set_metrics: {
+        Row: {
+          id: string;
+          adset_id: string;
+          date: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          reach: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          adset_id: string;
+          date: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          reach?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          adset_id?: string;
+          date?: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          reach?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_set_metrics_adset_id_fkey";
+            columns: ["adset_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_sets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_ad_metrics: {
+        Row: {
+          id: string;
+          ad_id: string;
+          date: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          reach: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          ad_id: string;
+          date: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          reach?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          ad_id?: string;
+          date?: string;
+          spend?: number;
+          impressions?: number;
+          clicks?: number;
+          reach?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_ad_metrics_ad_id_fkey";
+            columns: ["ad_id"];
+            isOneToOne: false;
+            referencedRelation: "ads";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_set_conversions: {
+        Row: {
+          id: string;
+          adset_id: string;
+          date: string;
+          action_type: string;
+          count: number;
+          value: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          adset_id: string;
+          date: string;
+          action_type: string;
+          count?: number;
+          value?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          adset_id?: string;
+          date?: string;
+          action_type?: string;
+          count?: number;
+          value?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_set_conversions_adset_id_fkey";
+            columns: ["adset_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_sets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ad_ad_conversions: {
+        Row: {
+          id: string;
+          ad_id: string;
+          date: string;
+          action_type: string;
+          count: number;
+          value: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          ad_id: string;
+          date: string;
+          action_type: string;
+          count?: number;
+          value?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          ad_id?: string;
+          date?: string;
+          action_type?: string;
+          count?: number;
+          value?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_ad_conversions_ad_id_fkey";
+            columns: ["ad_id"];
+            isOneToOne: false;
+            referencedRelation: "ads";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -976,6 +1204,42 @@ export type Database = {
           clicks: number;
           conversions: number;
           conv_value: number;
+        }[];
+      };
+      // Свод по группам объявлений за период (миграция 0019): строка на группу
+      // + campaign_id для дерева. Конверсии — массивом jsonb.
+      ad_set_period_summary: {
+        Args: { p_since: string; p_until: string };
+        Returns: {
+          adset_id: string;
+          campaign_id: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          reach: number;
+          conversions: {
+            action_type: string;
+            count: number;
+            value: number;
+          }[];
+        }[];
+      };
+      // Свод по объявлениям за период (миграция 0019): строка на объявление
+      // + adset_id для дерева. Конверсии — массивом jsonb.
+      ad_ad_period_summary: {
+        Args: { p_since: string; p_until: string };
+        Returns: {
+          ad_id: string;
+          adset_id: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          reach: number;
+          conversions: {
+            action_type: string;
+            count: number;
+            value: number;
+          }[];
         }[];
       };
     };

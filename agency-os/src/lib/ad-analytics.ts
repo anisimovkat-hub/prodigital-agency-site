@@ -29,6 +29,8 @@ export type CampaignSummary = {
   impressions: number;
   clicks: number;
   ctr: number | null;
+  cpc: number | null;
+  cpm: number | null;
   goals: GoalTotal[];
   otherActions: GoalTotal[];
   primaryGoal: GoalTotal | null;
@@ -325,6 +327,8 @@ export function summarizeCampaigns(
       impressions: base.impressions,
       clicks: base.clicks,
       ctr: base.impressions > 0 ? base.clicks / base.impressions : null,
+      cpc: base.clicks > 0 ? base.spend / base.clicks : null,
+      cpm: base.impressions > 0 ? (base.spend / base.impressions) * 1000 : null,
       goals,
       otherActions,
       primaryGoal,

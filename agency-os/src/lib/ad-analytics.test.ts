@@ -118,6 +118,15 @@ describe("summarizeCampaigns", () => {
     expect(summary.get("c1")?.ctr).toBeCloseTo(0.04);
   });
 
+  it("считает CPC и CPM", () => {
+    const summary = summarizeCampaigns(metrics, conversions);
+    const c1 = summary.get("c1");
+    // spend 150 / clicks 80
+    expect(c1?.cpc).toBeCloseTo(1.875);
+    // spend 150 / impressions 2000 * 1000
+    expect(c1?.cpm).toBeCloseTo(75);
+  });
+
   it("складывает конверсии по цели и считает CPA по главной", () => {
     const summary = summarizeCampaigns(metrics, conversions);
     const c1 = summary.get("c1");
