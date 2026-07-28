@@ -925,6 +925,27 @@ export type Database = {
           }[];
         }[];
       };
+      // Временной ряд для графиков (миграция 0016): бакеты day/week/month,
+      // конверсии по одной выбранной цели p_action_type. Фильтры необязательны.
+      ad_timeseries: {
+        Args: {
+          p_since: string;
+          p_until: string;
+          p_granularity: string;
+          p_project_id?: string | null;
+          p_account_id?: string | null;
+          p_campaign_id?: string | null;
+          p_action_type?: string | null;
+        };
+        Returns: {
+          bucket: string;
+          spend: number;
+          impressions: number;
+          clicks: number;
+          conversions: number;
+          conv_value: number;
+        }[];
+      };
     };
     Enums: {
       user_role: "owner" | "pm" | "specialist" | "viewer";

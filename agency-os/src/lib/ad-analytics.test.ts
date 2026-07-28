@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   actionTypeLabel,
+  defaultDateRange,
+  formatBucketLabel,
   isGoalAction,
+  isGranularity,
   pickPrimaryGoal,
+  sumTimeseries,
   summarizeCampaigns,
   type ConversionRow,
+  type TimeseriesPoint,
 } from "@/lib/ad-analytics";
 
 function conv(
@@ -122,5 +127,69 @@ describe("summarizeCampaigns", () => {
     expect(summary.get("c3")?.spend).toBe(70);
     expect(summary.get("c3")?.cpa).toBeNull();
     expect(summary.get("c3")?.ctr).toBeNull();
+  });
+});
+
+describe("isGranularity", () => {
+  it("принимает day/week/month, отклоняет прочее", () => {
+    expect(isGranularity("day")).toBe(true);
+    expect(isGranularity("week")).toBe(true);
+    expect(isGranularity("month")).toBe(true);
+    expect(isGranularity("year")).toBe(false);
+    expect(isGranularity(null)).toBe(false);
+    expect(isGranularity(undefined)).toBe(false);
+  });
+});
+
+describe("formatBucketLabel", () => {
+  it("день/неделя → dd.mm", () => {
+    expect(formatBucketLabel("2026-07-28", "day")).toBe("28.07");
+    expect(formatBucketLabel("2026-06-01", "week")).toBe("01.06");
+  });
+
+  it("месяц → сокращённое русское название", () => {
+    expect(formatBucketLabel("2026-07-01", "month")).toBe("июл");
+    expect(formatBucketLabel("2026-01-15", "month")).toBe("янв");
+  });
+
+  it("битую дату отдаёт как есть", () => {
+    expect(formatBucketLabel("нет-даты", "day")).toBe("нет-даты");
+  });
+});
+
+describe("sumTimeseries", () => {
+  const points: TimeseriesPoint[] = [
+    { bucket: "2026-07-01", spend: 100, impressions: 1000, clicks: 40, conversions: 4, conv_value: 0 },
+    { bucket: "2026-07-02", spend: 50, impressions: 1000, clicks: 10, conversions: 1, conv_value: 300 },
+  ];
+
+  it("суммирует и считает производные метрики", () => {
+    const totals = sumTimeseries(points);
+    expect(totals.spend).toBe(150);
+    expect(totals.clicks).toBe(50);
+    expect(totals.conversions).toBe(5);
+    expect(totals.convValue).toBe(300);
+    expect(totals.ctr).toBeCloseTo(0.025);
+    expect(totals.cpc).toBe(3);
+    expect(totals.cpa).toBe(30);
+    expect(totals.cpm).toBeCloseTo(75);
+  });
+
+  it("нулевые знаменатели дают null, а не деление на ноль", () => {
+    const totals = sumTimeseries([
+      { bucket: "x", spend: 10, impressions: 0, clicks: 0, conversions: 0, conv_value: 0 },
+    ]);
+    expect(totals.ctr).toBeNull();
+    expect(totals.cpc).toBeNull();
+    expect(totals.cpm).toBeNull();
+    expect(totals.cpa).toBeNull();
+  });
+});
+
+describe("defaultDateRange", () => {
+  it("отдаёт диапазон последних N дней от переданной даты", () => {
+    const range = defaultDateRange(new Date("2026-07-28T00:00:00Z"), 30);
+    expect(range.until).toBe("2026-07-28");
+    expect(range.since).toBe("2026-06-28");
   });
 });
