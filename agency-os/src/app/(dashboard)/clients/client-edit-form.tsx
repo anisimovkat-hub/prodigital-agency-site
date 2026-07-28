@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import {
   updateClient,
-  type CreateClientFormState,
+  type ClientEditFormState,
 } from "@/app/(dashboard)/clients/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,17 +17,37 @@ import { CLIENT_STATUS_VALUES } from "@/lib/validation";
 
 export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
   const [state, formAction, pending] = useActionState<
-    CreateClientFormState,
+    ClientEditFormState,
     FormData
   >(updateClient, undefined);
+  const savedClient = state?.success ? state.client : client;
+  const formVersion = JSON.stringify([
+    savedClient.id,
+    savedClient.name,
+    savedClient.status,
+    savedClient.budget,
+    savedClient.phone,
+    savedClient.email,
+    savedClient.telegram,
+    savedClient.notes,
+  ]);
 
   return (
-    <form action={formAction} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <input type="hidden" name="id" value={client.id} />
+    <form
+      key={formVersion}
+      action={formAction}
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+    >
+      <input type="hidden" name="id" value={savedClient.id} />
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="edit-name">Название</Label>
-        <Input id="edit-name" name="name" defaultValue={client.name} required />
-        <FieldErrors errors={state?.errors.name} />
+        <Input
+          id="edit-name"
+          name="name"
+          defaultValue={savedClient.name}
+          required
+        />
+        <FieldErrors errors={state?.errors?.name} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -35,7 +55,7 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
         <Select
           id="edit-status"
           name="status"
-          defaultValue={client.status ?? "active"}
+          defaultValue={savedClient.status ?? "active"}
         >
           {CLIENT_STATUS_VALUES.map((value) => (
             <option key={value} value={value}>
@@ -53,7 +73,7 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
           type="number"
           step="0.01"
           min={0}
-          defaultValue={client.budget ?? ""}
+          defaultValue={savedClient.budget ?? ""}
         />
       </div>
 
@@ -63,7 +83,7 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
           id="edit-phone"
           name="phone"
           type="tel"
-          defaultValue={client.phone ?? ""}
+          defaultValue={savedClient.phone ?? ""}
         />
       </div>
 
@@ -73,9 +93,9 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
           id="edit-email"
           name="email"
           type="email"
-          defaultValue={client.email ?? ""}
+          defaultValue={savedClient.email ?? ""}
         />
-        <FieldErrors errors={state?.errors.email} />
+        <FieldErrors errors={state?.errors?.email} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -83,7 +103,7 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
         <Input
           id="edit-telegram"
           name="telegram"
-          defaultValue={client.telegram ?? ""}
+          defaultValue={savedClient.telegram ?? ""}
         />
       </div>
 
@@ -93,7 +113,7 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
           id="edit-notes"
           name="notes"
           rows={2}
-          defaultValue={client.notes ?? ""}
+          defaultValue={savedClient.notes ?? ""}
         />
       </div>
 
@@ -101,6 +121,16 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
         <Button type="submit" disabled={pending}>
           {pending ? "Сохраняем..." : "Сохранить изменения"}
         </Button>
+        <p
+          aria-live="polite"
+          className={
+            state?.success
+              ? "mt-2 text-sm font-medium text-emerald-700"
+              : "sr-only"
+          }
+        >
+          {state?.success ? "Изменения клиента сохранены" : ""}
+        </p>
       </div>
     </form>
   );

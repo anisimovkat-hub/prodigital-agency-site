@@ -4,9 +4,31 @@ import { revalidatePath } from "next/cache";
 
 import { createClientSchema, flattenZodErrors } from "@/lib/validation";
 import { createClient } from "@/lib/supabase/server";
+import type { Tables } from "@/lib/supabase/types";
 
 export type CreateClientFormState =
   | { errors: Record<string, string[]> }
+  | undefined;
+
+export type SavedClientFormValues = Pick<
+  Tables<"clients">,
+  | "id"
+  | "name"
+  | "status"
+  | "budget"
+  | "phone"
+  | "email"
+  | "telegram"
+  | "notes"
+>;
+
+export type ClientEditFormState =
+  | { errors: Record<string, string[]>; success?: false }
+  | {
+      errors?: undefined;
+      success: true;
+      client: SavedClientFormValues;
+    }
   | undefined;
 
 export async function addClient(
@@ -50,9 +72,9 @@ export async function addClient(
 }
 
 export async function updateClient(
-  _prevState: CreateClientFormState,
+  _prevState: ClientEditFormState,
   formData: FormData,
-): Promise<CreateClientFormState> {
+): Promise<ClientEditFormState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) {
     return { errors: { name: ["Некорректный клиент"] } };
@@ -74,7 +96,7 @@ export async function updateClient(
 
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const { data: updatedClient, error } = await supabase
     .from("clients")
     .update({
       name: parsed.data.name,
@@ -85,15 +107,24 @@ export async function updateClient(
       telegram: parsed.data.telegram || null,
       notes: parsed.data.notes || null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .select("id,name,status,budget,phone,email,telegram,notes")
+    .maybeSingle();
 
   if (error) {
     return { errors: { name: [error.message] } };
+  }
+  if (!updatedClient) {
+    return {
+      errors: {
+        name: ["Клиент не изменён: проверьте права доступа"],
+      },
+    };
   }
 
   revalidatePath("/clients");
   revalidatePath(`/clients/${id}`);
   revalidatePath("/");
 
-  return undefined;
+  return { success: true, client: updatedClient };
 }
