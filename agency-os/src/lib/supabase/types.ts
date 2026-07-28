@@ -905,6 +905,38 @@ export type Database = {
           },
         ];
       };
+      ad_custom_conversions: {
+        Row: {
+          id: string;
+          account_id: string;
+          conversion_id: string;
+          name: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          account_id: string;
+          conversion_id: string;
+          name?: string | null;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          account_id?: string;
+          conversion_id?: string;
+          name?: string | null;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_custom_conversions_account_id_fkey";
+            columns: ["account_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {

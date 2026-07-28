@@ -128,23 +128,35 @@ export default async function AdsPage({
   const campaignFilter = params.campaign ?? "";
   const goalFilter = params.goal ?? "";
 
-  const [{ data: accounts }, { data: campaigns }, { data: allProjects }] =
-    await Promise.all([
-      supabase
-        .from("ad_accounts")
-        .select("id,name,external_id,currency,project_id, project:projects(name)")
-        .eq("platform", "meta")
-        .order("name"),
-      supabase
-        .from("ad_campaigns")
-        .select("id,name,objective,status,ad_account_id,project_id, project:projects(name)")
-        .order("name"),
-      supabase.from("projects").select("id,name").order("name"),
-    ]);
+  const [
+    { data: accounts },
+    { data: campaigns },
+    { data: allProjects },
+    { data: customConversions },
+  ] = await Promise.all([
+    supabase
+      .from("ad_accounts")
+      .select("id,name,external_id,currency,project_id, project:projects(name)")
+      .eq("platform", "meta")
+      .order("name"),
+    supabase
+      .from("ad_campaigns")
+      .select("id,name,objective,status,ad_account_id,project_id, project:projects(name)")
+      .order("name"),
+    supabase.from("projects").select("id,name").order("name"),
+    supabase.from("ad_custom_conversions").select("conversion_id,name"),
+  ]);
 
   const accountRows = (accounts ?? []) as AccountRow[];
   const campaignRows = (campaigns ?? []) as CampaignRow[];
   const accountById = new Map(accountRows.map((a) => [a.id, a]));
+
+  // Справочник имён кастомных конверсий: conversion_id → имя (для actionTypeLabel).
+  const customNames = new Map<string, string>();
+  for (const row of customConversions ?? []) {
+    if (row.name) customNames.set(row.conversion_id, row.name);
+  }
+  const label = (actionType: string) => actionTypeLabel(actionType, customNames);
 
   // Проекты для фильтра — только те, где есть кампании.
   const projectsWithAds = new Set(
@@ -168,7 +180,7 @@ export default async function AdsPage({
     }
   }
   const goalOptions = [...goalTypes]
-    .map((value) => ({ value, label: actionTypeLabel(value) }))
+    .map((value) => ({ value, label: label(value) }))
     .sort((a, b) => a.label.localeCompare(b.label, "ru"));
 
   // Временной ряд для графика и KPI (конверсии — по выбранной цели).
@@ -200,7 +212,7 @@ export default async function AdsPage({
   const currency = currencySet.size === 1 ? [...currencySet][0] : null;
   const mixedCurrency = currencySet.size > 1;
 
-  const goalLabel = goalFilter ? actionTypeLabel(goalFilter) : null;
+  const goalLabel = goalFilter ? label(goalFilter) : null;
 
   // Таблица кампаний за период с учётом фильтров проект/кабинет/кампания.
   const filteredCampaigns = campaignRows.filter(
@@ -357,7 +369,7 @@ export default async function AdsPage({
                       {stats.goals
                         .map(
                           (goal) =>
-                            `${actionTypeLabel(goal.actionType)}: ${fmt(goal.count)}`,
+                            `${label(goal.actionType)}: ${fmt(goal.count)}`,
                         )
                         .join(" · ")}
                     </div>
@@ -382,7 +394,7 @@ export default async function AdsPage({
                 </TableCell>
                 <TableCell className="text-neutral-600">
                   {stats?.primaryGoal
-                    ? actionTypeLabel(stats.primaryGoal.actionType)
+                    ? label(stats.primaryGoal.actionType)
                     : "—"}
                 </TableCell>
                 <TableCell>

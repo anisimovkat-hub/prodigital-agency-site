@@ -6,9 +6,11 @@ import {
   fetchMetaAccounts,
   fetchMetaCampaignInsights,
   fetchMetaCampaigns,
+  fetchMetaCustomConversions,
   fetchMetaInsights,
   type MetaCampaign,
   type MetaCampaignDailyMetric,
+  type MetaCustomConversion,
   type MetaDailyMetric,
 } from "@/lib/meta-ads";
 import { createClient } from "@/lib/supabase/server";
@@ -78,6 +80,7 @@ type AccountPayload = {
   metrics: MetaDailyMetric[];
   campaigns: MetaCampaign[];
   campaignMetrics: MetaCampaignDailyMetric[];
+  customConversions: MetaCustomConversion[];
 };
 
 export async function syncMetaAds(
@@ -133,12 +136,14 @@ export async function syncMetaAds(
     const until = isoDaysAgo(0);
     const payloads: AccountPayload[] = await Promise.all(
       accountRows.map(async (account) => {
-        const [metrics, campaigns, campaignMetrics] = await Promise.all([
-          fetchMetaInsights(account.external_id, since, until),
-          fetchMetaCampaigns(account.external_id),
-          fetchMetaCampaignInsights(account.external_id, since, until),
-        ]);
-        return { account, metrics, campaigns, campaignMetrics };
+        const [metrics, campaigns, campaignMetrics, customConversions] =
+          await Promise.all([
+            fetchMetaInsights(account.external_id, since, until),
+            fetchMetaCampaigns(account.external_id),
+            fetchMetaCampaignInsights(account.external_id, since, until),
+            fetchMetaCustomConversions(account.external_id),
+          ]);
+        return { account, metrics, campaigns, campaignMetrics, customConversions };
       }),
     );
 
@@ -146,8 +151,15 @@ export async function syncMetaAds(
     let campaignCount = 0;
     let campaignDays = 0;
     let conversionRows = 0;
+    let customConvCount = 0;
 
-    for (const { account, metrics, campaigns, campaignMetrics } of payloads) {
+    for (const {
+      account,
+      metrics,
+      campaigns,
+      campaignMetrics,
+      customConversions,
+    } of payloads) {
       // 3a) Суточные метрики кабинета (как в пилоте).
       if (metrics.length > 0) {
         const { error: mErr } = await supabase.from("ad_metrics").upsert(
@@ -163,6 +175,22 @@ export async function syncMetaAds(
         );
         if (mErr) throw new Error(mErr.message);
         daysWritten += metrics.length;
+      }
+
+      // 3a-2) Справочник кастомных конверсий кабинета (id → имя).
+      if (customConversions.length > 0) {
+        const { error: ccErr } = await supabase
+          .from("ad_custom_conversions")
+          .upsert(
+            customConversions.map((c) => ({
+              account_id: account.id,
+              conversion_id: c.conversionId,
+              name: c.name,
+            })),
+            { onConflict: "account_id,conversion_id" },
+          );
+        if (ccErr) throw new Error(ccErr.message);
+        customConvCount += customConversions.length;
       }
 
       // 3b) Кампании. В статистике попадаются кампании, которых уже нет в списке
@@ -276,7 +304,8 @@ export async function syncMetaAds(
       message:
         `Готово за ${days} дн.: кабинетов ${accountRows.length}, ` +
         `дней по кабинетам ${daysWritten}, кампаний ${campaignCount}, ` +
-        `дней по кампаниям ${campaignDays}, конверсий ${conversionRows}.`,
+        `дней по кампаниям ${campaignDays}, конверсий ${conversionRows}, ` +
+        `своих конверсий ${customConvCount}.`,
     };
   } catch (error) {
     return {

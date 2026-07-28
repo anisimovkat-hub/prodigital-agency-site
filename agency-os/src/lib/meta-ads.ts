@@ -23,6 +23,10 @@ export type MetaCampaign = {
   objective: string | null;
   status: string | null;
 };
+export type MetaCustomConversion = {
+  conversionId: string;
+  name: string | null;
+};
 // Конверсия по конкретной цели: action_type сохраняем как есть, без схлопывания.
 export type MetaConversion = {
   actionType: string;
@@ -48,6 +52,7 @@ type MetaCampaignRow = {
   objective?: string;
   status?: string;
 };
+type MetaCustomConversionRow = { id?: string; name?: string };
 type MetaInsightRow = {
   date_start?: string;
   spend?: string;
@@ -158,6 +163,27 @@ async function fetchAllPages<T>(firstUrl: string): Promise<T[]> {
     url = json.paging?.next ?? null;
   }
   return out;
+}
+
+// Справочник кастомных конверсий кабинета: id → человекочитаемое имя.
+// В insights приходит только action_type offsite_conversion.custom.<id>.
+export async function fetchMetaCustomConversions(
+  externalId: string,
+): Promise<MetaCustomConversion[]> {
+  const params = new URLSearchParams({
+    fields: "id,name",
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaCustomConversionRow>(
+    `${BASE}/${externalId}/customconversions?${params.toString()}`,
+  );
+  return rows
+    .filter((row) => row.id)
+    .map((row) => ({
+      conversionId: String(row.id),
+      name: row.name ?? null,
+    }));
 }
 
 // Кампании кабинета: нужны имя, цель и статус (в insights их нет).

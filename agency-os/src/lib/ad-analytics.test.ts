@@ -30,9 +30,23 @@ describe("actionTypeLabel", () => {
     );
   });
 
-  it("показывает id кастомной конверсии пикселя", () => {
+  it("показывает id кастомной конверсии, если имя неизвестно", () => {
     expect(actionTypeLabel("offsite_conversion.custom.1234567890")).toBe(
       "Своя конверсия 1234567890",
+    );
+  });
+
+  it("подставляет реальное имя кастомной конверсии из справочника", () => {
+    const names = new Map([["1234567890", "Заявка с лендинга"]]);
+    expect(
+      actionTypeLabel("offsite_conversion.custom.1234567890", names),
+    ).toBe("Заявка с лендинга");
+  });
+
+  it("неизвестный id при наличии справочника остаётся с id", () => {
+    const names = new Map([["999", "Другая"]]);
+    expect(actionTypeLabel("offsite_conversion.custom.42", names)).toBe(
+      "Своя конверсия 42",
     );
   });
 

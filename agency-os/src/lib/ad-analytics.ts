@@ -125,12 +125,20 @@ export const ACTION_TYPE_LABEL: Record<string, string> = {
   "onsite_conversion.post_unsave": "Снятые сохранения",
 };
 
-export function actionTypeLabel(actionType: string): string {
+// customNames: conversion_id → имя из справочника ad_custom_conversions.
+// Кастомные конверсии приходят как offsite_conversion.custom.<id>; если имя
+// известно — показываем его, иначе оставляем id.
+export function actionTypeLabel(
+  actionType: string,
+  customNames?: Map<string, string> | null,
+): string {
   const known = ACTION_TYPE_LABEL[actionType];
   if (known) return known;
-  // Кастомные конверсии приходят как offsite_conversion.custom.<id> — показываем id.
-  const custom = /^offsite_conversion\.custom\.(\d+)$/.exec(actionType);
-  if (custom) return `Своя конверсия ${custom[1]}`;
+  const custom = /^offsite_conversion\.custom\.(.+)$/.exec(actionType);
+  if (custom) {
+    const name = customNames?.get(custom[1]);
+    return name ? name : `Своя конверсия ${custom[1]}`;
+  }
   return actionType;
 }
 

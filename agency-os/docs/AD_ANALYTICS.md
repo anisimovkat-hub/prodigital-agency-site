@@ -73,6 +73,16 @@
   новых не потребовалось. Профиль ad_timeseries на 90д ≈ 0.1с, узкое место было в
   клиентском раунд-трипе, а не в SQL.
 
+## Итерация 3 (2026-07-28): имена своих конверсий
+
+- Миграция `0017_ad_custom_conversions.sql` — справочник `ad_custom_conversions`
+  (account_id, conversion_id, name, unique(account_id, conversion_id)), RLS admin-only.
+- `fetchMetaCustomConversions()` тянет `/act_<id>/customconversions?fields=id,name` (v23.0);
+  `syncMetaAds()` обновляет справочник при каждой синхронизации (в счётчике «своих конверсий»).
+- `actionTypeLabel(actionType, customNames?)` подставляет реальное имя вместо
+  «Своя конверсия <id>» для `offsite_conversion.custom.<id>`. Справочник грузится на
+  `/ads` и прокидывается в местный `label()`.
+
 ## Требования владельца (цель модуля)
 
 1. **Гибкие периоды**: выбор диапазона дат, гранулярность день/неделя/месяц.
