@@ -40,24 +40,42 @@ export function mergeCalendarEvents(
     return { events: [], timeZone: PERSONAL_CALENDAR_TIME_ZONE };
   }
 
-  const events = calendars
-    .flatMap((calendar) => calendar.events)
-    .sort(compareCalendarEvents);
-  const seen = new Set<string>();
+  const events = calendars.flatMap((calendar) => calendar.events);
+  const uniqueEvents = new Map<string, PersonalCalendarEvent>();
+
+  for (const event of events) {
+    const key = calendarMergeKey(event);
+    const existing = uniqueEvents.get(key);
+    if (!existing) {
+      uniqueEvents.set(key, event);
+      continue;
+    }
+
+    // Основной календарь идёт первым и остаётся источником истины. Если в нём
+    // не хватает места или ссылки, аккуратно дополняем их из второго календаря.
+    uniqueEvents.set(key, {
+      ...existing,
+      location: existing.location ?? event.location,
+      meetingUrl: existing.meetingUrl ?? event.meetingUrl,
+    });
+  }
 
   return {
-    events: events.filter((event) => {
-      const key = [
-        event.title.trim().toLocaleLowerCase("ru-RU"),
-        event.start,
-        event.end,
-      ].join("|");
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }),
+    events: [...uniqueEvents.values()].sort(compareCalendarEvents),
     timeZone: calendars[0].timeZone,
   };
+}
+
+function calendarMergeKey(event: PersonalCalendarEvent): string {
+  const normalizedTitle = event.title
+    .toLocaleLowerCase("ru-RU")
+    .replaceAll("ё", "е")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+  // Сервисы могут округлять окончание одной встречи на несколько минут.
+  // Начало + нормализованное название надёжнее определяют один и тот же слот.
+  const start = event.allDay ? event.date : event.start.slice(0, 16);
+  return `${normalizedTitle}|${start}`;
 }
 
 export function parseCalendarEvents(

@@ -46,8 +46,8 @@ BEGIN:VEVENT
 UID:duplicate-call-from-second-account
 DTSTAMP:20260724T000000Z
 DTSTART;TZID=Asia/Bangkok:20260728T140000
-DTEND;TZID=Asia/Bangkok:20260728T150000
-SUMMARY:Созвон с командой
+DTEND;TZID=Asia/Bangkok:20260728T150500
+SUMMARY:Созвон — с командой!
 END:VEVENT
 BEGIN:VEVENT
 UID:flight
@@ -75,7 +75,7 @@ describe("parseCalendarEvents", () => {
 });
 
 describe("mergeCalendarEvents", () => {
-  it("объединяет два календаря и убирает одинаковое событие", () => {
+  it("объединяет два календаря и убирает дубль с отличиями в знаках и окончании", () => {
     const first = parseCalendarEvents(ICS, "2026-07-27", "2026-08-02");
     const second = parseCalendarEvents(
       SECOND_ICS,

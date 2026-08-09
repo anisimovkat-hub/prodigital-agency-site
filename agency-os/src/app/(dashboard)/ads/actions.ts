@@ -90,6 +90,42 @@ type AccountPayload = {
   customConversions: MetaCustomConversion[];
 };
 
+type AccountSyncFailure = {
+  label: string;
+  message: string;
+};
+
+function partitionAccountResults<T>(
+  accounts: { external_id: string; name?: string | null }[],
+  results: PromiseSettledResult<T>[],
+): { payloads: T[]; failures: AccountSyncFailure[] } {
+  const payloads: T[] = [];
+  const failures: AccountSyncFailure[] = [];
+
+  results.forEach((result, index) => {
+    if (result.status === "fulfilled") {
+      payloads.push(result.value);
+      return;
+    }
+    const account = accounts[index];
+    failures.push({
+      label: account?.name?.trim() || account?.external_id || "Неизвестный кабинет",
+      message:
+        result.reason instanceof Error
+          ? result.reason.message
+          : "Meta не вернула данные по кабинету.",
+    });
+  });
+
+  return { payloads, failures };
+}
+
+function skippedAccountsSuffix(failures: AccountSyncFailure[]): string {
+  if (failures.length === 0) return "";
+  const labels = failures.map((failure) => failure.label).join(", ");
+  return ` Пропущено кабинетов без доступа: ${failures.length} (${labels}).`;
+}
+
 export async function syncMetaAds(
   _prevState: SyncMetaState,
   formData?: FormData,
@@ -141,7 +177,7 @@ export async function syncMetaAds(
     // 3) Тянем из Meta всё по каждому кабинету (кабинеты независимы — параллельно).
     const since = isoDaysAgo(days);
     const until = isoDaysAgo(0);
-    const payloads: AccountPayload[] = await Promise.all(
+    const accountResults = await Promise.allSettled(
       accountRows.map(async (account) => {
         const [metrics, campaigns, campaignMetrics, customConversions] =
           await Promise.all([
@@ -153,6 +189,18 @@ export async function syncMetaAds(
         return { account, metrics, campaigns, campaignMetrics, customConversions };
       }),
     );
+    const { payloads, failures } = partitionAccountResults<AccountPayload>(
+      accountRows,
+      accountResults,
+    );
+    if (payloads.length === 0) {
+      return {
+        ok: false,
+        message:
+          "Не удалось загрузить ни один доступный кабинет Meta." +
+          skippedAccountsSuffix(failures),
+      };
+    }
 
     let daysWritten = 0;
     let campaignCount = 0;
@@ -309,10 +357,11 @@ export async function syncMetaAds(
     return {
       ok: true,
       message:
-        `Готово за ${days} дн.: кабинетов ${accountRows.length}, ` +
+        `Готово за ${days} дн.: кабинетов ${payloads.length} из ${accountRows.length}, ` +
         `дней по кабинетам ${daysWritten}, кампаний ${campaignCount}, ` +
         `дней по кампаниям ${campaignDays}, конверсий ${conversionRows}, ` +
-        `своих конверсий ${customConvCount}.`,
+        `своих конверсий ${customConvCount}.` +
+        skippedAccountsSuffix(failures),
     };
   } catch (error) {
     return {
@@ -396,12 +445,13 @@ export async function syncMetaAdDetails(
   try {
     const { data: accounts, error: accErr } = await supabase
       .from("ad_accounts")
-      .select("id,external_id")
+      .select("id,external_id,name")
       .eq("platform", "meta");
     if (accErr) throw new Error(accErr.message);
     const accountRows = (accounts ?? []) as {
       id: string;
       external_id: string;
+      name: string | null;
     }[];
     if (accountRows.length === 0) {
       return {
@@ -414,7 +464,7 @@ export async function syncMetaAdDetails(
     const until = isoDaysAgo(0);
 
     // Тянем структуру и метрики по кабинетам параллельно (кабинеты независимы).
-    const payloads: AdDetailPayload[] = await Promise.all(
+    const accountResults = await Promise.allSettled(
       accountRows.map(async (account) => {
         const [adsets, ads, adsetMetrics, adMetrics] = await Promise.all([
           fetchMetaAdsets(account.external_id),
@@ -432,6 +482,18 @@ export async function syncMetaAdDetails(
         };
       }),
     );
+    const { payloads, failures } = partitionAccountResults<AdDetailPayload>(
+      accountRows,
+      accountResults,
+    );
+    if (payloads.length === 0) {
+      return {
+        ok: false,
+        message:
+          "Не удалось загрузить детали ни одного доступного кабинета Meta." +
+          skippedAccountsSuffix(failures),
+      };
+    }
 
     let adsetCount = 0;
     let adCount = 0;
@@ -559,7 +621,8 @@ export async function syncMetaAdDetails(
         `дней по группам ${adsetDays}, дней по объявлениям ${adDays}` +
         (skippedNoParent > 0
           ? `. Пропущено без родителя: ${skippedNoParent}.`
-          : "."),
+          : ".") +
+        skippedAccountsSuffix(failures),
     };
   } catch (error) {
     return {
