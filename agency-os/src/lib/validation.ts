@@ -15,6 +15,11 @@ const optionalString = z.preprocess((value) => {
   return value;
 }, z.string().optional());
 
+const optionalUrl = z.preprocess((value) => {
+  if (value === "" || value === null || value === undefined) return undefined;
+  return value;
+}, z.string().url("Укажите корректную ссылку").optional());
+
 export const estimateMinutesFromHoursSchema = z
   .preprocess(
     (value) => {
@@ -232,6 +237,7 @@ export const createProjectSchema = z.object({
   ownership_mode: optionalOwnershipMode,
   responsible_id: optionalUuid,
   short_comment: optionalString,
+  logo_url: optionalUrl,
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

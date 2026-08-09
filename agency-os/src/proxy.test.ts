@@ -15,6 +15,7 @@ describe("proxy matcher", () => {
     "/clients/123e4567-e89b-12d3-a456-426614174000",
     "/employees/123e4567-e89b-12d3-a456-426614174000",
     "/login",
+    "/report/123e4567-e89b-12d3-a456-426614174000",
   ])("включает приватный/публичный роут %s (через него проходит auth-проверка)", (path) => {
     expect(matcherRegex.test(path)).toBe(true);
   });

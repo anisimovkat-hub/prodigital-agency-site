@@ -36,6 +36,7 @@ const NAV_ITEMS = [
   { href: "/personal", label: "Личное", icon: UserRound },
   { href: "/employees", label: "Сотрудники", icon: Users },
   { href: "/clients", label: "Клиенты", icon: Building2 },
+  { href: "/analytics", label: "Аналитика", icon: ChartNoAxesCombined },
   { href: "/ads", label: "Реклама", icon: Megaphone },
 ];
 

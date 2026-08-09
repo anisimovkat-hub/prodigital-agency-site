@@ -89,6 +89,12 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
       </div>
 
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
+        <Label htmlFor="logo_url">Логотип (ссылка на изображение)</Label>
+        <Input id="logo_url" name="logo_url" type="url" placeholder="https://…" />
+        <FieldErrors errors={state?.errors?.logo_url} />
+      </div>
+
+      <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="short_comment">Краткий комментарий</Label>
         <Textarea id="short_comment" name="short_comment" rows={2} />
       </div>

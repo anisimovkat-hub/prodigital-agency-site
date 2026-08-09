@@ -51,6 +51,7 @@ export function ProjectEditForm({
     savedProject.ownership_mode,
     savedProject.monthly_fee,
     savedProject.short_comment,
+    savedProject.logo_url,
   ]);
 
   return (
@@ -175,6 +176,18 @@ export function ProjectEditForm({
           min={0}
           defaultValue={savedProject.monthly_fee ?? ""}
         />
+      </div>
+
+      <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
+        <Label htmlFor="edit-logo">Логотип (ссылка на изображение)</Label>
+        <Input
+          id="edit-logo"
+          name="logo_url"
+          type="url"
+          placeholder="https://…"
+          defaultValue={savedProject.logo_url ?? ""}
+        />
+        <FieldErrors errors={state?.errors?.logo_url} />
       </div>
 
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">

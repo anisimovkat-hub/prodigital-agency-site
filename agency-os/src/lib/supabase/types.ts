@@ -111,6 +111,7 @@ export type Database = {
           short_comment: string | null;
           links: Json | null;
           ad_platforms: string | null;
+          logo_url: string | null;
           is_personal: boolean;
           started_at: string | null;
           created_at: string | null;
@@ -129,6 +130,7 @@ export type Database = {
           short_comment?: string | null;
           links?: Json | null;
           ad_platforms?: string | null;
+          logo_url?: string | null;
           is_personal?: boolean;
           started_at?: string | null;
           created_at?: string | null;
@@ -147,6 +149,7 @@ export type Database = {
           short_comment?: string | null;
           links?: Json | null;
           ad_platforms?: string | null;
+          logo_url?: string | null;
           is_personal?: boolean;
           started_at?: string | null;
           created_at?: string | null;
@@ -1165,9 +1168,234 @@ export type Database = {
           },
         ];
       };
+      social_accounts: {
+        Row: {
+          id: string;
+          project_id: string | null;
+          platform: "instagram" | "vk" | "telegram";
+          external_id: string;
+          username: string | null;
+          name: string | null;
+          profile_picture_url: string | null;
+          followers_count: number;
+          media_count: number;
+          is_active: boolean;
+          last_synced_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id?: string | null;
+          platform: "instagram" | "vk" | "telegram";
+          external_id: string;
+          username?: string | null;
+          name?: string | null;
+          profile_picture_url?: string | null;
+          followers_count?: number;
+          media_count?: number;
+          is_active?: boolean;
+          last_synced_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string | null;
+          platform?: "instagram" | "vk" | "telegram";
+          external_id?: string;
+          username?: string | null;
+          name?: string | null;
+          profile_picture_url?: string | null;
+          followers_count?: number;
+          media_count?: number;
+          is_active?: boolean;
+          last_synced_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "social_accounts_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      social_account_metrics: {
+        Row: {
+          id: string;
+          social_account_id: string;
+          date: string;
+          reach: number;
+          impressions: number;
+          profile_views: number;
+          engagements: number;
+          accounts_engaged: number;
+          follower_count: number;
+          follower_growth: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          social_account_id: string;
+          date: string;
+          reach?: number;
+          impressions?: number;
+          profile_views?: number;
+          engagements?: number;
+          accounts_engaged?: number;
+          follower_count?: number;
+          follower_growth?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          social_account_id?: string;
+          date?: string;
+          reach?: number;
+          impressions?: number;
+          profile_views?: number;
+          engagements?: number;
+          accounts_engaged?: number;
+          follower_count?: number;
+          follower_growth?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "social_account_metrics_social_account_id_fkey";
+            columns: ["social_account_id"];
+            isOneToOne: false;
+            referencedRelation: "social_accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      social_posts: {
+        Row: {
+          id: string;
+          social_account_id: string;
+          external_id: string;
+          caption: string | null;
+          media_type: string | null;
+          media_url: string | null;
+          thumbnail_url: string | null;
+          permalink: string | null;
+          published_at: string;
+          reach: number;
+          impressions: number;
+          views: number;
+          likes: number;
+          comments: number;
+          saved: number;
+          shares: number;
+          engagements: number;
+          last_synced_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          social_account_id: string;
+          external_id: string;
+          caption?: string | null;
+          media_type?: string | null;
+          media_url?: string | null;
+          thumbnail_url?: string | null;
+          permalink?: string | null;
+          published_at: string;
+          reach?: number;
+          impressions?: number;
+          views?: number;
+          likes?: number;
+          comments?: number;
+          saved?: number;
+          shares?: number;
+          engagements?: number;
+          last_synced_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          social_account_id?: string;
+          external_id?: string;
+          caption?: string | null;
+          media_type?: string | null;
+          media_url?: string | null;
+          thumbnail_url?: string | null;
+          permalink?: string | null;
+          published_at?: string;
+          reach?: number;
+          impressions?: number;
+          views?: number;
+          likes?: number;
+          comments?: number;
+          saved?: number;
+          shares?: number;
+          engagements?: number;
+          last_synced_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_social_account_id_fkey";
+            columns: ["social_account_id"];
+            isOneToOne: false;
+            referencedRelation: "social_accounts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      client_reports: {
+        Row: {
+          id: string;
+          project_id: string;
+          public_token: string;
+          title: string | null;
+          is_active: boolean;
+          show_organic: boolean;
+          show_ads: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          public_token?: string;
+          title?: string | null;
+          is_active?: boolean;
+          show_organic?: boolean;
+          show_ads?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          public_token?: string;
+          title?: string | null;
+          is_active?: boolean;
+          show_organic?: boolean;
+          show_ads?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "client_reports_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: true;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      client_report_payload: {
+        Args: { p_token: string; p_since: string; p_until: string };
+        Returns: Json;
+      };
       // Свод по кампаниям за период (миграция 0014): одна строка на кампанию,
       // конверсии по всем целям — массивом в jsonb.
       ad_campaign_period_summary: {
