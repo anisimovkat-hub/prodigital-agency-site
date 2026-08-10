@@ -6,7 +6,7 @@ import {
   syncMetaAdDetails,
   syncMetaAds,
   type SyncMetaState,
-} from "@/app/(dashboard)/ads/actions";
+} from "@/app/(dashboard)/analytics/meta/actions";
 import { Button } from "@/components/ui/button";
 
 // Глубина догрузки истории; значения должны совпадать с ALLOWED_DAYS в actions.ts.

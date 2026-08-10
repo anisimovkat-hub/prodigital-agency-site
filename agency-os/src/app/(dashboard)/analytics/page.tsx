@@ -1,19 +1,22 @@
 import { assignSocialAccount } from "@/app/(dashboard)/analytics/actions";
+import { AdAnalyticsPanel } from "@/app/(dashboard)/analytics/meta/ad-analytics-panel";
+import type { AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
+import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import {
   type AnalyticsParams,
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
-import {
-  type MarketingView,
-} from "@/components/marketing-dashboard";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import {
   actionTypeLabel,
   GOAL_ACTION_TYPES,
   isGoalAction,
+  isGranularity,
   summarizeCampaigns,
   type ConversionRow as AdSummaryConversionRow,
+  type Granularity,
+  type TimeseriesPoint,
 } from "@/lib/ad-analytics";
 import type {
   MarketingAdDetail,
@@ -23,6 +26,7 @@ import type {
   MarketingPost,
 } from "@/lib/marketing-analytics";
 import { projectLogoUrl } from "@/lib/project-logos";
+import { marketingSection } from "@/lib/marketing-sections";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
@@ -31,8 +35,13 @@ type SearchParams = {
   from?: string;
   to?: string;
   project?: string;
-  channel?: string;
+  social?: string;
+  section?: string;
   view?: string;
+  gran?: string;
+  account?: string;
+  campaign?: string;
+  goal?: string;
 };
 
 type SocialMetricRow = {
@@ -75,10 +84,6 @@ function daysAgo(days: number): string {
   date.setDate(date.getDate() - days);
   return date.toISOString().slice(0, 10);
 }
-function validView(value: string | undefined): MarketingView {
-  return value === "organic" || value === "ads" ? value : "all";
-}
-
 function primaryConversions(rows: ConversionRow[]): ConversionRow[] {
   const priority = new Map(GOAL_ACTION_TYPES.map((value, index) => [value, index]));
   const selected = new Map<string, ConversionRow>();
@@ -155,8 +160,12 @@ export default async function AnalyticsPage({
   const from = raw.from && ISO_DATE.test(raw.from) ? raw.from : daysAgo(29);
   const to = raw.to && ISO_DATE.test(raw.to) ? raw.to : daysAgo(0);
   const projectId = raw.project ?? "";
-  const channel = raw.channel === "instagram" || raw.channel === "meta" ? raw.channel : "";
-  const view = validView(raw.view);
+  const socialId = raw.social ?? "";
+  const section = marketingSection(raw.section, raw.view);
+  const granularity: Granularity = isGranularity(raw.gran) ? raw.gran : "day";
+  const accountFilter = raw.account ?? "";
+  const campaignFilter = raw.campaign ?? "";
+  const goalFilter = raw.goal ?? "";
 
   const [
     { data: projects },
@@ -174,7 +183,7 @@ export default async function AnalyticsPage({
       .eq("platform", "instagram")
       .order("name"),
     supabase.from("ad_campaigns").select("id,name,objective,status,project_id,ad_account_id"),
-    supabase.from("ad_accounts").select("id,project_id,currency"),
+    supabase.from("ad_accounts").select("id,name,external_id,project_id,currency").eq("platform", "meta"),
     supabase.from("ad_sets").select("id,name,status,campaign_id"),
     supabase.from("ads").select("id,name,status,adset_id"),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
@@ -182,9 +191,14 @@ export default async function AnalyticsPage({
 
   const projectRows = projects ?? [];
   const accountRows = socialAccounts ?? [];
-  const selectedSocial = accountRows.filter((account) => !projectId || account.project_id === projectId);
+  const selectedSocial = accountRows.filter(
+    (account) =>
+      (!projectId || account.project_id === projectId) &&
+      (!socialId || account.id === socialId),
+  );
   const socialIds = selectedSocial.map((account) => account.id);
-  const campaignRows = (campaigns ?? []).filter((campaign) => !projectId || campaign.project_id === projectId);
+  const allCampaignRows = campaigns ?? [];
+  const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
 
   const socialMetricsPromise = socialIds.length
@@ -216,6 +230,7 @@ export default async function AnalyticsPage({
     { data: adSetSummary },
     { data: adSummary },
     { data: audienceMetrics },
+    { data: adTimeseries },
   ] = await Promise.all([
     socialMetricsPromise,
     socialPostsPromise,
@@ -240,6 +255,15 @@ export default async function AnalyticsPage({
       .gte("date", from)
       .lte("date", to)
       .range(0, 19999),
+    supabase.rpc("ad_timeseries", {
+      p_since: from,
+      p_until: to,
+      p_granularity: granularity,
+      p_project_id: projectId || null,
+      p_account_id: accountFilter || null,
+      p_campaign_id: campaignFilter || null,
+      p_action_type: goalFilter || null,
+    }),
   ]);
 
   const organicRows = (socialMetrics ?? []) as SocialMetricRow[];
@@ -293,8 +317,6 @@ export default async function AnalyticsPage({
   const campaignAccountIds = new Set(campaignRows.map((campaign) => campaign.ad_account_id));
   const currencies = [...new Set((adAccounts ?? []).filter((account) => campaignAccountIds.has(account.id) && account.currency).map((account) => account.currency!))];
   const selectedProject = projectRows.find((project) => project.id === projectId);
-  const hideOrganic = channel === "meta";
-  const hidePaid = channel === "instagram";
 
   const customNames = new Map(
     (customConversions ?? [])
@@ -440,67 +462,192 @@ export default async function AnalyticsPage({
     },
     period: { from, to },
     organic: {
-      connected: !hideOrganic && selectedSocial.length > 0,
+      connected: selectedSocial.length > 0,
       accountName: selectedSocial[0]?.username ?? selectedSocial[0]?.name ?? null,
-      followers: hideOrganic ? 0 : selectedSocial.reduce((sum, account) => sum + Number(account.followers_count), 0),
-      followerGrowth: hideOrganic ? 0 : organicRows.reduce((sum, row) => sum + Number(row.follower_growth), 0),
-      reach: hideOrganic ? 0 : organicReach,
-      impressions: hideOrganic ? 0 : organicRows.reduce((sum, row) => sum + Number(row.impressions), 0),
-      engagements: hideOrganic ? 0 : organicEngagements,
-      engagementRate: hideOrganic || organicReach <= 0 ? null : organicEngagements / organicReach,
-      publications: hideOrganic ? 0 : posts.length,
-      saves: hideOrganic ? 0 : posts.reduce((sum, post) => sum + post.saved, 0),
-      posts: hideOrganic ? [] : posts,
+      followers: selectedSocial.reduce((sum, account) => sum + Number(account.followers_count), 0),
+      followerGrowth: organicRows.reduce((sum, row) => sum + Number(row.follower_growth), 0),
+      reach: organicReach,
+      impressions: organicRows.reduce((sum, row) => sum + Number(row.impressions), 0),
+      engagements: organicEngagements,
+      engagementRate: organicReach <= 0 ? null : organicEngagements / organicReach,
+      publications: posts.length,
+      saves: posts.reduce((sum, post) => sum + post.saved, 0),
+      posts,
     },
     paid: {
-      connected: !hidePaid && campaignRows.length > 0,
-      spend: hidePaid ? 0 : spend,
-      impressions: hidePaid ? 0 : impressions,
-      reach: hidePaid ? 0 : paidRows.reduce((sum, row) => sum + Number(row.reach), 0),
-      clicks: hidePaid ? 0 : clicks,
-      conversions: hidePaid ? 0 : conversionCount,
-      conversionValue: hidePaid ? 0 : conversionValue,
-      ctr: hidePaid || impressions <= 0 ? null : clicks / impressions,
-      cpa: hidePaid || conversionCount <= 0 || currencies.length !== 1 ? null : spend / conversionCount,
-      roas: hidePaid || spend <= 0 || currencies.length !== 1 ? null : conversionValue / spend,
+      connected: campaignRows.length > 0,
+      spend,
+      impressions,
+      reach: paidRows.reduce((sum, row) => sum + Number(row.reach), 0),
+      clicks,
+      conversions: conversionCount,
+      conversionValue,
+      ctr: impressions <= 0 ? null : clicks / impressions,
+      cpa: conversionCount <= 0 || currencies.length !== 1 ? null : spend / conversionCount,
+      roas: spend <= 0 || currencies.length !== 1 ? null : conversionValue / spend,
       currencies,
-      campaigns: hidePaid ? [] : campaignResults,
-      adSets: hidePaid ? [] : detailAdSets,
-      ads: hidePaid ? [] : detailAds,
-      audience: hidePaid
-        ? { age: [], gender: [], country: [], region: [], placement: [] }
-        : audience,
+      campaigns: campaignResults,
+      adSets: detailAdSets,
+      ads: detailAds,
+      audience,
     },
     daily: [...daily.values()]
       .sort((a, b) => a.date.localeCompare(b.date))
-      .map((point) => ({ ...point, organicReach: hideOrganic ? 0 : point.organicReach, paidReach: hidePaid ? 0 : point.paidReach, spend: hidePaid ? 0 : point.spend, conversions: hidePaid ? 0 : point.conversions })),
+      .map((point) => ({ ...point })),
   };
-  const params: AnalyticsParams = { from, to, project: projectId, channel, view };
+
+  const conversionLabels = new Set<string>();
+  for (const row of campaignSummary ?? []) {
+    for (const conversion of row.conversions ?? []) {
+      if (isGoalAction(conversion.action_type)) conversionLabels.add(conversion.action_type);
+    }
+  }
+  const goalOptions = [...conversionLabels]
+    .map((value) => ({ value, label: actionTypeLabel(value, customNames) }))
+    .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+
+  const filteredCampaigns = allCampaignRows.filter(
+    (campaign) =>
+      (!projectId || campaign.project_id === projectId) &&
+      (!accountFilter || campaign.ad_account_id === accountFilter) &&
+      (!campaignFilter || campaign.id === campaignFilter),
+  );
+  const filteredCampaignIds = new Set(filteredCampaigns.map((campaign) => campaign.id));
+  const adSetsByCampaign = new Map<string, typeof adSets>();
+  for (const adSet of adSets ?? []) {
+    const rows = adSetsByCampaign.get(adSet.campaign_id) ?? [];
+    rows.push(adSet);
+    adSetsByCampaign.set(adSet.campaign_id, rows);
+  }
+  const adsByAdSet = new Map<string, typeof ads>();
+  for (const ad of ads ?? []) {
+    const rows = adsByAdSet.get(ad.adset_id) ?? [];
+    rows.push(ad);
+    adsByAdSet.set(ad.adset_id, rows);
+  }
+  const adAccountCurrency = new Map((adAccounts ?? []).map((account) => [account.id, account.currency]));
+  const buildTreeRow = (
+    id: string,
+    name: string | null,
+    status: string | null,
+    level: number,
+    summary: NonNullable<ReturnType<typeof campaignSummaries.get>>,
+    currency: string | null,
+    children: AdTreeRow[],
+  ): AdTreeRow => ({
+    id,
+    name: name ?? "Без названия",
+    status,
+    level,
+    spend: summary.spend,
+    impressions: summary.impressions,
+    clicks: summary.clicks,
+    ctr: summary.ctr,
+    cpc: summary.cpc,
+    cpm: summary.cpm,
+    results: summary.primaryGoal?.count ?? null,
+    goalLabel: summary.primaryGoal ? actionTypeLabel(summary.primaryGoal.actionType, customNames) : null,
+    cpa: summary.cpa,
+    currency,
+    children,
+  });
+  const bySpend = (a: AdTreeRow, b: AdTreeRow) => b.spend - a.spend;
+  const adTree: AdTreeRow[] = filteredCampaigns
+    .flatMap((campaign) => {
+      const summary = campaignSummaries.get(campaign.id);
+      if (!summary) return [];
+      const currency = adAccountCurrency.get(campaign.ad_account_id) ?? null;
+      const children = (adSetsByCampaign.get(campaign.id) ?? [])
+        .flatMap((adSet) => {
+          const adSetSummary = adSetSummaries.get(adSet.id);
+          if (!adSetSummary) return [];
+          const adChildren = (adsByAdSet.get(adSet.id) ?? [])
+            .flatMap((ad) => {
+              const adSummaryRow = adSummaries.get(ad.id);
+              return adSummaryRow
+                ? [buildTreeRow(ad.id, ad.name, ad.status, 2, adSummaryRow, currency, [])]
+                : [];
+            })
+            .sort(bySpend);
+          return [buildTreeRow(adSet.id, adSet.name, adSet.status, 1, adSetSummary, currency, adChildren)];
+        })
+        .sort(bySpend);
+      return [buildTreeRow(campaign.id, campaign.name, campaign.status, 0, summary, currency, children)];
+    })
+    .filter((row) => filteredCampaignIds.has(row.id))
+    .sort(bySpend);
+
+  const relevantAccounts = campaignFilter
+    ? (adAccounts ?? []).filter((account) => account.id === allCampaignRows.find((campaign) => campaign.id === campaignFilter)?.ad_account_id)
+    : accountFilter
+      ? (adAccounts ?? []).filter((account) => account.id === accountFilter)
+      : projectId
+        ? (adAccounts ?? []).filter((account) => account.project_id === projectId)
+        : (adAccounts ?? []);
+  const detailCurrencies = [...new Set(relevantAccounts.map((account) => account.currency).filter((value): value is string => !!value))];
+  const detailCurrency = detailCurrencies.length === 1 ? detailCurrencies[0] : null;
+  const currentAdsFilters: AdsFilterValues = {
+    from,
+    to,
+    gran: granularity,
+    project: projectId,
+    account: accountFilter,
+    campaign: campaignFilter,
+    goal: goalFilter,
+  };
+  const params: AnalyticsParams = { from, to, project: projectId, social: socialId, section };
+
+  const contentSettings = accountRows.length > 0 ? (
+    <details className="rounded-xl border border-neutral-200 bg-white p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-neutral-900">Настройка Instagram-аккаунтов</summary>
+      <div className="mt-4 grid gap-3">
+        {accountRows.map((account) => (
+          <form key={account.id} action={assignSocialAccount} className="flex flex-wrap items-center gap-3 rounded-lg bg-neutral-50 p-3">
+            <input type="hidden" name="account_id" value={account.id} />
+            <span className="min-w-48 text-sm font-medium text-neutral-900">@{account.username || account.name || account.id}</span>
+            <Select name="project_id" defaultValue={account.project_id ?? ""} className="max-w-72"><option value="">Не привязан</option>{projectRows.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select>
+            <Button type="submit" variant="outline" size="sm">Сохранить привязку</Button>
+          </form>
+        ))}
+      </div>
+    </details>
+  ) : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      <AnalyticsShell
-        payload={payload}
-        initialView={view}
-        params={params}
-        projects={projectRows}
-      />
-
-      {accountRows.length > 0 && (
-        <details className="mx-auto w-full max-w-[1500px] rounded-xl border border-neutral-200 bg-white p-4">
-          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">Настройка Instagram-аккаунтов</summary>
-          <div className="mt-4 grid gap-3">
-            {accountRows.map((account) => (
-              <form key={account.id} action={assignSocialAccount} className="flex flex-wrap items-center gap-3 rounded-lg bg-neutral-50 p-3">
-                <input type="hidden" name="account_id" value={account.id} />
-                <span className="min-w-48 text-sm font-medium text-neutral-900">@{account.username || account.name || account.id}</span>
-                <Select name="project_id" defaultValue={account.project_id ?? ""} className="max-w-72"><option value="">Не привязан</option>{projectRows.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select>
-                <Button type="submit" variant="outline" size="sm">Сохранить привязку</Button>
-              </form>
-            ))}
-          </div>
-        </details>
-      )}
-    </div>
+    <AnalyticsShell
+      payload={payload}
+      initialSection={section}
+      params={params}
+      projects={projectRows}
+      socialAccounts={accountRows.map((account) => ({
+        id: account.id,
+        project_id: account.project_id,
+        name: `@${account.username || account.name || account.id}`,
+      }))}
+      contentSettings={contentSettings}
+      adsPanel={
+        <AdAnalyticsPanel
+          current={currentAdsFilters}
+          accounts={(adAccounts ?? []).map((account) => ({
+            id: account.id,
+            name: account.name ?? account.external_id,
+            project_id: account.project_id,
+          }))}
+          campaigns={allCampaignRows.map((campaign) => ({
+            id: campaign.id,
+            name: campaign.name ?? "Без названия",
+            project_id: campaign.project_id,
+            account_id: campaign.ad_account_id,
+          }))}
+          goals={goalOptions}
+          points={(adTimeseries ?? []) as TimeseriesPoint[]}
+          granularity={granularity}
+          currency={detailCurrency}
+          currencies={detailCurrencies}
+          goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
+          tree={adTree}
+        />
+      }
+    />
   );
 }

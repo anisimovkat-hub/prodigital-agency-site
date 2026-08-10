@@ -31,12 +31,14 @@ export function AdsFilters({
   campaigns,
   goals,
   current,
+  embedded = false,
 }: {
   projects: Option[];
   accounts: AccountOption[];
   campaigns: CampaignOption[];
   goals: { value: string; label: string }[];
   current: AdsFilterValues;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -77,16 +79,16 @@ export function AdsFilters({
 
   function resetFilters() {
     if (dateTimer.current) clearTimeout(dateTimer.current);
-    startTransition(() => router.push(pathname));
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of ["gran", "account", "campaign", "goal"]) params.delete(key);
+    const query = params.toString();
+    startTransition(() => router.push(query ? `${pathname}?${query}` : pathname));
   }
 
   const hasActiveFilters =
-    !!current.project ||
     !!current.account ||
     !!current.campaign ||
     !!current.goal ||
-    !!searchParams.get("from") ||
-    !!searchParams.get("to") ||
     !!searchParams.get("gran");
 
   const visibleAccounts = accounts.filter(
@@ -104,11 +106,11 @@ export function AdsFilters({
       aria-busy={isPending}
     >
       <div
-        className={`grid grid-cols-2 gap-3 transition-opacity md:grid-cols-4 lg:grid-cols-7 ${
+        className={`grid grid-cols-2 gap-3 transition-opacity md:grid-cols-4 ${embedded ? "lg:grid-cols-4" : "lg:grid-cols-7"} ${
           isPending ? "opacity-60" : ""
         }`}
       >
-        <label className="flex flex-col gap-1">
+        {!embedded && <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-neutral-500">С даты</span>
           <Input
             type="date"
@@ -116,9 +118,9 @@ export function AdsFilters({
             max={current.to}
             onChange={(e) => applyDateDebounced("from", e.target.value)}
           />
-        </label>
+        </label>}
 
-        <label className="flex flex-col gap-1">
+        {!embedded && <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-neutral-500">По дату</span>
           <Input
             type="date"
@@ -126,7 +128,7 @@ export function AdsFilters({
             min={current.from}
             onChange={(e) => applyDateDebounced("to", e.target.value)}
           />
-        </label>
+        </label>}
 
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-neutral-500">
@@ -144,7 +146,7 @@ export function AdsFilters({
           </Select>
         </label>
 
-        <label className="flex flex-col gap-1">
+        {!embedded && <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-neutral-500">Проект</span>
           <Select
             value={current.project}
@@ -157,7 +159,7 @@ export function AdsFilters({
               </option>
             ))}
           </Select>
-        </label>
+        </label>}
 
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-neutral-500">Кабинет</span>

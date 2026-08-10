@@ -14,8 +14,9 @@
 - Миграция `0020_marketing_analytics.sql` добавляет Instagram/VK/Telegram-совместимую модель
   `social_accounts` → `social_account_metrics` / `social_posts`, логотип проекта и отзываемые
   клиентские ссылки.
-- `/analytics` — внутренний owner-only обзор с вкладками «Вся система / Органика / Реклама»;
-  `/ads` сохраняется как детальный рабочий экран кампания → группа → объявление.
+- `/analytics` — единый внутренний owner-only раздел с вкладками
+  «Обзор / Контент / Реклама / Аудитория». Детальный экран кампания → группа → объявление
+  встроен во вкладку «Реклама»; `/ads` оставлен только как redirect старых ссылок.
 - `/report/<uuid>` доступен без входа, но читает только агрегированный payload одного проекта
   через `client_report_payload`; внутренние RLS-политики не ослаблялись.
 - Первый organic adapter — Instagram Graph API через существующий sensitive Meta-токен.
@@ -23,7 +24,8 @@
   подключения, а не демо-метрики.
 
 - В Supabase подтверждены объекты миграций `0016`–`0019`, включая обе period-summary RPC.
-- Авторизованный `/ads` показывает реальные фильтры, KPI, SVG-график и 24 строки кампаний
+- Авторизованная вкладка `/analytics?section=ads` показывает реальные фильтры, KPI,
+  SVG-график и 24 строки кампаний
   за выбранные 30 дней. В базе: 10 Meta-кабинетов, 122 кампании, 796 campaign-day и
   12 213 строк конверсий; собственных конверсий — 13.
 - Первая детальная загрузка выявила кабинет без разрешения `ads_read`/`ads_management`.
@@ -43,10 +45,10 @@
   fields account_id,name,currency), `fetchMetaInsights(actId, since, until)`
   (level=account, time_increment=1, парсит spend/impressions/clicks + leads из actions).
   Токен ТОЛЬКО из `process.env.META_ACCESS_TOKEN` (sensitive env Vercel, в БД/Git нет).
-- `src/app/(dashboard)/ads/actions.ts` — `syncMetaAds()`: кабинеты → upsert ad_accounts →
+- `src/app/(dashboard)/analytics/meta/actions.ts` — `syncMetaAds()`: кабинеты → upsert ad_accounts →
   авто-привязка к проекту по имени → суточные метрики 30д в ad_metrics.
-- `src/app/(dashboard)/ads/page.tsx` — раздел «Реклама» (owner-only): таблица кабинетов
-  (расход/лиды/CPL 30д + валюта) + кнопка «Обновить статистику Меты».
+- `src/app/(dashboard)/analytics/meta/*` — детальная вкладка «Реклама» (owner-only):
+  фильтры, KPI, график, дерево и кнопки синхронизации Meta.
 - Кабинеты↔проекты: 8 Meta-кабинетов уже привязаны (см. таблицу ad_accounts).
 
 ## Сделано в Фазе A (2026-07-28)
@@ -109,7 +111,7 @@
   `syncMetaAds()` обновляет справочник при каждой синхронизации (в счётчике «своих конверсий»).
 - `actionTypeLabel(actionType, customNames?)` подставляет реальное имя вместо
   «Своя конверсия <id>» для `offsite_conversion.custom.<id>`. Справочник грузится на
-  `/ads` и прокидывается в местный `label()`.
+  `/analytics?section=ads` и прокидывается в местный `label()`.
 
 ## Итерация 4 (2026-07-28): разворачиваемая таблица кампания → группа → объявление
 
@@ -134,7 +136,7 @@
 
 - `/analytics` показывает топ групп объявлений и объявлений из уже загруженных таблиц
   0018–0019; Instagram получил подробную таблицу публикаций, а не только шесть карточек.
-- Вкладки «Вся статистика / Органика / Реклама» стали клиентскими: клик не запускает
+- Вкладки «Обзор / Контент / Реклама / Аудитория» стали клиентскими: клик не запускает
   повторный server-render и не повторяет запросы к Supabase.
 - Миграция `0021_ad_audience_breakdowns.sql`: суточные campaign-level breakdowns `age`,
   `gender`, `country`, `region`, `publisher_platform`, RLS admin-only.

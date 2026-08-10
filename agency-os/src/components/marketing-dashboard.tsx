@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   ArrowUpRight,
@@ -8,7 +7,6 @@ import {
   Lightbulb,
   MapPin,
   MessageCircle,
-  MousePointerClick,
   Play,
   Save,
   Share2,
@@ -27,16 +25,20 @@ import {
   type MarketingAudienceItem,
   type MarketingPayload,
 } from "@/lib/marketing-analytics";
+import type { MarketingSection } from "@/lib/marketing-sections";
 import { cn } from "@/lib/utils";
 
-export type MarketingView = "all" | "organic" | "ads";
+export type { MarketingSection } from "@/lib/marketing-sections";
 
 type MarketingDashboardProps = {
   payload: MarketingPayload;
-  view: MarketingView;
+  section: MarketingSection;
   publicReport?: boolean;
   controls?: ReactNode;
   filters?: ReactNode;
+  contentActions?: ReactNode;
+  adsPanel?: ReactNode;
+  audienceActions?: ReactNode;
 };
 
 const INSIGHT_STYLE = {
@@ -124,18 +126,30 @@ function linePoints(rows: MarketingDailyPoint[], key: "organicReach" | "paidReac
     .join(" ");
 }
 
-function ReachChart({ payload, view }: { payload: MarketingPayload; view: MarketingView }) {
+function ReachChart({
+  payload,
+  section,
+}: {
+  payload: MarketingPayload;
+  section: "overview" | "content" | "ads";
+}) {
   const rows = payload.daily;
+  const subtitle =
+    section === "content"
+      ? "Органический охват по дням"
+      : section === "ads"
+        ? "Платный охват по дням"
+        : "Органика и платный трафик по дням";
   return (
     <section className="rounded-xl border border-neutral-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-semibold text-neutral-950">Динамика охвата</h2>
-          <p className="mt-1 text-xs text-neutral-500">Органика и платный трафик по дням</p>
+          <p className="mt-1 text-xs text-neutral-500">{subtitle}</p>
         </div>
         <div className="flex gap-4 text-xs text-neutral-500">
-          {view !== "ads" && <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Органика</span>}
-          {view !== "organic" && <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Реклама</span>}
+          {section !== "ads" && <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-violet-500" />Органика</span>}
+          {section !== "content" && <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-blue-600" />Реклама</span>}
         </div>
       </div>
       {rows.length ? (
@@ -144,8 +158,8 @@ function ReachChart({ payload, view }: { payload: MarketingPayload; view: Market
             {[28, 53, 78, 103, 128].map((y) => (
               <line key={y} x1="20" y1={y} x2="880" y2={y} stroke="#e5e7eb" strokeWidth="1" />
             ))}
-            {view !== "ads" && <polyline points={linePoints(rows, "organicReach")} fill="none" stroke="#8b5cf6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
-            {view !== "organic" && <polyline points={linePoints(rows, "paidReach")} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+            {section !== "ads" && <polyline points={linePoints(rows, "organicReach")} fill="none" stroke="#8b5cf6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+            {section !== "content" && <polyline points={linePoints(rows, "paidReach")} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
             <text x="20" y="148" fontSize="11" fill="#737373">{rows[0]?.date.slice(5).split("-").reverse().join(".")}</text>
             <text x="842" y="148" fontSize="11" fill="#737373">{rows.at(-1)?.date.slice(5).split("-").reverse().join(".")}</text>
           </svg>
@@ -319,26 +333,59 @@ function ProjectMark({ payload }: { payload: MarketingPayload }) {
   return <div className="flex items-center gap-3"><ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" /><div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
 }
 
-export function MarketingDashboard({ payload, view, publicReport = false, controls, filters }: MarketingDashboardProps) {
+export function MarketingDashboard({
+  payload,
+  section,
+  publicReport = false,
+  controls,
+  filters,
+  contentActions,
+  adsPanel,
+  audienceActions,
+}: MarketingDashboardProps) {
   const insights = buildMarketingInsights(payload);
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-4"><ProjectMark payload={payload} />{controls}</header>
       {filters}
       {publicReport && <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800"><BadgeCheck className="h-4 w-4" />Актуальный клиентский отчёт · данные доступны только для этого проекта</div>}
-      <div className="grid gap-3 lg:grid-cols-3">
-        {insights.map((insight, index) => <div key={`${insight.title}-${index}`} className={cn("rounded-xl border p-3", INSIGHT_STYLE[insight.tone])}><div className="flex items-start gap-2.5">{insight.tone === "warning" ? <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> : <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" />}<div><p className="text-sm font-semibold">{insight.title}</p><p className="mt-0.5 text-xs leading-relaxed opacity-75">{insight.detail}</p></div></div></div>)}
-      </div>
-      {(view === "all" || view === "organic") && <MetricBand payload={payload} type="organic" />}
-      {(view === "all" || view === "ads") && <MetricBand payload={payload} type="paid" />}
-      <div className={cn("grid gap-4", view === "all" && "xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]")}><ReachChart payload={payload} view={view} />{view === "all" && <ChannelContribution payload={payload} />}</div>
-      {(view === "all" || view === "ads") && <CampaignGoals payload={payload} />}
-      {(view === "all" || view === "ads") && <PerformanceTable payload={payload} />}
-      {(view === "all" || view === "ads") && <AudienceDashboard payload={payload} />}
-      {(view === "all" || view === "ads") && <AdDetailTable title="Группы объявлений" subtitle="Топ-10 групп по расходу; все значения рассчитаны за выбранный период" rows={payload.paid.adSets} />}
-      {(view === "all" || view === "ads") && <AdDetailTable title="Объявления" subtitle="Топ-10 объявлений по расходу с результатами и стоимостью результата" rows={payload.paid.ads} />}
-      {(view === "all" || view === "organic") && <BestContent payload={payload} />}
-      {!publicReport && <div className="flex items-center gap-2 rounded-lg bg-neutral-100 px-4 py-3 text-xs text-neutral-500"><MousePointerClick className="h-4 w-4" />Для детальной оптимизации кампаний используйте раздел <Link href="/ads" className="font-semibold text-neutral-800 hover:underline">«Реклама»</Link>.</div>}
+      {section === "overview" && (
+        <>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {insights.map((insight, index) => <div key={`${insight.title}-${index}`} className={cn("rounded-xl border p-3", INSIGHT_STYLE[insight.tone])}><div className="flex items-start gap-2.5">{insight.tone === "warning" ? <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> : <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" />}<div><p className="text-sm font-semibold">{insight.title}</p><p className="mt-0.5 text-xs leading-relaxed opacity-75">{insight.detail}</p></div></div></div>)}
+          </div>
+          <MetricBand payload={payload} type="organic" />
+          <MetricBand payload={payload} type="paid" />
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]"><ReachChart payload={payload} section="overview" /><ChannelContribution payload={payload} /></div>
+          <PerformanceTable payload={payload} />
+        </>
+      )}
+      {section === "content" && (
+        <>
+          {contentActions}
+          <MetricBand payload={payload} type="organic" />
+          <ReachChart payload={payload} section="content" />
+          <BestContent payload={payload} />
+        </>
+      )}
+      {section === "ads" && (
+        adsPanel ?? (
+          <>
+            <MetricBand payload={payload} type="paid" />
+            <ReachChart payload={payload} section="ads" />
+            <CampaignGoals payload={payload} />
+            <PerformanceTable payload={payload} />
+            <AdDetailTable title="Группы объявлений" subtitle="Топ-10 групп по расходу; все значения рассчитаны за выбранный период" rows={payload.paid.adSets} />
+            <AdDetailTable title="Объявления" subtitle="Топ-10 объявлений по расходу с результатами и стоимостью результата" rows={payload.paid.ads} />
+          </>
+        )
+      )}
+      {section === "audience" && (
+        <>
+          {audienceActions}
+          <AudienceDashboard payload={payload} />
+        </>
+      )}
     </div>
   );
 }

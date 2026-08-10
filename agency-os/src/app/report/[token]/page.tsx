@@ -3,15 +3,15 @@ import { notFound } from "next/navigation";
 
 import {
   MarketingDashboard,
-  type MarketingView,
 } from "@/components/marketing-dashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MarketingPayload, MarketingPost } from "@/lib/marketing-analytics";
+import { marketingSection, type MarketingSection } from "@/lib/marketing-sections";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-type SearchParams = { from?: string; to?: string; view?: string };
+type SearchParams = { from?: string; to?: string; section?: string; view?: string };
 type DataObject = Record<string, unknown>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -38,10 +38,6 @@ function daysAgo(days: number): string {
   const date = new Date();
   date.setDate(date.getDate() - days);
   return date.toISOString().slice(0, 10);
-}
-
-function viewValue(value: string | undefined): MarketingView {
-  return value === "organic" || value === "ads" ? value : "all";
 }
 
 function parsePayload(value: unknown): MarketingPayload | null {
@@ -155,31 +151,32 @@ function PublicFilters({
   token,
   from,
   to,
-  view,
+  section,
 }: {
   token: string;
   from: string;
   to: string;
-  view: MarketingView;
+  section: MarketingSection;
 }) {
-  const tabs: { value: MarketingView; label: string }[] = [
-    { value: "all", label: "Вся система" },
-    { value: "organic", label: "Органика" },
+  const tabs: { value: MarketingSection; label: string }[] = [
+    { value: "overview", label: "Обзор" },
+    { value: "content", label: "Контент" },
     { value: "ads", label: "Реклама" },
+    { value: "audience", label: "Аудитория" },
   ];
   const base = `/report/${token}`;
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3 lg:flex-row lg:items-end lg:justify-between">
       <form action={base} method="get" className="grid gap-3 sm:grid-cols-[180px_180px_auto]">
-        <input type="hidden" name="view" value={view} />
+        <input type="hidden" name="section" value={section} />
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">С даты<Input name="from" type="date" defaultValue={from} /></label>
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">По дату<Input name="to" type="date" defaultValue={to} /></label>
         <Button type="submit" variant="outline">Показать</Button>
       </form>
       <div className="flex w-fit rounded-lg bg-neutral-100 p-1">
         {tabs.map((tab) => {
-          const search = new URLSearchParams({ from, to, view: tab.value });
-          return <Link key={tab.value} href={`${base}?${search}`} className={cn("rounded-md px-4 py-2 text-sm font-medium", view === tab.value ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900")}>{tab.label}</Link>;
+          const search = new URLSearchParams({ from, to, section: tab.value });
+          return <Link key={tab.value} href={`${base}?${search}`} className={cn("rounded-md px-4 py-2 text-sm font-medium", section === tab.value ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900")}>{tab.label}</Link>;
         })}
       </div>
     </div>
@@ -198,7 +195,7 @@ export default async function ClientReportPage({
   const query = await searchParams;
   const from = query.from && ISO_DATE.test(query.from) ? query.from : daysAgo(29);
   const to = query.to && ISO_DATE.test(query.to) ? query.to : daysAgo(0);
-  const view = viewValue(query.view);
+  const section = marketingSection(query.section, query.view);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("client_report_payload", {
     p_token: token,
@@ -213,10 +210,10 @@ export default async function ClientReportPage({
     <main className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-10">
       <MarketingDashboard
         payload={payload}
-        view={view}
+        section={section}
         publicReport
         controls={<span className="text-sm font-semibold text-neutral-400">ProDigital</span>}
-        filters={<PublicFilters token={token} from={from} to={to} view={view} />}
+        filters={<PublicFilters token={token} from={from} to={to} section={section} />}
       />
     </main>
   );

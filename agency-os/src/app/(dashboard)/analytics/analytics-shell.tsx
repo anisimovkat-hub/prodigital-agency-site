@@ -1,42 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
-  AnalyticsActions,
+  AudienceSyncAction,
   AnalyticsFilters,
+  ClientReportAction,
+  InstagramSyncAction,
   type AnalyticsParams,
+  type SocialAccountOption,
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import {
   MarketingDashboard,
-  type MarketingView,
 } from "@/components/marketing-dashboard";
 import type { MarketingPayload } from "@/lib/marketing-analytics";
+import type { MarketingSection } from "@/lib/marketing-sections";
 
 export function AnalyticsShell({
   payload,
-  initialView,
+  initialSection,
   params,
   projects,
+  socialAccounts,
+  adsPanel,
+  contentSettings,
 }: {
   payload: MarketingPayload;
-  initialView: MarketingView;
+  initialSection: MarketingSection;
   params: AnalyticsParams;
   projects: { id: string; name: string }[];
+  socialAccounts: SocialAccountOption[];
+  adsPanel: ReactNode;
+  contentSettings?: ReactNode;
 }) {
-  const [view, setView] = useState<MarketingView>(initialView);
+  const [section, setSection] = useState<MarketingSection>(initialSection);
 
   return (
     <MarketingDashboard
       payload={payload}
-      view={view}
-      controls={<AnalyticsActions projectId={params.project} />}
+      section={section}
+      controls={<ClientReportAction projectId={params.project} />}
+      contentActions={<><InstagramSyncAction />{contentSettings}</>}
+      adsPanel={adsPanel}
+      audienceActions={<AudienceSyncAction />}
       filters={
         <AnalyticsFilters
           params={params}
           projects={projects}
-          view={view}
-          onViewChange={setView}
+          socialAccounts={socialAccounts}
+          section={section}
+          onSectionChange={setSection}
         />
       }
     />

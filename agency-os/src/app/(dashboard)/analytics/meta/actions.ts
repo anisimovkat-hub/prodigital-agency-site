@@ -352,7 +352,7 @@ export async function syncMetaAds(
       conversionRows += convRows.length;
     }
 
-    revalidatePath("/ads");
+    revalidatePath("/analytics");
     revalidatePath("/");
     return {
       ok: true,
@@ -613,7 +613,7 @@ export async function syncMetaAdDetails(
       }
     }
 
-    revalidatePath("/ads");
+    revalidatePath("/analytics");
     return {
       ok: true,
       message:
