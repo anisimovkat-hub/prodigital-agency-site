@@ -28,7 +28,7 @@ export const PROJECT_OWNERSHIP_MODE_LABEL: Record<string, string> = {
 export const CLIENT_STATUS_LABEL: Record<Enums<"client_status">, string> = {
   active: "Активен",
   paused: "Пауза",
-  churned: "Отток",
+  churned: "Завершён",
 };
 
 export const TASK_STATUS_LABEL: Record<Enums<"task_status">, string> = {

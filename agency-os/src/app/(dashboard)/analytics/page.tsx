@@ -159,8 +159,8 @@ export default async function AnalyticsPage({
   const raw = await searchParams;
   const from = raw.from && ISO_DATE.test(raw.from) ? raw.from : daysAgo(29);
   const to = raw.to && ISO_DATE.test(raw.to) ? raw.to : daysAgo(0);
-  const projectId = raw.project ?? "";
-  const socialId = raw.social ?? "";
+  let projectId = raw.project ?? "";
+  let socialId = raw.social ?? "";
   const section = marketingSection(raw.section, raw.view);
   const granularity: Granularity = isGranularity(raw.gran) ? raw.gran : "day";
   const accountFilter = raw.account ?? "";
@@ -176,7 +176,11 @@ export default async function AnalyticsPage({
     { data: ads },
     { data: customConversions },
   ] = await Promise.all([
-    supabase.from("projects").select("id,name,logo_url").order("name"),
+    supabase
+      .from("projects")
+      .select("id,name,logo_url")
+      .neq("stage", "finished")
+      .order("name"),
     supabase
       .from("social_accounts")
       .select("id,project_id,username,name,profile_picture_url,followers_count,last_synced_at")
@@ -190,14 +194,26 @@ export default async function AnalyticsPage({
   ]);
 
   const projectRows = projects ?? [];
-  const accountRows = socialAccounts ?? [];
+  const currentProjectIds = new Set(projectRows.map((project) => project.id));
+  if (projectId && !currentProjectIds.has(projectId)) projectId = "";
+  const accountRows = (socialAccounts ?? []).filter(
+    (account) => !account.project_id || currentProjectIds.has(account.project_id),
+  );
+  if (socialId && !accountRows.some((account) => account.id === socialId)) {
+    socialId = "";
+  }
   const selectedSocial = accountRows.filter(
     (account) =>
       (!projectId || account.project_id === projectId) &&
       (!socialId || account.id === socialId),
   );
   const socialIds = selectedSocial.map((account) => account.id);
-  const allCampaignRows = campaigns ?? [];
+  const allCampaignRows = (campaigns ?? []).filter(
+    (campaign) => !campaign.project_id || currentProjectIds.has(campaign.project_id),
+  );
+  const currentAdAccountRows = (adAccounts ?? []).filter(
+    (account) => !account.project_id || currentProjectIds.has(account.project_id),
+  );
   const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
 
@@ -315,7 +331,7 @@ export default async function AnalyticsPage({
   const conversionCount = conversionRows.reduce((sum, row) => sum + Number(row.count), 0);
   const conversionValue = conversionRows.reduce((sum, row) => sum + Number(row.value), 0);
   const campaignAccountIds = new Set(campaignRows.map((campaign) => campaign.ad_account_id));
-  const currencies = [...new Set((adAccounts ?? []).filter((account) => campaignAccountIds.has(account.id) && account.currency).map((account) => account.currency!))];
+  const currencies = [...new Set(currentAdAccountRows.filter((account) => campaignAccountIds.has(account.id) && account.currency).map((account) => account.currency!))];
   const selectedProject = projectRows.find((project) => project.id === projectId);
 
   const customNames = new Map(
@@ -324,7 +340,7 @@ export default async function AnalyticsPage({
       .map((conversion) => [conversion.conversion_id, conversion.name!]),
   );
   const accountCurrency = new Map(
-    (adAccounts ?? []).map((account) => [account.id, account.currency]),
+    currentAdAccountRows.map((account) => [account.id, account.currency]),
   );
   const campaignById = new Map(campaignRows.map((campaign) => [campaign.id, campaign]));
   const adSetById = new Map((adSets ?? []).map((adSet) => [adSet.id, adSet]));
@@ -525,7 +541,7 @@ export default async function AnalyticsPage({
     rows.push(ad);
     adsByAdSet.set(ad.adset_id, rows);
   }
-  const adAccountCurrency = new Map((adAccounts ?? []).map((account) => [account.id, account.currency]));
+  const adAccountCurrency = new Map(currentAdAccountRows.map((account) => [account.id, account.currency]));
   const buildTreeRow = (
     id: string,
     name: string | null,
@@ -578,12 +594,12 @@ export default async function AnalyticsPage({
     .sort(bySpend);
 
   const relevantAccounts = campaignFilter
-    ? (adAccounts ?? []).filter((account) => account.id === allCampaignRows.find((campaign) => campaign.id === campaignFilter)?.ad_account_id)
+    ? currentAdAccountRows.filter((account) => account.id === allCampaignRows.find((campaign) => campaign.id === campaignFilter)?.ad_account_id)
     : accountFilter
-      ? (adAccounts ?? []).filter((account) => account.id === accountFilter)
+      ? currentAdAccountRows.filter((account) => account.id === accountFilter)
       : projectId
-        ? (adAccounts ?? []).filter((account) => account.project_id === projectId)
-        : (adAccounts ?? []);
+        ? currentAdAccountRows.filter((account) => account.project_id === projectId)
+        : currentAdAccountRows;
   const detailCurrencies = [...new Set(relevantAccounts.map((account) => account.currency).filter((value): value is string => !!value))];
   const detailCurrency = detailCurrencies.length === 1 ? detailCurrencies[0] : null;
   const currentAdsFilters: AdsFilterValues = {
@@ -628,7 +644,7 @@ export default async function AnalyticsPage({
       adsPanel={
         <AdAnalyticsPanel
           current={currentAdsFilters}
-          accounts={(adAccounts ?? []).map((account) => ({
+          accounts={currentAdAccountRows.map((account) => ({
             id: account.id,
             name: account.name ?? account.external_id,
             project_id: account.project_id,

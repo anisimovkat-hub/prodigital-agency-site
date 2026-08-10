@@ -7,6 +7,7 @@ import {
   flattenZodErrors,
   kpiEntrySchema,
 } from "@/lib/validation";
+import { clientStatusFromProjectStages } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateProjectFormState =
@@ -113,6 +114,12 @@ export async function updateProject(
     return { errors: { _root: ["Нет авторизации. Войдите снова."] } };
   }
 
+  const { data: previousProject } = await supabase
+    .from("projects")
+    .select("client_id")
+    .eq("id", id)
+    .maybeSingle();
+
   const { data: updatedProject, error } = await supabase
     .from("projects")
     .update({
@@ -144,9 +151,27 @@ export async function updateProject(
     };
   }
 
+
+  const clientIds = new Set(
+    [previousProject?.client_id, updatedProject.client_id].filter(
+      (clientId): clientId is string => Boolean(clientId),
+    ),
+  );
+  for (const clientId of clientIds) {
+    const { data: clientProjects } = await supabase
+      .from("projects")
+      .select("stage")
+      .eq("client_id", clientId);
+    const status = clientStatusFromProjectStages(
+      (clientProjects ?? []).map((project) => project.stage),
+    );
+    await supabase.from("clients").update({ status }).eq("id", clientId);
+  }
+
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
   revalidatePath("/clients");
+  revalidatePath("/analytics");
   revalidatePath("/");
 
   return { success: true, project: updatedProject };

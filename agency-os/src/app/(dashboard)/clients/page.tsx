@@ -41,6 +41,61 @@ export default async function ClientsPage() {
       );
     }
   }
+  const currentClients = (clients ?? []).filter(
+    (client) => client.status !== "churned",
+  );
+  const finishedClients = (clients ?? []).filter(
+    (client) => client.status === "churned",
+  );
+
+  const clientTable = (rows: typeof currentClients) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Клиент</TableHead>
+          <TableHead>Статус</TableHead>
+          <TableHead>Бюджет</TableHead>
+          <TableHead>Активные проекты</TableHead>
+          <TableHead>Контакты</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.length === 0 && <TableEmpty colSpan={5} />}
+        {rows.map((client) => {
+          const project = representativeProjectByClient.get(client.id);
+          return (
+            <TableRow key={client.id}>
+              <TableCell className="font-medium text-neutral-900">
+                <Link
+                  href={`/clients/${client.id}`}
+                  className="inline-flex items-center gap-2 hover:underline"
+                >
+                  <ProjectLogo
+                    projectId={project?.id}
+                    name={project?.name ?? client.name}
+                    logoUrl={project?.logo_url}
+                    size="sm"
+                    decorative
+                  />
+                  {client.name}
+                </Link>
+              </TableCell>
+              <TableCell>
+                <ClientStatusBadge status={client.status ?? "active"} />
+              </TableCell>
+              <TableCell>{formatCurrency(client.budget)}</TableCell>
+              <TableCell>{activeProjectsByClient.get(client.id) ?? 0}</TableCell>
+              <TableCell>
+                {[client.phone, client.email, client.telegram]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -58,52 +113,16 @@ export default async function ClientsPage() {
         </div>
       </details>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Клиент</TableHead>
-            <TableHead>Статус</TableHead>
-            <TableHead>Бюджет</TableHead>
-            <TableHead>Активные проекты</TableHead>
-            <TableHead>Контакты</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(clients ?? []).length === 0 && <TableEmpty colSpan={5} />}
-          {(clients ?? []).map((client) => {
-            const project = representativeProjectByClient.get(client.id);
-            return (
-              <TableRow key={client.id}>
-                <TableCell className="font-medium text-neutral-900">
-                  <Link
-                    href={`/clients/${client.id}`}
-                    className="inline-flex items-center gap-2 hover:underline"
-                  >
-                    <ProjectLogo
-                      projectId={project?.id}
-                      name={project?.name ?? client.name}
-                      logoUrl={project?.logo_url}
-                      size="sm"
-                      decorative
-                    />
-                    {client.name}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <ClientStatusBadge status={client.status ?? "active"} />
-                </TableCell>
-                <TableCell>{formatCurrency(client.budget)}</TableCell>
-                <TableCell>{activeProjectsByClient.get(client.id) ?? 0}</TableCell>
-                <TableCell>
-                  {[client.phone, client.email, client.telegram]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+      {clientTable(currentClients)}
+
+      {finishedClients.length > 0 && (
+        <details className="group rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-700">
+            Завершённые клиенты ({finishedClients.length})
+          </summary>
+          <div className="mt-4">{clientTable(finishedClients)}</div>
+        </details>
+      )}
     </div>
   );
 }

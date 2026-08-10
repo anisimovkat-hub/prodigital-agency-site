@@ -60,6 +60,59 @@ export default async function ProjectsPage() {
       seconds / 3_600,
     ]),
   );
+  const currentProjects = (projects ?? []).filter(
+    (project) => project.stage !== "finished",
+  );
+  const finishedProjects = (projects ?? []).filter(
+    (project) => project.stage === "finished",
+  );
+
+  const projectTable = (rows: typeof currentProjects) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Проект</TableHead>
+          <TableHead>Клиент</TableHead>
+          <TableHead>Статус</TableHead>
+          <TableHead>Стадия</TableHead>
+          <TableHead>Ответственный</TableHead>
+          <TableHead>Доход/мес</TableHead>
+          <TableHead>Трудозатраты, мес</TableHead>
+          <TableHead>Бюджет</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.length === 0 && <TableEmpty colSpan={8} />}
+        {rows.map((project) => (
+          <TableRow key={project.id}>
+            <TableCell className="font-medium text-neutral-900">
+              <Link
+                href={`/projects/${project.id}`}
+                className="inline-flex max-w-60"
+              >
+                <ProjectBadge
+                  projectId={project.id}
+                  name={project.name}
+                  logoUrl={project.logo_url}
+                />
+              </Link>
+            </TableCell>
+            <TableCell>{project.client?.name ?? "—"}</TableCell>
+            <TableCell>
+              <HealthBadge health={project.health ?? "green"} />
+            </TableCell>
+            <TableCell>
+              <ProjectStageBadge stage={project.stage ?? "active"} />
+            </TableCell>
+            <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
+            <TableCell>{formatCurrency(project.monthly_fee)}</TableCell>
+            <TableCell>{formatHours(hoursByProject.get(project.id) ?? 0)}</TableCell>
+            <TableCell>{formatCurrency(project.budget)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,50 +138,16 @@ export default async function ProjectsPage() {
         </div>
       </details>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Проект</TableHead>
-            <TableHead>Клиент</TableHead>
-            <TableHead>Статус</TableHead>
-            <TableHead>Стадия</TableHead>
-            <TableHead>Ответственный</TableHead>
-            <TableHead>Доход/мес</TableHead>
-            <TableHead>Трудозатраты, мес</TableHead>
-            <TableHead>Бюджет</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(projects ?? []).length === 0 && <TableEmpty colSpan={8} />}
-          {(projects ?? []).map((project) => (
-            <TableRow key={project.id}>
-              <TableCell className="font-medium text-neutral-900">
-                <Link
-                  href={`/projects/${project.id}`}
-                  className="inline-flex max-w-60"
-                >
-                  <ProjectBadge
-                    projectId={project.id}
-                    name={project.name}
-                    logoUrl={project.logo_url}
-                  />
-                </Link>
-              </TableCell>
-              <TableCell>{project.client?.name ?? "—"}</TableCell>
-              <TableCell>
-                <HealthBadge health={project.health ?? "green"} />
-              </TableCell>
-              <TableCell>
-                <ProjectStageBadge stage={project.stage ?? "active"} />
-              </TableCell>
-              <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
-              <TableCell>{formatCurrency(project.monthly_fee)}</TableCell>
-              <TableCell>{formatHours(hoursByProject.get(project.id) ?? 0)}</TableCell>
-              <TableCell>{formatCurrency(project.budget)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      {projectTable(currentProjects)}
+
+      {finishedProjects.length > 0 && (
+        <details className="group rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-700">
+            Завершённые проекты ({finishedProjects.length})
+          </summary>
+          <div className="mt-4">{projectTable(finishedProjects)}</div>
+        </details>
+      )}
     </div>
   );
 }
