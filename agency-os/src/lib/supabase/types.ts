@@ -1436,6 +1436,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      cleanup_completed_tasks: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
       client_report_payload: {
         Args: { p_token: string; p_since: string; p_until: string };
         Returns: Json;

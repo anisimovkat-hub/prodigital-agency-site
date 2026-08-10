@@ -16,6 +16,10 @@ import {
 import { formatDate, isOverdue } from "@/lib/format";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
+import {
+  isExpiredPersonalCompletedTask,
+  sortPersonalTasks,
+} from "@/lib/personal-task-order";
 import { createClient } from "@/lib/supabase/server";
 import type { Enums } from "@/lib/supabase/types";
 
@@ -69,12 +73,14 @@ export default async function PersonalPage() {
       supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),
     ]);
 
-  const tasks = [
+  const calendarToday = dateISOInTimeZone(new Date());
+  const tasks = sortPersonalTasks([
     ...((lifeTasks ?? []) as PersonalTask[]),
     ...((brandTasks ?? []) as PersonalTask[]),
-  ].sort((a, b) => (a.created_at ?? "") < (b.created_at ?? "") ? 1 : -1);
+  ]).filter(
+    (task) => !isExpiredPersonalCompletedTask(task, calendarToday),
+  );
 
-  const calendarToday = dateISOInTimeZone(new Date());
   const calendar =
     profile?.role === "owner"
       ? await getPersonalCalendarEvents(calendarToday, calendarToday)
