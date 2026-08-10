@@ -6,6 +6,7 @@ import {
   createProjectSchema,
   flattenZodErrors,
   kpiEntrySchema,
+  updateProjectQuickFieldSchema,
 } from "@/lib/validation";
 import { clientStatusFromProjectStages } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
@@ -32,6 +33,25 @@ export type SavedProjectFormValues = {
   short_comment: string | null;
   logo_url: string | null;
 };
+
+export type QuickProjectFieldFormState =
+  | { error: string; success?: false }
+  | { error?: undefined; success: true }
+  | undefined;
+
+async function syncClientStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  clientId: string,
+) {
+  const { data: clientProjects } = await supabase
+    .from("projects")
+    .select("stage")
+    .eq("client_id", clientId);
+  const status = clientStatusFromProjectStages(
+    (clientProjects ?? []).map((project) => project.stage),
+  );
+  await supabase.from("clients").update({ status }).eq("id", clientId);
+}
 
 export async function addProject(
   _prevState: CreateProjectFormState,
@@ -158,14 +178,7 @@ export async function updateProject(
     ),
   );
   for (const clientId of clientIds) {
-    const { data: clientProjects } = await supabase
-      .from("projects")
-      .select("stage")
-      .eq("client_id", clientId);
-    const status = clientStatusFromProjectStages(
-      (clientProjects ?? []).map((project) => project.stage),
-    );
-    await supabase.from("clients").update({ status }).eq("id", clientId);
+    await syncClientStatus(supabase, clientId);
   }
 
   revalidatePath("/projects");
@@ -175,6 +188,63 @@ export async function updateProject(
   revalidatePath("/");
 
   return { success: true, project: updatedProject };
+}
+
+export async function updateProjectQuickField(
+  _prevState: QuickProjectFieldFormState,
+  formData: FormData,
+): Promise<QuickProjectFieldFormState> {
+  const parsed = updateProjectQuickFieldSchema.safeParse({
+    id: formData.get("id"),
+    field: formData.get("field"),
+    value: formData.get("value"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Некорректное значение" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "Нет авторизации. Войдите снова." };
+  }
+
+  const updateResult =
+    parsed.data.field === "health"
+      ? await supabase
+          .from("projects")
+          .update({ health: parsed.data.value })
+          .eq("id", parsed.data.id)
+          .select("id,client_id")
+          .maybeSingle()
+      : await supabase
+          .from("projects")
+          .update({ stage: parsed.data.value })
+          .eq("id", parsed.data.id)
+          .select("id,client_id")
+          .maybeSingle();
+
+  if (updateResult.error) {
+    return { error: updateResult.error.message };
+  }
+  if (!updateResult.data) {
+    return { error: "Проект не изменён: проверьте права доступа" };
+  }
+
+  if (parsed.data.field === "stage" && updateResult.data.client_id) {
+    await syncClientStatus(supabase, updateResult.data.client_id);
+  }
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${parsed.data.id}`);
+  revalidatePath("/clients");
+  revalidatePath("/analytics");
+  revalidatePath("/");
+
+  return { success: true };
 }
 
 export type KpiFormState =

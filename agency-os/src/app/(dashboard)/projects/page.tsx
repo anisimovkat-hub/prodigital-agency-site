@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ProjectForm } from "@/app/(dashboard)/projects/project-form";
-import { HealthBadge, ProjectStageBadge } from "@/components/badges";
+import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
 import { ProjectBadge } from "@/components/project-badge";
 import {
   Table,
@@ -99,10 +99,22 @@ export default async function ProjectsPage() {
             </TableCell>
             <TableCell>{project.client?.name ?? "—"}</TableCell>
             <TableCell>
-              <HealthBadge health={project.health ?? "green"} />
+              <ProjectQuickSelect
+                key={`${project.id}-health-${project.health}`}
+                projectId={project.id}
+                projectName={project.name}
+                field="health"
+                value={project.health ?? "green"}
+              />
             </TableCell>
             <TableCell>
-              <ProjectStageBadge stage={project.stage ?? "active"} />
+              <ProjectQuickSelect
+                key={`${project.id}-stage-${project.stage}`}
+                projectId={project.id}
+                projectName={project.name}
+                field="stage"
+                value={project.stage ?? "active"}
+              />
             </TableCell>
             <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
             <TableCell>{formatCurrency(project.monthly_fee)}</TableCell>

@@ -50,3 +50,39 @@
 - [x] Проверены desktop, семантика, переключение и старые ссылки.
 
 final result: passed
+
+---
+
+# Design QA — быстрое управление проектами
+
+- Source visual truth:
+  - `/var/folders/q_/sn0glqyj0zb8fnvz7dxlsm280000gn/T/TemporaryItems/NSIRD_screencaptureui_mxVY1h/Снимок экрана — 2026-08-10 в 21.01.26.png`
+  - `/var/folders/q_/sn0glqyj0zb8fnvz7dxlsm280000gn/T/TemporaryItems/NSIRD_screencaptureui_lhzY6i/Снимок экрана — 2026-08-10 в 21.02.03.png`
+- Implementation: `https://agency-os-lilac-eight.vercel.app/projects`
+- Intended state: список проектов с кликабельными плашками и страница ВФЛА с закрытым/открытым редактором
+- Browser-rendered implementation screenshot: ожидает production deployment
+- Viewport and density normalization: ожидает production capture
+
+## Intended visual change
+
+- Компактные цветные плашки сохраняют прежнюю семантику и становятся выпадающими контролами.
+- Кнопка редактирования проекта находится справа в одной строке с названием и использует
+  настоящую иконку Pencil из lucide-react.
+- Полная форма появляется под шапкой, не занимая место до открытия.
+
+## Interaction checks
+
+- Локальные TypeScript, ESLint, Vitest и production build пройдены.
+- Авторизованная production-проверка, console check и сравнительные снимки ожидают deploy.
+
+## Findings
+
+- [P1] Production-реализация пока не захвачена; визуальный и интерактивный результат нельзя
+  считать подтверждённым до deploy.
+
+## Comparison history
+
+- Исходное состояние зафиксировано на двух пользовательских скриншотах; post-deploy сравнение
+  ещё не выполнено.
+
+final result: blocked

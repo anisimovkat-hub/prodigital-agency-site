@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { KpiForm } from "@/app/(dashboard)/projects/kpi-form";
 import { NotesTabs } from "@/app/(dashboard)/projects/notes-tabs";
+import { ProjectEditDisclosure } from "@/app/(dashboard)/projects/project-edit-disclosure";
 import { ProjectEditForm } from "@/app/(dashboard)/projects/project-edit-form";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { Avatar } from "@/components/avatar";
@@ -130,27 +131,8 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <ProjectLogo
-          projectId={project.id}
-          name={project.name}
-          logoUrl={project.logo_url}
-          size="lg"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-neutral-900">
-            {project.name}
-          </h1>
-          <HealthBadge health={project.health ?? "green"} />
-          <ProjectStageBadge stage={project.stage ?? "active"} />
-        </div>
-      </div>
-
-      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
-          Редактировать проект
-        </summary>
-        <div className="mt-4">
+      <ProjectEditDisclosure
+        editor={
           <ProjectEditForm
             project={project}
             clients={(clients ?? []).map((c) => ({ id: c.id, name: c.name }))}
@@ -159,8 +141,24 @@ export default async function ProjectDetailPage({
               full_name: p.full_name,
             }))}
           />
+        }
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <ProjectLogo
+            projectId={project.id}
+            name={project.name}
+            logoUrl={project.logo_url}
+            size="lg"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-neutral-900">
+              {project.name}
+            </h1>
+            <HealthBadge health={project.health ?? "green"} />
+            <ProjectStageBadge stage={project.stage ?? "active"} />
+          </div>
         </div>
-      </details>
+      </ProjectEditDisclosure>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>

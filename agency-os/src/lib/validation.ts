@@ -213,6 +213,18 @@ export type CreateClientInput = z.infer<typeof createClientSchema>;
 
 export const PROJECT_HEALTH_VALUES = ["green", "yellow", "red"] as const;
 export const PROJECT_STAGE_VALUES = ["active", "paused", "finished"] as const;
+export const updateProjectQuickFieldSchema = z.discriminatedUnion("field", [
+  z.object({
+    id: z.string().uuid("Некорректный проект"),
+    field: z.literal("health"),
+    value: z.enum(PROJECT_HEALTH_VALUES),
+  }),
+  z.object({
+    id: z.string().uuid("Некорректный проект"),
+    field: z.literal("stage"),
+    value: z.enum(PROJECT_STAGE_VALUES),
+  }),
+]);
 export const PROJECT_OWNERSHIP_MODE_VALUES = [
   "self",
   "delegated",

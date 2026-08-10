@@ -4,6 +4,7 @@ import {
   createRecurringTaskSchema,
   createTaskSchema,
   taskAttachmentSchema,
+  updateProjectQuickFieldSchema,
   updateTaskDueDateSchema,
   updateRecurringScheduleSchema,
   updateTaskSchema,
@@ -102,6 +103,40 @@ describe("updateTaskDueDateSchema", () => {
     });
 
     expect(result.due_date).toBeUndefined();
+  });
+});
+
+describe("updateProjectQuickFieldSchema", () => {
+  const id = "00000000-0000-4000-8000-000000000003";
+
+  it("принимает быстрый выбор состояния проекта", () => {
+    expect(
+      updateProjectQuickFieldSchema.parse({
+        id,
+        field: "health",
+        value: "yellow",
+      }),
+    ).toEqual({ id, field: "health", value: "yellow" });
+  });
+
+  it("принимает быстрый выбор стадии проекта", () => {
+    expect(
+      updateProjectQuickFieldSchema.safeParse({
+        id,
+        field: "stage",
+        value: "finished",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("не позволяет передать значение не от выбранного поля", () => {
+    expect(
+      updateProjectQuickFieldSchema.safeParse({
+        id,
+        field: "health",
+        value: "finished",
+      }).success,
+    ).toBe(false);
   });
 });
 
