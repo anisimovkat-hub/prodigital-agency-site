@@ -22,6 +22,7 @@ import type {
   MarketingPayload,
   MarketingPost,
 } from "@/lib/marketing-analytics";
+import { projectLogoUrl } from "@/lib/project-logos";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
@@ -432,7 +433,10 @@ export default async function AnalyticsPage({
     project: {
       id: selectedProject?.id ?? null,
       name: selectedProject?.name ?? "Все проекты",
-      logoUrl: selectedProject?.logo_url ?? selectedSocial[0]?.profile_picture_url ?? null,
+      logoUrl:
+        projectLogoUrl(selectedProject?.id, selectedProject?.logo_url) ??
+        selectedSocial[0]?.profile_picture_url ??
+        null,
     },
     period: { from, to },
     organic: {

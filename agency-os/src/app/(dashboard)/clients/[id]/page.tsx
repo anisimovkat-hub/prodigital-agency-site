@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 
 import { ClientEditForm } from "@/app/(dashboard)/clients/client-edit-form";
 import { ClientStatusBadge, HealthBadge, ProjectStageBadge } from "@/components/badges";
+import { ProjectBadge } from "@/components/project-badge";
+import { ProjectLogo } from "@/components/project-logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -47,10 +49,19 @@ export default async function ClientDetailPage({
 
   const links = (client.links ?? {}) as Record<string, string | undefined>;
   const linkEntries = Object.entries(LINK_LABELS).filter(([key]) => links[key]);
+  const representativeProject =
+    (projects ?? []).find((project) => project.stage === "active") ?? projects?.[0];
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
+        <ProjectLogo
+          projectId={representativeProject?.id}
+          name={representativeProject?.name ?? client.name}
+          logoUrl={representativeProject?.logo_url}
+          size="lg"
+          decorative
+        />
         <h1 className="text-2xl font-semibold text-neutral-900">
           {client.name}
         </h1>
@@ -130,9 +141,13 @@ export default async function ClientDetailPage({
                 <TableCell className="font-medium text-neutral-900">
                   <Link
                     href={`/projects/${project.id}`}
-                    className="hover:underline"
+                    className="inline-flex max-w-64"
                   >
-                    {project.name}
+                    <ProjectBadge
+                      projectId={project.id}
+                      name={project.name}
+                      logoUrl={project.logo_url}
+                    />
                   </Link>
                 </TableCell>
                 <TableCell>

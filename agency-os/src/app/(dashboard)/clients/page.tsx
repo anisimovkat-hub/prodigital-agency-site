@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ClientForm } from "@/app/(dashboard)/clients/client-form";
 import { ClientStatusBadge } from "@/components/badges";
+import { ProjectLogo } from "@/components/project-logo";
 import {
   Table,
   TableBody,
@@ -19,16 +20,26 @@ export default async function ClientsPage() {
 
   const [{ data: clients }, { data: projects }] = await Promise.all([
     supabase.from("clients").select("*").order("name"),
-    supabase.from("projects").select("client_id,stage"),
+    supabase.from("projects").select("id,name,logo_url,client_id,stage"),
   ]);
 
   const activeProjectsByClient = new Map<string, number>();
+  const representativeProjectByClient = new Map<
+    string,
+    NonNullable<typeof projects>[number]
+  >();
   for (const project of projects ?? []) {
-    if (!project.client_id || project.stage !== "active") continue;
-    activeProjectsByClient.set(
-      project.client_id,
-      (activeProjectsByClient.get(project.client_id) ?? 0) + 1,
-    );
+    if (!project.client_id) continue;
+    const current = representativeProjectByClient.get(project.client_id);
+    if (!current || (current.stage !== "active" && project.stage === "active")) {
+      representativeProjectByClient.set(project.client_id, project);
+    }
+    if (project.stage === "active") {
+      activeProjectsByClient.set(
+        project.client_id,
+        (activeProjectsByClient.get(project.client_id) ?? 0) + 1,
+      );
+    }
   }
 
   return (
@@ -59,28 +70,38 @@ export default async function ClientsPage() {
         </TableHeader>
         <TableBody>
           {(clients ?? []).length === 0 && <TableEmpty colSpan={5} />}
-          {(clients ?? []).map((client) => (
-            <TableRow key={client.id}>
-              <TableCell className="font-medium text-neutral-900">
-                <Link
-                  href={`/clients/${client.id}`}
-                  className="hover:underline"
-                >
-                  {client.name}
-                </Link>
-              </TableCell>
-              <TableCell>
-                <ClientStatusBadge status={client.status ?? "active"} />
-              </TableCell>
-              <TableCell>{formatCurrency(client.budget)}</TableCell>
-              <TableCell>{activeProjectsByClient.get(client.id) ?? 0}</TableCell>
-              <TableCell>
-                {[client.phone, client.email, client.telegram]
-                  .filter(Boolean)
-                  .join(" · ") || "—"}
-              </TableCell>
-            </TableRow>
-          ))}
+          {(clients ?? []).map((client) => {
+            const project = representativeProjectByClient.get(client.id);
+            return (
+              <TableRow key={client.id}>
+                <TableCell className="font-medium text-neutral-900">
+                  <Link
+                    href={`/clients/${client.id}`}
+                    className="inline-flex items-center gap-2 hover:underline"
+                  >
+                    <ProjectLogo
+                      projectId={project?.id}
+                      name={project?.name ?? client.name}
+                      logoUrl={project?.logo_url}
+                      size="sm"
+                      decorative
+                    />
+                    {client.name}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <ClientStatusBadge status={client.status ?? "active"} />
+                </TableCell>
+                <TableCell>{formatCurrency(client.budget)}</TableCell>
+                <TableCell>{activeProjectsByClient.get(client.id) ?? 0}</TableCell>
+                <TableCell>
+                  {[client.phone, client.email, client.telegram]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

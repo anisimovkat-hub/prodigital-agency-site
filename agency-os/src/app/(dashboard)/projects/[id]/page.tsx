@@ -12,6 +12,7 @@ import {
   ProjectStageBadge,
   TaskStatusBadge,
 } from "@/components/badges";
+import { ProjectLogo } from "@/components/project-logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -130,11 +131,19 @@ export default async function ProjectDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold text-neutral-900">
-          {project.name}
-        </h1>
-        <HealthBadge health={project.health ?? "green"} />
-        <ProjectStageBadge stage={project.stage ?? "active"} />
+        <ProjectLogo
+          projectId={project.id}
+          name={project.name}
+          logoUrl={project.logo_url}
+          size="lg"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold text-neutral-900">
+            {project.name}
+          </h1>
+          <HealthBadge health={project.health ?? "green"} />
+          <ProjectStageBadge stage={project.stage ?? "active"} />
+        </div>
       </div>
 
       <details className="group rounded-lg border border-neutral-200 bg-white p-4">

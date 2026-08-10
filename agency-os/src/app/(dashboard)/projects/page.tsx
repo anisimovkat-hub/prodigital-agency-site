@@ -110,6 +110,7 @@ export default async function ProjectsPage() {
                   <ProjectBadge
                     projectId={project.id}
                     name={project.name}
+                    logoUrl={project.logo_url}
                   />
                 </Link>
               </TableCell>

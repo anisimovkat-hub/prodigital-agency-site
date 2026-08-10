@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pause, Play } from "lucide-react";
 
 import { startTimer, stopTimer } from "@/app/(dashboard)/timer-actions";
+import { ProjectLogo } from "@/components/project-logo";
 import { cn } from "@/lib/utils";
 
 type ActiveEntry = {
@@ -52,6 +53,14 @@ export function TimerBar({
       {active ? (
         <span className="flex items-center gap-2 font-medium text-emerald-800">
           <Play className="size-4 fill-emerald-600 text-emerald-600" aria-hidden />
+          {active.project && (
+            <ProjectLogo
+              projectId={active.project.id}
+              name={active.project.name}
+              size="xs"
+              decorative
+            />
+          )}
           {active.project?.name ?? "Без проекта"}
           <span className="font-mono tabular-nums text-emerald-700">
             {elapsed}

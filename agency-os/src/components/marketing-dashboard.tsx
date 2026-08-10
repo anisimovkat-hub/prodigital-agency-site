@@ -17,6 +17,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { ProjectLogo } from "@/components/project-logo";
 import {
   buildMarketingInsights,
   formatCompact,
@@ -315,11 +316,7 @@ function AudienceDashboard({ payload }: { payload: MarketingPayload }) {
 }
 
 function ProjectMark({ payload }: { payload: MarketingPayload }) {
-  const initials = payload.project.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  return <div className="flex items-center gap-3">{payload.project.logoUrl ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={payload.project.logoUrl} alt="Логотип проекта" width={44} height={44} className="h-11 w-11 rounded-xl border border-neutral-200 object-cover" />
-  ) : <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-neutral-950 text-sm font-semibold text-white">{initials || "OS"}</div>}<div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
+  return <div className="flex items-center gap-3"><ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" /><div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
 }
 
 export function MarketingDashboard({ payload, view, publicReport = false, controls, filters }: MarketingDashboardProps) {
