@@ -66,6 +66,21 @@ export type MetaEntityDailyMetric = {
   reach: number;
   conversions: MetaConversion[];
 };
+export type MetaAudienceBreakdown =
+  | "age"
+  | "gender"
+  | "country"
+  | "region"
+  | "publisher_platform";
+export type MetaAudienceMetric = {
+  campaignExternalId: string;
+  date: string;
+  breakdown: MetaAudienceBreakdown;
+  value: string;
+  impressions: number;
+  reach: number;
+  clicks: number;
+};
 
 type MetaAction = { action_type?: string; value?: string };
 type MetaAccountRow = { account_id?: string; name?: string; currency?: string };
@@ -106,6 +121,15 @@ type MetaEntityInsightRow = MetaInsightRow & {
   ad_id?: string;
   reach?: string;
   action_values?: MetaAction[];
+};
+type MetaAudienceInsightRow = MetaInsightRow & {
+  campaign_id?: string;
+  reach?: string;
+  age?: string;
+  gender?: string;
+  country?: string;
+  region?: string;
+  publisher_platform?: string;
 };
 type MetaListResponse<T> = {
   data?: T[];
@@ -343,6 +367,53 @@ export async function fetchMetaAdInsights(
   until: string,
 ): Promise<MetaEntityDailyMetric[]> {
   return fetchEntityInsights(externalId, since, until, "ad");
+}
+
+// Демография и география рекламы на уровне кампаний. Каждый срез запрашивается
+// отдельно: Meta ограничивает совместимость breakdown-полей, а отдельные запросы
+// устойчивее и дают понятную структуру для графиков.
+export async function fetchMetaAudienceInsights(
+  externalId: string,
+  since: string,
+  until: string,
+): Promise<MetaAudienceMetric[]> {
+  const breakdowns: MetaAudienceBreakdown[] = [
+    "age",
+    "gender",
+    "country",
+    "region",
+    "publisher_platform",
+  ];
+  const settled = await Promise.allSettled(
+    breakdowns.map(async (breakdown) => {
+      const params = new URLSearchParams({
+        fields: `campaign_id,impressions,reach,clicks,${breakdown}`,
+        level: "campaign",
+        breakdowns: breakdown,
+        time_increment: "1",
+        time_range: JSON.stringify({ since, until }),
+        limit: "500",
+        access_token: token(),
+      });
+      const rows = await fetchAllPages<MetaAudienceInsightRow>(
+        `${BASE}/${externalId}/insights?${params.toString()}`,
+      );
+      return rows
+        .filter((row) => row.campaign_id && row.date_start && row[breakdown])
+        .map((row): MetaAudienceMetric => ({
+          campaignExternalId: String(row.campaign_id),
+          date: String(row.date_start),
+          breakdown,
+          value: String(row[breakdown]),
+          impressions: Number(row.impressions ?? 0),
+          reach: Number(row.reach ?? 0),
+          clicks: Number(row.clicks ?? 0),
+        }));
+    }),
+  );
+  return settled.flatMap((result) =>
+    result.status === "fulfilled" ? result.value : [],
+  );
 }
 
 async function fetchEntityInsights(

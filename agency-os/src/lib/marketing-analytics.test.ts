@@ -12,7 +12,7 @@ function payload(): MarketingPayload {
     project: { id: "p1", name: "Проект", logoUrl: null },
     period: { from: "2026-08-01", to: "2026-08-04" },
     organic: { connected: true, accountName: "project", followers: 1000, followerGrowth: 40, reach: 450, impressions: 500, engagements: 45, engagementRate: 0.1, publications: 2, saves: 12, posts: [{ caption: "Reel", mediaType: "VIDEO", imageUrl: null, permalink: null, publishedAt: "2026-08-03T00:00:00Z", reach: 300, views: 400, likes: 20, comments: 4, saved: 8, shares: 3, engagements: 35 }] },
-    paid: { connected: true, spend: 300, impressions: 10_000, reach: 7_000, clicks: 200, conversions: 10, conversionValue: 900, ctr: 0.02, cpa: 30, roas: 3, currencies: ["USD"] },
+    paid: { connected: true, spend: 300, impressions: 10_000, reach: 7_000, clicks: 200, conversions: 10, conversionValue: 900, ctr: 0.02, cpa: 30, roas: 3, currencies: ["USD"], campaigns: [], adSets: [], ads: [], audience: { age: [], gender: [], country: [], region: [], placement: [] } },
     daily: [
       { date: "2026-08-01", organicReach: 50, paidReach: 1000, spend: 50, engagements: 5, conversions: 5 },
       { date: "2026-08-02", organicReach: 50, paidReach: 1000, spend: 50, engagements: 5, conversions: 5 },

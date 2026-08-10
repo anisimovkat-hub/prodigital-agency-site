@@ -1,17 +1,23 @@
 import { assignSocialAccount } from "@/app/(dashboard)/analytics/actions";
 import {
-  AnalyticsActions,
-  AnalyticsFilters,
   type AnalyticsParams,
 } from "@/app/(dashboard)/analytics/analytics-controls";
+import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import {
-  MarketingDashboard,
   type MarketingView,
 } from "@/components/marketing-dashboard";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { GOAL_ACTION_TYPES } from "@/lib/ad-analytics";
+import {
+  actionTypeLabel,
+  GOAL_ACTION_TYPES,
+  isGoalAction,
+  summarizeCampaigns,
+  type ConversionRow as AdSummaryConversionRow,
+} from "@/lib/ad-analytics";
 import type {
+  MarketingAdDetail,
+  MarketingAudience,
   MarketingDailyPoint,
   MarketingPayload,
   MarketingPost,
@@ -53,6 +59,14 @@ type ConversionRow = {
   value: number;
 };
 
+type AudienceRow = {
+  campaign_id: string;
+  breakdown: "age" | "gender" | "country" | "region" | "publisher_platform";
+  value: string;
+  impressions: number;
+  reach: number;
+};
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function daysAgo(days: number): string {
@@ -79,6 +93,42 @@ function primaryConversions(rows: ConversionRow[]): ConversionRow[] {
     }
   }
   return [...selected.values()];
+}
+
+type PeriodSummaryLike = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: { action_type: string; count: number; value: number }[];
+};
+
+function summarizeEntities<T extends PeriodSummaryLike>(
+  rows: T[],
+  idOf: (row: T) => string,
+) {
+  const metrics = rows.map((row) => ({
+    campaign_id: idOf(row),
+    spend: Number(row.spend ?? 0),
+    impressions: Number(row.impressions ?? 0),
+    clicks: Number(row.clicks ?? 0),
+  }));
+  const conversions: AdSummaryConversionRow[] = rows.flatMap((row) =>
+    (row.conversions ?? []).map((conversion) => ({
+      campaign_id: idOf(row),
+      action_type: conversion.action_type,
+      count: Number(conversion.count ?? 0),
+      value: Number(conversion.value ?? 0),
+    })),
+  );
+  return summarizeCampaigns(metrics, conversions);
+}
+
+function countryLabel(value: string): string {
+  try {
+    return new Intl.DisplayNames(["ru"], { type: "region" }).of(value.toUpperCase()) ?? value;
+  } catch {
+    return value;
+  }
 }
 
 export default async function AnalyticsPage({
@@ -112,6 +162,9 @@ export default async function AnalyticsPage({
     { data: socialAccounts },
     { data: campaigns },
     { data: adAccounts },
+    { data: adSets },
+    { data: ads },
+    { data: customConversions },
   ] = await Promise.all([
     supabase.from("projects").select("id,name,logo_url").order("name"),
     supabase
@@ -119,8 +172,11 @@ export default async function AnalyticsPage({
       .select("id,project_id,username,name,profile_picture_url,followers_count,last_synced_at")
       .eq("platform", "instagram")
       .order("name"),
-    supabase.from("ad_campaigns").select("id,project_id,ad_account_id"),
+    supabase.from("ad_campaigns").select("id,name,objective,status,project_id,ad_account_id"),
     supabase.from("ad_accounts").select("id,project_id,currency"),
+    supabase.from("ad_sets").select("id,name,status,campaign_id"),
+    supabase.from("ads").select("id,name,status,adset_id"),
+    supabase.from("ad_custom_conversions").select("conversion_id,name"),
   ]);
 
   const projectRows = projects ?? [];
@@ -147,7 +203,7 @@ export default async function AnalyticsPage({
         .gte("published_at", `${from}T00:00:00Z`)
         .lte("published_at", `${to}T23:59:59Z`)
         .order("reach", { ascending: false })
-        .range(0, 999)
+        .range(0, 49)
     : Promise.resolve({ data: [], error: null });
 
   const [
@@ -155,6 +211,10 @@ export default async function AnalyticsPage({
     { data: socialPosts },
     { data: paidMetrics },
     { data: conversions },
+    { data: campaignSummary },
+    { data: adSetSummary },
+    { data: adSummary },
+    { data: audienceMetrics },
   ] = await Promise.all([
     socialMetricsPromise,
     socialPostsPromise,
@@ -167,17 +227,26 @@ export default async function AnalyticsPage({
     supabase
       .from("ad_conversions")
       .select("campaign_id,date,action_type,count,value")
-      .in("action_type", [...GOAL_ACTION_TYPES])
       .gte("date", from)
       .lte("date", to)
-      .range(0, 9999),
+      .range(0, 19999),
+    supabase.rpc("ad_campaign_period_summary", { p_since: from, p_until: to }),
+    supabase.rpc("ad_set_period_summary", { p_since: from, p_until: to }),
+    supabase.rpc("ad_ad_period_summary", { p_since: from, p_until: to }),
+    supabase
+      .from("ad_audience_metrics")
+      .select("campaign_id,breakdown,value,impressions,reach")
+      .gte("date", from)
+      .lte("date", to)
+      .range(0, 19999),
   ]);
 
   const organicRows = (socialMetrics ?? []) as SocialMetricRow[];
   const paidRows = ((paidMetrics ?? []) as CampaignMetricRow[]).filter((row) => campaignIds.has(row.campaign_id));
-  const conversionRows = primaryConversions(
-    ((conversions ?? []) as ConversionRow[]).filter((row) => campaignIds.has(row.campaign_id)),
+  const allGoalConversions = ((conversions ?? []) as ConversionRow[]).filter(
+    (row) => campaignIds.has(row.campaign_id) && isGoalAction(row.action_type),
   );
+  const conversionRows = primaryConversions(allGoalConversions);
   const posts: MarketingPost[] = (socialPosts ?? []).map((post) => ({
     caption: post.caption,
     mediaType: post.media_type,
@@ -226,6 +295,139 @@ export default async function AnalyticsPage({
   const hideOrganic = channel === "meta";
   const hidePaid = channel === "instagram";
 
+  const customNames = new Map(
+    (customConversions ?? [])
+      .filter((conversion) => conversion.name)
+      .map((conversion) => [conversion.conversion_id, conversion.name!]),
+  );
+  const accountCurrency = new Map(
+    (adAccounts ?? []).map((account) => [account.id, account.currency]),
+  );
+  const campaignById = new Map(campaignRows.map((campaign) => [campaign.id, campaign]));
+  const adSetById = new Map((adSets ?? []).map((adSet) => [adSet.id, adSet]));
+  const adSetSummaries = summarizeEntities(adSetSummary ?? [], (row) => row.adset_id);
+  const adSummaries = summarizeEntities(adSummary ?? [], (row) => row.ad_id);
+  const campaignSummaries = summarizeEntities(campaignSummary ?? [], (row) => row.campaign_id);
+
+  function detailRow(
+    id: string,
+    name: string | null,
+    parentName: string,
+    campaignId: string,
+    summary: NonNullable<ReturnType<typeof adSetSummaries.get>>,
+  ): MarketingAdDetail {
+    const campaign = campaignById.get(campaignId);
+    const primary = summary.primaryGoal;
+    return {
+      id,
+      name: name || "Без названия",
+      parentName,
+      spend: summary.spend,
+      impressions: summary.impressions,
+      clicks: summary.clicks,
+      ctr: summary.ctr,
+      results: primary?.count ?? null,
+      resultLabel: primary ? actionTypeLabel(primary.actionType, customNames) : null,
+      cpa: summary.cpa,
+      currency: campaign ? accountCurrency.get(campaign.ad_account_id) ?? null : null,
+    };
+  }
+
+  const detailAdSets = (adSets ?? [])
+    .flatMap((adSet) => {
+      if (!campaignIds.has(adSet.campaign_id)) return [];
+      const summary = adSetSummaries.get(adSet.id);
+      if (!summary) return [];
+      return [detailRow(
+        adSet.id,
+        adSet.name,
+        campaignById.get(adSet.campaign_id)?.name || "Кампания без названия",
+        adSet.campaign_id,
+        summary,
+      )];
+    })
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 15);
+  const detailAds = (ads ?? [])
+    .flatMap((ad) => {
+      const adSet = adSetById.get(ad.adset_id);
+      if (!adSet || !campaignIds.has(adSet.campaign_id)) return [];
+      const summary = adSummaries.get(ad.id);
+      if (!summary) return [];
+      return [detailRow(
+        ad.id,
+        ad.name,
+        adSet.name || "Группа без названия",
+        adSet.campaign_id,
+        summary,
+      )];
+    })
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 15);
+  const campaignResults = campaignRows
+    .flatMap((campaign) => {
+      const summary = campaignSummaries.get(campaign.id);
+      if (!summary) return [];
+      const trafficPriority = [
+        "landing_page_view",
+        "omni_landing_page_view",
+        "link_click",
+        "instagram_profile_visit",
+        "post_engagement",
+        "video_view",
+      ];
+      const fallbackOutcome = trafficPriority
+        .map((actionType) => summary.otherActions.find((action) => action.actionType === actionType))
+        .find((action) => action !== undefined);
+      const outcomes = summary.primaryGoal
+        ? [summary.primaryGoal]
+        : fallbackOutcome
+          ? [fallbackOutcome]
+          : [];
+      return [{
+        id: campaign.id,
+        name: campaign.name || "Кампания без названия",
+        objective: campaign.objective,
+        spend: summary.spend,
+        currency: accountCurrency.get(campaign.ad_account_id) ?? null,
+        goals: outcomes.map((goal) => ({
+          actionType: goal.actionType,
+          label: actionTypeLabel(goal.actionType, customNames),
+          count: goal.count,
+          cpa: goal.count > 0 ? summary.spend / goal.count : null,
+        })),
+      }];
+    })
+    .sort((a, b) => b.spend - a.spend);
+
+  const audienceTotals = new Map<string, { impressions: number; reach: number }>();
+  for (const row of (audienceMetrics ?? []) as AudienceRow[]) {
+    if (!campaignIds.has(row.campaign_id)) continue;
+    const key = `${row.breakdown}:${row.value}`;
+    const current = audienceTotals.get(key) ?? { impressions: 0, reach: 0 };
+    current.impressions += Number(row.impressions);
+    current.reach += Number(row.reach);
+    audienceTotals.set(key, current);
+  }
+  const audienceList = (
+    breakdown: AudienceRow["breakdown"],
+    label: (value: string) => string = (value) => value,
+  ) => [...audienceTotals.entries()]
+    .filter(([key]) => key.startsWith(`${breakdown}:`))
+    .map(([key, totals]) => ({
+      label: label(key.slice(breakdown.length + 1)),
+      ...totals,
+    }))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, 10);
+  const audience: MarketingAudience = {
+    age: audienceList("age"),
+    gender: audienceList("gender", (value) => ({ male: "Мужчины", female: "Женщины", unknown: "Не указан" })[value] ?? value),
+    country: audienceList("country", countryLabel),
+    region: audienceList("region"),
+    placement: audienceList("publisher_platform", (value) => ({ instagram: "Instagram", facebook: "Facebook", audience_network: "Audience Network", messenger: "Messenger" })[value] ?? value),
+  };
+
   const payload: MarketingPayload = {
     project: {
       id: selectedProject?.id ?? null,
@@ -258,6 +460,12 @@ export default async function AnalyticsPage({
       cpa: hidePaid || conversionCount <= 0 || currencies.length !== 1 ? null : spend / conversionCount,
       roas: hidePaid || spend <= 0 || currencies.length !== 1 ? null : conversionValue / spend,
       currencies,
+      campaigns: hidePaid ? [] : campaignResults,
+      adSets: hidePaid ? [] : detailAdSets,
+      ads: hidePaid ? [] : detailAds,
+      audience: hidePaid
+        ? { age: [], gender: [], country: [], region: [], placement: [] }
+        : audience,
     },
     daily: [...daily.values()]
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -267,11 +475,11 @@ export default async function AnalyticsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <MarketingDashboard
+      <AnalyticsShell
         payload={payload}
-        view={view}
-        controls={<AnalyticsActions projectId={projectId} />}
-        filters={<AnalyticsFilters params={params} projects={projectRows} />}
+        initialView={view}
+        params={params}
+        projects={projectRows}
       />
 
       {accountRows.length > 0 && (

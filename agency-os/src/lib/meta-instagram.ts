@@ -26,6 +26,7 @@ export type InstagramDailyMetric = {
   engagements: number;
   accountsEngaged: number;
   followerCount: number;
+  followerGrowth: number;
 };
 
 export type InstagramMedia = {
@@ -121,18 +122,24 @@ export async function fetchInstagramAccounts(): Promise<InstagramAccount[]> {
     // Системный токен Meta может не иметь /me/accounts, но иметь Business Manager.
   }
 
-  if (found.size === 0) {
-    try {
-      const businesses = await graphAll<Business>("/me/businesses?fields=id&limit=100");
-      for (const business of businesses) {
-        const accounts = await graphAll<InstagramProfile>(
+  try {
+    const businesses = await graphAll<Business>("/me/businesses?fields=id&limit=100");
+    for (const business of businesses) {
+      const sources = await Promise.allSettled([
+        graphAll<InstagramProfile>(
           `/${business.id}/owned_instagram_accounts?fields=id,username,name,profile_picture_url,followers_count,media_count&limit=100`,
-        );
-        for (const account of accounts) found.set(account.id, account);
+        ),
+        graphAll<InstagramProfile>(
+          `/${business.id}/client_instagram_accounts?fields=id,username,name,profile_picture_url,followers_count,media_count&limit=100`,
+        ),
+      ]);
+      for (const source of sources) {
+        if (source.status !== "fulfilled") continue;
+        for (const account of source.value) found.set(account.id, account);
       }
-    } catch {
-      // Ни один способ обнаружения не доступен — ниже вернётся понятный пустой результат.
     }
+  } catch {
+    // Токен без Business Management всё ещё может вернуть аккаунты через /me/accounts.
   }
 
   return [...found.values()].map(normalizeAccount);
@@ -149,6 +156,17 @@ function numericValue(value: number | Record<string, number> | undefined): numbe
   if (typeof value === "number") return value;
   if (!value) return 0;
   return Object.values(value).reduce((sum, item) => sum + Number(item || 0), 0);
+}
+
+function insightValue(
+  metric: string,
+  value: number | Record<string, number> | undefined,
+): number {
+  if (metric !== "follows_and_unfollows" || typeof value !== "object" || !value) {
+    return numericValue(value);
+  }
+  return Object.entries(value).reduce((total, [key, item]) =>
+    /unfollow/i.test(key) ? total - Number(item || 0) : total + Number(item || 0), 0);
 }
 
 async function insightSeries(
@@ -168,10 +186,10 @@ async function insightSeries(
         .filter((item) => item.end_time)
         .map((item) => ({
           date: item.end_time!.slice(0, 10),
-          value: numericValue(item.value),
+          value: insightValue(metric, item.value),
         }));
     }
-    const value = numericValue(insight.total_value?.value);
+    const value = insightValue(metric, insight.total_value?.value);
     return value ? [{ date: until, value }] : [];
   } catch {
     return [];
@@ -190,6 +208,7 @@ export async function fetchInstagramAccountMetrics(
     "total_interactions",
     "accounts_engaged",
     "follower_count",
+    "follows_and_unfollows",
   ] as const;
   const series = await Promise.all(
     names.map((name) => insightSeries(accountId, name, since, until)),
@@ -206,6 +225,7 @@ export async function fetchInstagramAccountMetrics(
       engagements: 0,
       accountsEngaged: 0,
       followerCount: 0,
+      followerGrowth: 0,
     };
     byDate.set(date, row);
     return row;
@@ -218,7 +238,11 @@ export async function fetchInstagramAccountMetrics(
       if (name === "profile_views") row.profileViews = point.value;
       if (name === "total_interactions") row.engagements = point.value;
       if (name === "accounts_engaged") row.accountsEngaged = point.value;
-      if (name === "follower_count") row.followerCount = point.value;
+      if (name === "follower_count") {
+        row.followerCount = point.value;
+        if (row.followerGrowth === 0) row.followerGrowth = point.value;
+      }
+      if (name === "follows_and_unfollows") row.followerGrowth = point.value;
     }
   });
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));

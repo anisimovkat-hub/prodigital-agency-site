@@ -142,6 +142,10 @@ function parsePayload(value: unknown): MarketingPayload | null {
       cpa: conversions > 0 && currencies.length === 1 ? spend / conversions : null,
       roas: spend > 0 && currencies.length === 1 ? conversionValue / spend : null,
       currencies,
+      campaigns: [],
+      adSets: [],
+      ads: [],
+      audience: { age: [], gender: [], country: [], region: [], placement: [] },
     },
     daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
   };

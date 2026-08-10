@@ -22,6 +22,50 @@ export type MarketingPost = {
   engagements: number;
 };
 
+export type MarketingAdDetail = {
+  id: string;
+  name: string;
+  parentName: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  results: number | null;
+  resultLabel: string | null;
+  cpa: number | null;
+  currency: string | null;
+};
+
+export type MarketingCampaignGoal = {
+  actionType: string;
+  label: string;
+  count: number;
+  cpa: number | null;
+};
+
+export type MarketingCampaignResult = {
+  id: string;
+  name: string;
+  objective: string | null;
+  spend: number;
+  currency: string | null;
+  goals: MarketingCampaignGoal[];
+};
+
+export type MarketingAudienceItem = {
+  label: string;
+  impressions: number;
+  reach: number;
+};
+
+export type MarketingAudience = {
+  age: MarketingAudienceItem[];
+  gender: MarketingAudienceItem[];
+  country: MarketingAudienceItem[];
+  region: MarketingAudienceItem[];
+  placement: MarketingAudienceItem[];
+};
+
 export type MarketingPayload = {
   project: {
     id: string | null;
@@ -54,6 +98,10 @@ export type MarketingPayload = {
     cpa: number | null;
     roas: number | null;
     currencies: string[];
+    campaigns: MarketingCampaignResult[];
+    adSets: MarketingAdDetail[];
+    ads: MarketingAdDetail[];
+    audience: MarketingAudience;
   };
   daily: MarketingDailyPoint[];
 };

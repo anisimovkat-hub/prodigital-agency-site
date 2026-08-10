@@ -1168,6 +1168,50 @@ export type Database = {
           },
         ];
       };
+      ad_audience_metrics: {
+        Row: {
+          id: string;
+          campaign_id: string;
+          date: string;
+          breakdown: "age" | "gender" | "country" | "region" | "publisher_platform";
+          value: string;
+          impressions: number;
+          reach: number;
+          clicks: number;
+          created_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          campaign_id: string;
+          date: string;
+          breakdown: "age" | "gender" | "country" | "region" | "publisher_platform";
+          value: string;
+          impressions?: number;
+          reach?: number;
+          clicks?: number;
+          created_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          campaign_id?: string;
+          date?: string;
+          breakdown?: "age" | "gender" | "country" | "region" | "publisher_platform";
+          value?: string;
+          impressions?: number;
+          reach?: number;
+          clicks?: number;
+          created_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ad_audience_metrics_campaign_id_fkey";
+            columns: ["campaign_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_campaigns";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       social_accounts: {
         Row: {
           id: string;

@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import Link from "next/link";
 import { Copy, ExternalLink, RefreshCw, Share2 } from "lucide-react";
 
 import {
   ensureClientReport,
   syncInstagramAnalytics,
+  syncMetaAudienceAnalytics,
   type AnalyticsActionState,
 } from "@/app/(dashboard)/analytics/actions";
 import { Button } from "@/components/ui/button";
@@ -23,38 +23,44 @@ type AnalyticsParams = {
   view: MarketingView;
 };
 
-function query(params: AnalyticsParams, overrides: Partial<AnalyticsParams> = {}) {
-  const merged = { ...params, ...overrides };
-  const search = new URLSearchParams();
-  if (merged.from) search.set("from", merged.from);
-  if (merged.to) search.set("to", merged.to);
-  if (merged.project) search.set("project", merged.project);
-  if (merged.channel) search.set("channel", merged.channel);
-  search.set("view", merged.view);
-  return `/analytics?${search.toString()}`;
-}
-
-export function AnalyticsTabs({ params }: { params: AnalyticsParams }) {
+export function AnalyticsTabs({
+  view,
+  onViewChange,
+}: {
+  view: MarketingView;
+  onViewChange: (view: MarketingView) => void;
+}) {
   const tabs: { value: MarketingView; label: string }[] = [
-    { value: "all", label: "Вся система" },
+    { value: "all", label: "Вся статистика" },
     { value: "organic", label: "Органика" },
     { value: "ads", label: "Реклама" },
   ];
+
+  function select(nextView: MarketingView) {
+    onViewChange(nextView);
+    const search = new URLSearchParams(window.location.search);
+    search.set("view", nextView);
+    window.history.replaceState(null, "", `/analytics?${search.toString()}`);
+  }
+
   return (
-    <div className="flex w-fit rounded-lg bg-neutral-100 p-1">
+    <div className="flex w-fit rounded-lg bg-neutral-100 p-1" role="tablist" aria-label="Раздел аналитики">
       {tabs.map((tab) => (
-        <Link
+        <button
+          type="button"
           key={tab.value}
-          href={query(params, { view: tab.value })}
+          onClick={() => select(tab.value)}
+          role="tab"
+          aria-selected={view === tab.value}
           className={cn(
             "rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            params.view === tab.value
+            view === tab.value
               ? "bg-white text-neutral-950 shadow-sm"
               : "text-neutral-500 hover:text-neutral-900",
           )}
         >
           {tab.label}
-        </Link>
+        </button>
       ))}
     </div>
   );
@@ -63,21 +69,27 @@ export function AnalyticsTabs({ params }: { params: AnalyticsParams }) {
 export function AnalyticsFilters({
   params,
   projects,
+  view,
+  onViewChange,
 }: {
   params: AnalyticsParams;
   projects: { id: string; name: string }[];
+  view: MarketingView;
+  onViewChange: (view: MarketingView) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3 xl:flex-row xl:items-end xl:justify-between">
-      <form action="/analytics" method="get" className="grid flex-1 gap-3 sm:grid-cols-2 xl:grid-cols-[180px_180px_220px_180px_auto]">
-        <input type="hidden" name="view" value={params.view} />
+    <div className="rounded-xl border border-neutral-200 bg-white p-3">
+      <form action="/analytics" method="get" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_minmax(210px,1.2fr)_minmax(170px,1fr)_auto]">
+        <input type="hidden" name="view" value={view} />
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">С даты<Input type="date" name="from" defaultValue={params.from} /></label>
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">По дату<Input type="date" name="to" defaultValue={params.to} /></label>
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">Проект<Select name="project" defaultValue={params.project}><option value="">Все проекты</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select></label>
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">Каналы<Select name="channel" defaultValue={params.channel}><option value="">Все каналы</option><option value="instagram">Instagram</option><option value="meta">Meta Ads</option></Select></label>
-        <Button type="submit" variant="outline">Применить</Button>
+        <Button type="submit" className="h-10 bg-neutral-950 px-7 text-white hover:bg-neutral-800">Применить</Button>
       </form>
-      <AnalyticsTabs params={params} />
+      <div className="mt-3 flex justify-end border-t border-neutral-100 pt-2">
+        <AnalyticsTabs view={view} onViewChange={onViewChange} />
+      </div>
     </div>
   );
 }
@@ -91,6 +103,10 @@ export function AnalyticsActions({ projectId }: { projectId: string }) {
     ensureClientReport,
     undefined,
   );
+  const [audienceState, audienceAction, audiencePending] = useActionState<AnalyticsActionState, FormData>(
+    syncMetaAudienceAnalytics,
+    undefined,
+  );
   const [copied, setCopied] = useState(false);
 
   return (
@@ -99,6 +115,12 @@ export function AnalyticsActions({ projectId }: { projectId: string }) {
         <Button type="submit" variant="outline" disabled={syncPending}>
           <RefreshCw className={cn("h-4 w-4", syncPending && "animate-spin")} />
           {syncPending ? "Обновляем…" : "Обновить Instagram"}
+        </Button>
+      </form>
+      <form action={audienceAction}>
+        <Button type="submit" variant="outline" disabled={audiencePending}>
+          <RefreshCw className={cn("h-4 w-4", audiencePending && "animate-spin")} />
+          {audiencePending ? "Обновляем аудиторию…" : "Обновить аудиторию Meta"}
         </Button>
       </form>
       <form action={reportAction}>
@@ -115,7 +137,7 @@ export function AnalyticsActions({ projectId }: { projectId: string }) {
           <a href={reportState.url} target="_blank" rel="noreferrer" title="Открыть" className="rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><ExternalLink className="h-4 w-4" /></a>
         </div>
       )}
-      {(syncState?.message || reportState?.message || copied) && <p aria-live="polite" className={cn("w-full text-right text-xs", syncState?.ok === false || reportState?.ok === false ? "text-red-600" : "text-emerald-700")}>{copied ? "Ссылка скопирована" : syncState?.message || reportState?.message}</p>}
+      {(syncState?.message || audienceState?.message || reportState?.message || copied) && <p aria-live="polite" className={cn("w-full text-right text-xs", syncState?.ok === false || audienceState?.ok === false || reportState?.ok === false ? "text-red-600" : "text-emerald-700")}>{copied ? "Ссылка скопирована" : syncState?.message || audienceState?.message || reportState?.message}</p>}
     </div>
   );
 }

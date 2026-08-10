@@ -7,6 +7,7 @@ import {
   fetchInstagramAccounts,
   fetchInstagramMedia,
 } from "@/lib/meta-instagram";
+import { fetchMetaAudienceInsights } from "@/lib/meta-ads";
 import { createClient } from "@/lib/supabase/server";
 
 export type AnalyticsActionState =
@@ -34,6 +35,14 @@ function isoDaysAgo(days: number): string {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
 }
 
 async function requireOwner() {
@@ -116,7 +125,7 @@ export async function syncInstagramAnalytics(
               engagements: metric.engagements,
               accounts_engaged: metric.accountsEngaged,
               follower_count: metric.followerCount || row.followers_count,
-              follower_growth: metric.followerCount,
+              follower_growth: metric.followerGrowth,
             })),
             { onConflict: "social_account_id,date" },
           );
@@ -169,6 +178,79 @@ export async function syncInstagramAnalytics(
     return {
       ok: false,
       message: error instanceof Error ? error.message : "Не удалось обновить Instagram.",
+    };
+  }
+}
+
+export async function syncMetaAudienceAnalytics(
+  _prevState: AnalyticsActionState,
+): Promise<AnalyticsActionState> {
+  void _prevState;
+  try {
+    const supabase = await requireOwner();
+    const [{ data: accounts, error: accountsError }, { data: campaigns, error: campaignsError }] =
+      await Promise.all([
+        supabase.from("ad_accounts").select("id,external_id,name").eq("platform", "meta"),
+        supabase.from("ad_campaigns").select("id,external_id,ad_account_id"),
+      ]);
+    if (accountsError) throw new Error(accountsError.message);
+    if (campaignsError) throw new Error(campaignsError.message);
+    if (!accounts?.length) {
+      return { ok: false, message: "Сначала обновите основную статистику Meta." };
+    }
+
+    const since = isoDaysAgo(30);
+    const until = isoDaysAgo(0);
+    const results = await Promise.allSettled(
+      accounts.map(async (account) => ({
+        account,
+        metrics: await fetchMetaAudienceInsights(account.external_id, since, until),
+      })),
+    );
+    const campaignByExternal = new Map(
+      (campaigns ?? []).map((campaign) => [
+        `${campaign.ad_account_id}:${campaign.external_id}`,
+        campaign.id,
+      ]),
+    );
+    const rows = results.flatMap((result) => {
+      if (result.status !== "fulfilled") return [];
+      return result.value.metrics.flatMap((metric) => {
+        const campaignId = campaignByExternal.get(
+          `${result.value.account.id}:${metric.campaignExternalId}`,
+        );
+        return campaignId
+          ? [{
+              campaign_id: campaignId,
+              date: metric.date,
+              breakdown: metric.breakdown,
+              value: metric.value,
+              impressions: metric.impressions,
+              reach: metric.reach,
+              clicks: metric.clicks,
+            }]
+          : [];
+      });
+    });
+
+    for (const batch of chunk(rows, 500)) {
+      const { error } = await supabase.from("ad_audience_metrics").upsert(batch, {
+        onConflict: "campaign_id,date,breakdown,value",
+      });
+      if (error) throw new Error(error.message);
+    }
+    revalidatePath("/analytics");
+    const failed = results.filter((result) => result.status === "rejected").length;
+    return {
+      ok: rows.length > 0,
+      message: rows.length
+        ? `Аудитория Meta обновлена: ${rows.length} срезов за 30 дней${failed ? `, кабинетов пропущено: ${failed}` : ""}.`
+        : "Meta не вернула доступных срезов аудитории.",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Не удалось обновить аудиторию Meta.",
     };
   }
 }
