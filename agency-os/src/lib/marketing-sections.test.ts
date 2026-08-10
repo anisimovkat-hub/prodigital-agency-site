@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { marketingSection } from "@/lib/marketing-sections";
 
 describe("marketingSection", () => {
-  it.each(["overview", "content", "ads", "audience"])("accepts %s", (section) => {
+  it.each(["overview", "content", "ads"])("accepts %s", (section) => {
     expect(marketingSection(section)).toBe(section);
   });
 
@@ -14,5 +14,6 @@ describe("marketingSection", () => {
 
   it("falls back to the overview", () => {
     expect(marketingSection("unknown")).toBe("overview");
+    expect(marketingSection("audience")).toBe("overview");
   });
 });

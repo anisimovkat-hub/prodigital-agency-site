@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChartNoAxesCombined, Images, Megaphone } from "lucide-react";
 
 import {
   MarketingDashboard,
@@ -158,11 +159,10 @@ function PublicFilters({
   to: string;
   section: MarketingSection;
 }) {
-  const tabs: { value: MarketingSection; label: string }[] = [
-    { value: "overview", label: "Обзор" },
-    { value: "content", label: "Контент" },
-    { value: "ads", label: "Реклама" },
-    { value: "audience", label: "Аудитория" },
+  const tabs = [
+    { value: "overview" as const, label: "Обзор", icon: ChartNoAxesCombined, style: "border-sky-200 bg-sky-50 text-sky-900" },
+    { value: "content" as const, label: "Контент", icon: Images, style: "border-violet-200 bg-violet-50 text-violet-900" },
+    { value: "ads" as const, label: "Реклама", icon: Megaphone, style: "border-amber-200 bg-amber-50 text-amber-900" },
   ];
   const base = `/report/${token}`;
   return (
@@ -173,10 +173,10 @@ function PublicFilters({
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">По дату<Input name="to" type="date" defaultValue={to} /></label>
         <Button type="submit" variant="outline">Показать</Button>
       </form>
-      <div className="flex w-fit rounded-lg bg-neutral-100 p-1">
+      <div className="grid w-full gap-2 sm:grid-cols-3 lg:w-auto">
         {tabs.map((tab) => {
           const search = new URLSearchParams({ from, to, section: tab.value });
-          return <Link key={tab.value} href={`${base}?${search}`} className={cn("rounded-md px-4 py-2 text-sm font-medium", section === tab.value ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900")}>{tab.label}</Link>;
+          return <Link key={tab.value} href={`${base}?${search}`} className={cn("flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all hover:brightness-95", tab.style, section === tab.value && "shadow-sm ring-1 ring-current/25")}><tab.icon className="h-4 w-4" aria-hidden="true" />{tab.label}</Link>;
         })}
       </div>
     </div>

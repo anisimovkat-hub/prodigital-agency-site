@@ -329,6 +329,25 @@ function AudienceDashboard({ payload }: { payload: MarketingPayload }) {
   );
 }
 
+function AudienceSection({
+  payload,
+  actions,
+  hideWhenEmpty = false,
+}: {
+  payload: MarketingPayload;
+  actions?: ReactNode;
+  hideWhenEmpty?: boolean;
+}) {
+  const hasData = Object.values(payload.paid.audience).some((rows) => rows.length > 0);
+  if (hideWhenEmpty && !hasData) return null;
+  return (
+    <div className="space-y-3 border-t border-neutral-200 pt-4">
+      {actions}
+      <AudienceDashboard payload={payload} />
+    </div>
+  );
+}
+
 function ProjectMark({ payload }: { payload: MarketingPayload }) {
   return <div className="flex items-center gap-3"><ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" /><div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
 }
@@ -358,6 +377,7 @@ export function MarketingDashboard({
           <MetricBand payload={payload} type="paid" />
           <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]"><ReachChart payload={payload} section="overview" /><ChannelContribution payload={payload} /></div>
           <PerformanceTable payload={payload} />
+          <AudienceSection payload={payload} actions={audienceActions} hideWhenEmpty={publicReport} />
         </>
       )}
       {section === "content" && (
@@ -366,24 +386,22 @@ export function MarketingDashboard({
           <MetricBand payload={payload} type="organic" />
           <ReachChart payload={payload} section="content" />
           <BestContent payload={payload} />
+          <AudienceSection payload={payload} actions={audienceActions} hideWhenEmpty={publicReport} />
         </>
       )}
       {section === "ads" && (
-        adsPanel ?? (
-          <>
-            <MetricBand payload={payload} type="paid" />
-            <ReachChart payload={payload} section="ads" />
-            <CampaignGoals payload={payload} />
-            <PerformanceTable payload={payload} />
-            <AdDetailTable title="Группы объявлений" subtitle="Топ-10 групп по расходу; все значения рассчитаны за выбранный период" rows={payload.paid.adSets} />
-            <AdDetailTable title="Объявления" subtitle="Топ-10 объявлений по расходу с результатами и стоимостью результата" rows={payload.paid.ads} />
-          </>
-        )
-      )}
-      {section === "audience" && (
         <>
-          {audienceActions}
-          <AudienceDashboard payload={payload} />
+          {adsPanel ?? (
+            <>
+              <MetricBand payload={payload} type="paid" />
+              <ReachChart payload={payload} section="ads" />
+              <CampaignGoals payload={payload} />
+              <PerformanceTable payload={payload} />
+              <AdDetailTable title="Группы объявлений" subtitle="Топ-10 групп по расходу; все значения рассчитаны за выбранный период" rows={payload.paid.adSets} />
+              <AdDetailTable title="Объявления" subtitle="Топ-10 объявлений по расходу с результатами и стоимостью результата" rows={payload.paid.ads} />
+            </>
+          )}
+          <AudienceSection payload={payload} actions={audienceActions} hideWhenEmpty={publicReport} />
         </>
       )}
     </div>

@@ -2,7 +2,6 @@ export const MARKETING_SECTIONS = [
   "overview",
   "content",
   "ads",
-  "audience",
 ] as const;
 
 export type MarketingSection = (typeof MARKETING_SECTIONS)[number];

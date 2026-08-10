@@ -1,7 +1,15 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Copy, ExternalLink, RefreshCw, Share2 } from "lucide-react";
+import {
+  ChartNoAxesCombined,
+  Copy,
+  ExternalLink,
+  Images,
+  Megaphone,
+  RefreshCw,
+  Share2,
+} from "lucide-react";
 
 import {
   ensureClientReport,
@@ -36,11 +44,34 @@ export function AnalyticsTabs({
   section: MarketingSection;
   onSectionChange: (section: MarketingSection) => void;
 }) {
-  const tabs: { value: MarketingSection; label: string }[] = [
-    { value: "overview", label: "Обзор" },
-    { value: "content", label: "Контент" },
-    { value: "ads", label: "Реклама" },
-    { value: "audience", label: "Аудитория" },
+  const tabs = [
+    {
+      value: "overview" as const,
+      label: "Обзор",
+      hint: "Главные показатели",
+      icon: ChartNoAxesCombined,
+      base: "border-sky-200 bg-sky-50/80 text-sky-950 hover:bg-sky-100",
+      active: "border-sky-400 bg-sky-100 shadow-sm ring-1 ring-sky-300",
+      iconStyle: "bg-sky-200/70 text-sky-700",
+    },
+    {
+      value: "content" as const,
+      label: "Контент",
+      hint: "Публикации и органика",
+      icon: Images,
+      base: "border-violet-200 bg-violet-50/80 text-violet-950 hover:bg-violet-100",
+      active: "border-violet-400 bg-violet-100 shadow-sm ring-1 ring-violet-300",
+      iconStyle: "bg-violet-200/70 text-violet-700",
+    },
+    {
+      value: "ads" as const,
+      label: "Реклама",
+      hint: "Кампании и объявления",
+      icon: Megaphone,
+      base: "border-amber-200 bg-amber-50/80 text-amber-950 hover:bg-amber-100",
+      active: "border-amber-400 bg-amber-100 shadow-sm ring-1 ring-amber-300",
+      iconStyle: "bg-amber-200/70 text-amber-700",
+    },
   ];
 
   function select(nextSection: MarketingSection) {
@@ -52,7 +83,7 @@ export function AnalyticsTabs({
   }
 
   return (
-    <div className="flex w-full overflow-x-auto rounded-lg bg-neutral-100 p-1 sm:w-fit" role="tablist" aria-label="Раздел аналитики">
+    <div className="grid w-full gap-2 sm:grid-cols-3 xl:max-w-3xl" role="tablist" aria-label="Раздел аналитики">
       {tabs.map((tab) => (
         <button
           type="button"
@@ -61,13 +92,18 @@ export function AnalyticsTabs({
           role="tab"
           aria-selected={section === tab.value}
           className={cn(
-            "min-w-fit flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors sm:flex-none",
-            section === tab.value
-              ? "bg-white text-neutral-950 shadow-sm"
-              : "text-neutral-500 hover:text-neutral-900",
+            "flex min-w-0 items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
+            tab.base,
+            section === tab.value && tab.active,
           )}
         >
-          {tab.label}
+          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tab.iconStyle)}>
+            <tab.icon className="h-4.5 w-4.5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{tab.label}</span>
+            <span className="block truncate text-[11px] opacity-65">{tab.hint}</span>
+          </span>
         </button>
       ))}
     </div>
