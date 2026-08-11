@@ -131,24 +131,28 @@ export default async function DashboardPage({
     {
       label: "Активные проекты",
       value: activeProjectsCount,
+      href: "/projects",
       accent: "border-t-blue-500",
       valueColor: "text-blue-700",
     },
     {
       label: "Задачи на сегодня",
       value: todayTasksCount,
+      href: "/today",
       accent: "border-t-amber-500",
       valueColor: "text-amber-700",
     },
     {
       label: "Просрочено",
       value: overdueTasksCount,
+      href: "/today",
       accent: "border-t-red-500",
       valueColor: "text-red-700",
     },
     {
       label: "Активные клиенты",
       value: activeClientsCount,
+      href: "/clients",
       accent: "border-t-emerald-500",
       valueColor: "text-emerald-700",
     },
@@ -320,19 +324,24 @@ export default async function DashboardPage({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaries.map((summary) => (
-          <Card
+          <Link
             key={summary.label}
-            className={`border-t-4 ${summary.accent}`}
+            href={summary.href}
+            className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2"
           >
-            <CardContent className="p-4">
-              <p className="text-sm text-neutral-500">{summary.label}</p>
-              <p
-                className={`mt-1 text-3xl font-semibold tracking-tight ${summary.valueColor}`}
-              >
-                {summary.value}
-              </p>
-            </CardContent>
-          </Card>
+            <Card
+              className={`h-full cursor-pointer border-t-4 transition duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md ${summary.accent}`}
+            >
+              <CardContent className="p-4">
+                <p className="text-sm text-neutral-500">{summary.label}</p>
+                <p
+                  className={`mt-1 text-3xl font-semibold tracking-tight ${summary.valueColor}`}
+                >
+                  {summary.value}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
