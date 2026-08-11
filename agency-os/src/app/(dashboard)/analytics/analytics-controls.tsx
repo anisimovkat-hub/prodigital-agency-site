@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import {
+  assignSocialAccount,
   ensureClientReport,
   syncInstagramAnalytics,
   syncMetaAudienceAnalytics,
@@ -36,6 +37,48 @@ type SocialAccountOption = {
   project_id: string | null;
   name: string;
 };
+
+export function InstagramAccountAssignment({
+  account,
+  projects,
+}: {
+  account: {
+    id: string;
+    projectId: string | null;
+    label: string;
+    details: string;
+  };
+  projects: { id: string; name: string }[];
+}) {
+  const [state, action, pending] = useActionState<AnalyticsActionState, FormData>(
+    assignSocialAccount,
+    undefined,
+  );
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-3 rounded-lg bg-neutral-50 p-3">
+      <input type="hidden" name="account_id" value={account.id} />
+      <span className="min-w-48">
+        <span className="block text-sm font-medium text-neutral-900">{account.label}</span>
+        <span className="block text-xs text-neutral-500">{account.details}</span>
+      </span>
+      <Select name="project_id" defaultValue={account.projectId ?? ""} className="max-w-72">
+        <option value="">Не привязан</option>
+        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+      </Select>
+      <Button type="submit" variant="outline" size="sm" disabled={pending}>
+        {pending ? "Сохраняем…" : "Сохранить привязку"}
+      </Button>
+      {state?.message && (
+        <span
+          aria-live="polite"
+          className={cn("w-full text-xs", state.ok === false ? "text-red-600" : "text-emerald-700")}
+        >
+          {state.message}
+        </span>
+      )}
+    </form>
+  );
+}
 
 export function AnalyticsTabs({
   section,
@@ -166,13 +209,25 @@ export function InstagramSyncAction() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white p-3">
       <p className="text-sm text-neutral-600">Данные аккаунтов и публикаций Instagram</p>
-      <form action={action} className="flex items-center gap-3">
+      <form action={action}>
         <Button type="submit" variant="outline" disabled={pending}>
           <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
           {pending ? "Обновляем…" : "Обновить Instagram"}
         </Button>
-        {state?.message && <span aria-live="polite" className={cn("text-xs", state.ok === false ? "text-red-600" : "text-emerald-700")}>{state.message}</span>}
       </form>
+      {state?.message && (
+        <p
+          aria-live="polite"
+          className={cn(
+            "w-full rounded-md border px-3 py-2 text-xs leading-relaxed",
+            state.ok === false
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800",
+          )}
+        >
+          {state.message}
+        </p>
+      )}
     </div>
   );
 }

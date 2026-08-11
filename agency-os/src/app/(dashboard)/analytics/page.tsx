@@ -1,13 +1,11 @@
-import { assignSocialAccount } from "@/app/(dashboard)/analytics/actions";
 import { AdAnalyticsPanel } from "@/app/(dashboard)/analytics/meta/ad-analytics-panel";
 import type { AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
 import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import {
+  InstagramAccountAssignment,
   type AnalyticsParams,
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
 import {
   actionTypeLabel,
   GOAL_ACTION_TYPES,
@@ -169,13 +167,13 @@ export default async function AnalyticsPage({
   const goalFilter = raw.goal ?? "";
 
   const [
-    { data: projects },
-    { data: socialAccounts },
-    { data: campaigns },
-    { data: adAccounts },
-    { data: adSets },
-    { data: ads },
-    { data: customConversions },
+    projectsResult,
+    socialAccountsResult,
+    campaignsResult,
+    adAccountsResult,
+    adSetsResult,
+    adsResult,
+    customConversionsResult,
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -192,6 +190,24 @@ export default async function AnalyticsPage({
     supabase.from("ads").select("id,name,status,adset_id"),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
   ]);
+  const { data: projects } = projectsResult;
+  const { data: socialAccounts } = socialAccountsResult;
+  const { data: campaigns } = campaignsResult;
+  const { data: adAccounts } = adAccountsResult;
+  const { data: adSets } = adSetsResult;
+  const { data: ads } = adsResult;
+  const { data: customConversions } = customConversionsResult;
+  const dataWarnings = [
+    ["проекты", projectsResult.error],
+    ["Instagram-аккаунты", socialAccountsResult.error],
+    ["кампании", campaignsResult.error],
+    ["рекламные кабинеты", adAccountsResult.error],
+    ["группы объявлений", adSetsResult.error],
+    ["объявления", adsResult.error],
+    ["названия конверсий", customConversionsResult.error],
+  ].flatMap(([label, error]) => error && typeof error !== "string"
+    ? [`Не удалось загрузить ${label}: ${error.message}`]
+    : []);
 
   const projectRows = sortProjectsForDisplay(projects ?? []);
   const currentProjectIds = new Set(projectRows.map((project) => project.id));
@@ -216,6 +232,7 @@ export default async function AnalyticsPage({
   );
   const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
+  const campaignIdList = [...campaignIds];
 
   const socialMetricsPromise = socialIds.length
     ? supabase
@@ -236,41 +253,56 @@ export default async function AnalyticsPage({
         .order("reach", { ascending: false })
         .range(0, 49)
     : Promise.resolve({ data: [], error: null });
+  const paidMetricsQuery = supabase
+    .from("ad_campaign_metrics")
+    .select("campaign_id,date,spend,impressions,clicks,reach")
+    .gte("date", from)
+    .lte("date", to);
+  const conversionsQuery = supabase
+    .from("ad_conversions")
+    .select("campaign_id,date,action_type,count,value")
+    .gte("date", from)
+    .lte("date", to);
+  const audienceQuery = supabase
+    .from("ad_audience_metrics")
+    .select("campaign_id,breakdown,value,impressions,reach")
+    .gte("date", from)
+    .lte("date", to);
+  const paidMetricsPromise = projectId
+    ? campaignIdList.length
+      ? paidMetricsQuery.in("campaign_id", campaignIdList).range(0, 9999)
+      : Promise.resolve({ data: [] as CampaignMetricRow[], error: null })
+    : paidMetricsQuery.range(0, 9999);
+  const conversionsPromise = projectId
+    ? campaignIdList.length
+      ? conversionsQuery.in("campaign_id", campaignIdList).range(0, 19999)
+      : Promise.resolve({ data: [] as ConversionRow[], error: null })
+    : conversionsQuery.range(0, 19999);
+  const audiencePromise = projectId
+    ? campaignIdList.length
+      ? audienceQuery.in("campaign_id", campaignIdList).range(0, 19999)
+      : Promise.resolve({ data: [] as AudienceRow[], error: null })
+    : audienceQuery.range(0, 19999);
 
   const [
-    { data: socialMetrics },
-    { data: socialPosts },
-    { data: paidMetrics },
-    { data: conversions },
-    { data: campaignSummary },
-    { data: adSetSummary },
-    { data: adSummary },
-    { data: audienceMetrics },
-    { data: adTimeseries },
+    socialMetricsResult,
+    socialPostsResult,
+    paidMetricsResult,
+    conversionsResult,
+    campaignSummaryResult,
+    adSetSummaryResult,
+    adSummaryResult,
+    audienceMetricsResult,
+    adTimeseriesResult,
   ] = await Promise.all([
     socialMetricsPromise,
     socialPostsPromise,
-    supabase
-      .from("ad_campaign_metrics")
-      .select("campaign_id,date,spend,impressions,clicks,reach")
-      .gte("date", from)
-      .lte("date", to)
-      .range(0, 9999),
-    supabase
-      .from("ad_conversions")
-      .select("campaign_id,date,action_type,count,value")
-      .gte("date", from)
-      .lte("date", to)
-      .range(0, 19999),
+    paidMetricsPromise,
+    conversionsPromise,
     supabase.rpc("ad_campaign_period_summary", { p_since: from, p_until: to }),
     supabase.rpc("ad_set_period_summary", { p_since: from, p_until: to }),
     supabase.rpc("ad_ad_period_summary", { p_since: from, p_until: to }),
-    supabase
-      .from("ad_audience_metrics")
-      .select("campaign_id,breakdown,value,impressions,reach")
-      .gte("date", from)
-      .lte("date", to)
-      .range(0, 19999),
+    audiencePromise,
     supabase.rpc("ad_timeseries", {
       p_since: from,
       p_until: to,
@@ -281,6 +313,28 @@ export default async function AnalyticsPage({
       p_action_type: goalFilter || null,
     }),
   ]);
+  const { data: socialMetrics } = socialMetricsResult;
+  const { data: socialPosts } = socialPostsResult;
+  const { data: paidMetrics } = paidMetricsResult;
+  const { data: conversions } = conversionsResult;
+  const { data: campaignSummary } = campaignSummaryResult;
+  const { data: adSetSummary } = adSetSummaryResult;
+  const { data: adSummary } = adSummaryResult;
+  const { data: audienceMetrics } = audienceMetricsResult;
+  const { data: adTimeseries } = adTimeseriesResult;
+  dataWarnings.push(...[
+    ["метрики Instagram", socialMetricsResult.error],
+    ["публикации Instagram", socialPostsResult.error],
+    ["метрики кампаний", paidMetricsResult.error],
+    ["конверсии", conversionsResult.error],
+    ["сводку кампаний", campaignSummaryResult.error],
+    ["сводку групп объявлений", adSetSummaryResult.error],
+    ["сводку объявлений", adSummaryResult.error],
+    ["аудиторию", audienceMetricsResult.error],
+    ["график рекламы", adTimeseriesResult.error],
+  ].flatMap(([label, error]) => error && typeof error !== "string"
+    ? [`Не удалось загрузить ${label}: ${error.message}`]
+    : []));
 
   const organicRows = (socialMetrics ?? []) as SocialMetricRow[];
   const paidRows = ((paidMetrics ?? []) as CampaignMetricRow[]).filter((row) => campaignIds.has(row.campaign_id));
@@ -618,12 +672,21 @@ export default async function AnalyticsPage({
       <summary className="cursor-pointer text-sm font-semibold text-neutral-900">Настройка Instagram-аккаунтов</summary>
       <div className="mt-4 grid gap-3">
         {accountRows.map((account) => (
-          <form key={account.id} action={assignSocialAccount} className="flex flex-wrap items-center gap-3 rounded-lg bg-neutral-50 p-3">
-            <input type="hidden" name="account_id" value={account.id} />
-            <span className="min-w-48 text-sm font-medium text-neutral-900">@{account.username || account.name || account.id}</span>
-            <Select name="project_id" defaultValue={account.project_id ?? ""} className="max-w-72"><option value="">Не привязан</option>{projectRows.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select>
-            <Button type="submit" variant="outline" size="sm">Сохранить привязку</Button>
-          </form>
+          <InstagramAccountAssignment
+            key={account.id}
+            account={{
+              id: account.id,
+              projectId: account.project_id,
+              label: `@${account.username || account.name || account.id}`,
+              details: [
+                `${Number(account.followers_count).toLocaleString("ru-RU")} подписчиков`,
+                account.last_synced_at
+                  ? `обновлено ${new Date(account.last_synced_at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}`
+                  : "insights ещё не загружены",
+              ].join(" · "),
+            }}
+            projects={projectRows}
+          />
         ))}
       </div>
     </details>
@@ -641,6 +704,7 @@ export default async function AnalyticsPage({
         name: `@${account.username || account.name || account.id}`,
       }))}
       contentSettings={contentSettings}
+      dataWarnings={dataWarnings}
       adsPanel={
         <AdAnalyticsPanel
           current={currentAdsFilters}

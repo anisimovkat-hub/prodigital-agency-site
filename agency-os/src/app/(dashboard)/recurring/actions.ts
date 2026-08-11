@@ -107,7 +107,7 @@ export async function updateRecurringSchedule(
     };
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("recurring_tasks")
     .update({
       frequency: parsed.data.frequency,
@@ -117,9 +117,14 @@ export async function updateRecurringSchedule(
           : null,
       anchor_date: parsed.data.anchor_date,
     })
-    .eq("id", parsed.data.id);
+    .eq("id", parsed.data.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { errors: { _root: [error.message] } };
+  if (!updated) {
+    return { errors: { _root: ["Шаблон не изменён: проверьте доступ и повторите"] } };
+  }
 
   revalidatePath("/recurring");
   return { success: true };
@@ -155,12 +160,17 @@ export async function toggleRecurringTask(
     };
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("recurring_tasks")
     .update({ is_active: parsed.data.is_active })
-    .eq("id", parsed.data.id);
+    .eq("id", parsed.data.id)
+    .select("id")
+    .maybeSingle();
 
   if (error) return { errors: { _root: [error.message] } };
+  if (!updated) {
+    return { errors: { _root: ["Шаблон не изменён: проверьте доступ и повторите"] } };
+  }
 
   revalidatePath("/recurring");
   return { success: true };

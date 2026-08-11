@@ -8,6 +8,10 @@ import {
   fetchInstagramMedia,
 } from "@/lib/meta-instagram";
 import { fetchMetaAudienceInsights } from "@/lib/meta-ads";
+import {
+  compactInstagramErrors,
+  instagramPermissionHint,
+} from "@/lib/instagram-diagnostics";
 import { createClient } from "@/lib/supabase/server";
 
 export type AnalyticsActionState =
@@ -15,7 +19,6 @@ export type AnalyticsActionState =
   | undefined;
 
 const GENERIC_TOKENS = new Set(["ads", "account", "new", "the", "com", "lab", "asia"]);
-
 function matchProjectId(
   account: { username: string | null; name: string | null },
   projects: { id: string; name: string }[],
@@ -45,6 +48,18 @@ function chunk<T>(items: T[], size: number): T[][] {
   return result;
 }
 
+async function settleInBatches<T, R>(
+  items: T[],
+  size: number,
+  worker: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const result: PromiseSettledResult<R>[] = [];
+  for (const batch of chunk(items, size)) {
+    result.push(...await Promise.allSettled(batch.map(worker)));
+  }
+  return result;
+}
+
 async function requireOwner() {
   const supabase = await createClient();
   const {
@@ -66,12 +81,17 @@ export async function syncInstagramAnalytics(
   void _prevState;
   try {
     const supabase = await requireOwner();
-    const accounts = await fetchInstagramAccounts();
+    const discovery = await fetchInstagramAccounts();
+    const accounts = discovery.accounts;
     if (accounts.length === 0) {
+      const details = [
+        instagramPermissionHint(discovery.permissions),
+        discovery.warnings.length ? compactInstagramErrors(discovery.warnings) : null,
+      ].filter((value): value is string => Boolean(value));
       return {
         ok: false,
         message:
-          "Instagram-аккаунты не найдены. Текущему Meta-токену нужны права instagram_basic, instagram_manage_insights и pages_read_engagement.",
+          `Instagram-аккаунты не найдены.${details.length ? ` ${details.join(". ")}.` : " Проверьте права токена и назначение Instagram-аккаунтов приложению Meta."}`,
       };
     }
 
@@ -89,7 +109,6 @@ export async function syncInstagramAnalytics(
           profile_picture_url: account.profilePictureUrl,
           followers_count: account.followersCount,
           media_count: account.mediaCount,
-          last_synced_at: now,
         })),
         { onConflict: "platform,external_id" },
       )
@@ -108,12 +127,25 @@ export async function syncInstagramAnalytics(
 
     const since = isoDaysAgo(90);
     const until = isoDaysAgo(0);
-    const results = await Promise.allSettled(
-      rows.map(async (row) => {
-        const [daily, media] = await Promise.all([
+    const results = await settleInBatches(
+      rows,
+      3,
+      async (row) => {
+        const label = `@${row.username || row.name || row.external_id}`;
+        const [metricsResult, mediaResult] = await Promise.allSettled([
           fetchInstagramAccountMetrics(row.external_id, since, until),
           fetchInstagramMedia(row.external_id),
         ]);
+        const daily = metricsResult.status === "fulfilled" ? metricsResult.value.metrics : [];
+        const media = mediaResult.status === "fulfilled" ? mediaResult.value : [];
+        const warnings = [
+          ...(metricsResult.status === "fulfilled" ? metricsResult.value.failedMetrics : []),
+          ...(metricsResult.status === "rejected" ? [`insights: ${metricsResult.reason instanceof Error ? metricsResult.reason.message : "ошибка Meta API"}`] : []),
+          ...(mediaResult.status === "rejected" ? [`публикации: ${mediaResult.reason instanceof Error ? mediaResult.reason.message : "ошибка Meta API"}`] : []),
+        ];
+        if (metricsResult.status === "rejected" && mediaResult.status === "rejected") {
+          throw new Error(`${label}: ${compactInstagramErrors(warnings)}`);
+        }
         if (daily.length) {
           const { error } = await supabase.from("social_account_metrics").upsert(
             daily.map((metric) => ({
@@ -156,8 +188,15 @@ export async function syncInstagramAnalytics(
           );
           if (error) throw new Error(error.message);
         }
-        return { daily: daily.length, posts: media.length };
-      }),
+        if (daily.length || media.length || warnings.length === 0) {
+          const { error } = await supabase
+            .from("social_accounts")
+            .update({ last_synced_at: now })
+            .eq("id", row.id);
+          if (error) throw new Error(error.message);
+        }
+        return { label, daily: daily.length, posts: media.length, warnings };
+      },
     );
 
     const successful = results.filter((result) => result.status === "fulfilled");
@@ -169,10 +208,29 @@ export async function syncInstagramAnalytics(
       (sum, result) => sum + (result.status === "fulfilled" ? result.value.posts : 0),
       0,
     );
+    const failed = results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason instanceof Error ? result.reason.message : "неизвестная ошибка аккаунта");
+    const partial = successful.flatMap((result) =>
+      result.status === "fulfilled" && result.value.warnings.length
+        ? [`${result.value.label}: ${compactInstagramErrors(result.value.warnings)}`]
+        : [],
+    );
+    const discoveryWarnings = discovery.warnings.length
+      ? [`поиск аккаунтов: ${compactInstagramErrors(discovery.warnings)}`]
+      : [];
+    const problems = [...failed, ...partial, ...discoveryWarnings];
     revalidatePath("/analytics");
+    const hasAnalytics = dailyCount > 0 || postCount > 0;
     return {
-      ok: successful.length > 0,
-      message: `Instagram обновлён: ${accounts.length} аккаунтов, ${dailyCount} дней, ${postCount} публикаций.`,
+      ok: hasAnalytics,
+      message: [
+        `Instagram: найдено ${accounts.length} аккаунтов, загружено ${dailyCount} дней и ${postCount} публикаций.`,
+        problems.length ? `Проблемы: ${compactInstagramErrors(problems)}.` : null,
+        !hasAnalytics && !problems.length
+          ? "Meta вернула профили, но не вернула insights за выбранный период."
+          : null,
+      ].filter(Boolean).join(" "),
     };
   } catch (error) {
     return {
@@ -255,17 +313,34 @@ export async function syncMetaAudienceAnalytics(
   }
 }
 
-export async function assignSocialAccount(formData: FormData): Promise<void> {
-  const accountId = String(formData.get("account_id") ?? "");
-  const projectId = String(formData.get("project_id") ?? "");
-  if (!accountId) return;
-  const supabase = await requireOwner();
-  const { error } = await supabase
-    .from("social_accounts")
-    .update({ project_id: projectId || null })
-    .eq("id", accountId);
-  if (error) throw new Error(error.message);
-  revalidatePath("/analytics");
+export async function assignSocialAccount(
+  _prevState: AnalyticsActionState,
+  formData: FormData,
+): Promise<AnalyticsActionState> {
+  void _prevState;
+  try {
+    const accountId = String(formData.get("account_id") ?? "");
+    const projectId = String(formData.get("project_id") ?? "");
+    if (!accountId) return { ok: false, message: "Instagram-аккаунт не выбран." };
+    const supabase = await requireOwner();
+    const { data, error } = await supabase
+      .from("social_accounts")
+      .update({ project_id: projectId || null })
+      .eq("id", accountId)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) {
+      return { ok: false, message: "Привязка не изменена: проверьте доступ и повторите." };
+    }
+    revalidatePath("/analytics");
+    return { ok: true, message: projectId ? "Привязка сохранена." : "Аккаунт отвязан от проекта." };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Не удалось сохранить привязку.",
+    };
+  }
 }
 
 export async function ensureClientReport(

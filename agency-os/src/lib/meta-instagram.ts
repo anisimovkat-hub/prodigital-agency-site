@@ -1,9 +1,18 @@
 import "server-only";
 
+import type { InstagramPermission } from "@/lib/instagram-diagnostics";
+
 const API_VERSION = "v23.0";
 const GRAPH_URL = `https://graph.facebook.com/${API_VERSION}`;
 
-type GraphError = { error?: { message?: string } };
+type GraphError = {
+  error?: {
+    message?: string;
+    code?: number;
+    error_subcode?: number;
+    type?: string;
+  };
+};
 type GraphPage<T> = GraphError & {
   data?: T[];
   paging?: { next?: string };
@@ -47,6 +56,17 @@ export type InstagramMedia = {
   engagements: number;
 };
 
+export type InstagramDiscoveryResult = {
+  accounts: InstagramAccount[];
+  permissions: InstagramPermission[];
+  warnings: string[];
+};
+
+export type InstagramMetricResult = {
+  metrics: InstagramDailyMetric[];
+  failedMetrics: string[];
+};
+
 function token(): string {
   const value = process.env.META_ACCESS_TOKEN;
   if (!value) throw new Error("META_ACCESS_TOKEN не настроен в Vercel");
@@ -63,7 +83,9 @@ async function graph<T>(pathOrUrl: string): Promise<T> {
   const response = await fetch(url, { cache: "no-store" });
   const body = (await response.json()) as T & GraphError;
   if (!response.ok || body.error) {
-    throw new Error(body.error?.message || `Meta API: ${response.status}`);
+    const code = body.error?.code ? `, код ${body.error.code}` : "";
+    const subcode = body.error?.error_subcode ? `/${body.error.error_subcode}` : "";
+    throw new Error(`${body.error?.message || `Meta API: ${response.status}`}${code}${subcode}`);
   }
   return body;
 }
@@ -77,6 +99,18 @@ async function graphAll<T>(path: string, limit = 200): Promise<T[]> {
     next = page.paging?.next;
   }
   return rows.slice(0, limit);
+}
+
+async function mapInBatches<T, R>(
+  items: T[],
+  size: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const result: R[] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(...await Promise.all(items.slice(index, index + size).map(worker)));
+  }
+  return result;
 }
 
 type FacebookPage = {
@@ -105,10 +139,25 @@ function normalizeAccount(account: InstagramProfile): InstagramAccount {
   };
 }
 
-export async function fetchInstagramAccounts(): Promise<InstagramAccount[]> {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "неизвестная ошибка Meta API";
+}
+
+export async function fetchInstagramAccounts(): Promise<InstagramDiscoveryResult> {
   const fields =
     "instagram_business_account{id,username,name,profile_picture_url,followers_count,media_count}";
   const found = new Map<string, InstagramProfile>();
+  const warnings: string[] = [];
+  let permissions: InstagramPermission[] = [];
+
+  try {
+    permissions = await graphAll<InstagramPermission>(
+      "/me/permissions?fields=permission,status&limit=200",
+      200,
+    );
+  } catch (error) {
+    warnings.push(`не удалось проверить права токена: ${errorMessage(error)}`);
+  }
 
   try {
     const pages = await graphAll<FacebookPage>(
@@ -118,8 +167,8 @@ export async function fetchInstagramAccounts(): Promise<InstagramAccount[]> {
       const account = page.instagram_business_account;
       if (account?.id) found.set(account.id, account);
     }
-  } catch {
-    // Системный токен Meta может не иметь /me/accounts, но иметь Business Manager.
+  } catch (error) {
+    warnings.push(`/me/accounts: ${errorMessage(error)}`);
   }
 
   try {
@@ -133,18 +182,78 @@ export async function fetchInstagramAccounts(): Promise<InstagramAccount[]> {
           `/${business.id}/client_instagram_accounts?fields=id,username,name,profile_picture_url,followers_count,media_count&limit=100`,
         ),
       ]);
-      for (const source of sources) {
-        if (source.status !== "fulfilled") continue;
+      const labels = ["owned_instagram_accounts", "client_instagram_accounts"];
+      sources.forEach((source, index) => {
+        if (source.status === "rejected") {
+          warnings.push(`${labels[index]} (${business.id}): ${errorMessage(source.reason)}`);
+          return;
+        }
         for (const account of source.value) found.set(account.id, account);
-      }
+      });
     }
-  } catch {
-    // Токен без Business Management всё ещё может вернуть аккаунты через /me/accounts.
+  } catch (error) {
+    warnings.push(`/me/businesses: ${errorMessage(error)}`);
   }
 
-  return [...found.values()].map(normalizeAccount);
+  return {
+    accounts: [...found.values()].map(normalizeAccount),
+    permissions,
+    warnings: [...new Set(warnings)],
+  };
 }
 
+type InsightSeriesResult = {
+  points: { date: string; value: number }[];
+  error: string | null;
+};
+
+function insightPoints(metric: string, insight: Insight | undefined, until: string) {
+  if (!insight) return [];
+  if (insight.values?.length) {
+    return insight.values
+      .filter((item) => item.end_time)
+      .map((item) => ({
+        date: item.end_time!.slice(0, 10),
+        value: insightValue(metric, item.value),
+      }));
+  }
+  const value = insightValue(metric, insight.total_value?.value);
+  return value ? [{ date: until, value }] : [];
+}
+
+const TOTAL_VALUE_METRICS = new Set([
+  "accounts_engaged",
+  "follows_and_unfollows",
+  "profile_views",
+  "total_interactions",
+]);
+
+async function insightSeries(
+  accountId: string,
+  metric: string,
+  since: string,
+  until: string,
+): Promise<InsightSeriesResult> {
+  const queries = [
+    `/${accountId}/insights?metric=${metric}&period=day&since=${since}&until=${until}`,
+  ];
+  if (TOTAL_VALUE_METRICS.has(metric)) {
+    queries.push(
+      `/${accountId}/insights?metric=${metric}&metric_type=total_value&period=day&since=${since}&until=${until}`,
+    );
+  }
+
+  const errors: string[] = [];
+  for (const query of queries) {
+    try {
+      const result = await graph<{ data?: Insight[] }>(query);
+      return { points: insightPoints(metric, result.data?.[0], until), error: null };
+    } catch (error) {
+      errors.push(errorMessage(error));
+    }
+  }
+  return { points: [], error: errors.at(-1) ?? "Meta не вернула метрику" };
+}
 type InsightValue = { value?: number | Record<string, number>; end_time?: string };
 type Insight = {
   name?: string;
@@ -169,38 +278,11 @@ function insightValue(
     /unfollow/i.test(key) ? total - Number(item || 0) : total + Number(item || 0), 0);
 }
 
-async function insightSeries(
-  accountId: string,
-  metric: string,
-  since: string,
-  until: string,
-): Promise<{ date: string; value: number }[]> {
-  try {
-    const result = await graph<{ data?: Insight[] }>(
-      `/${accountId}/insights?metric=${metric}&period=day&since=${since}&until=${until}`,
-    );
-    const insight = result.data?.[0];
-    if (!insight) return [];
-    if (insight.values?.length) {
-      return insight.values
-        .filter((item) => item.end_time)
-        .map((item) => ({
-          date: item.end_time!.slice(0, 10),
-          value: insightValue(metric, item.value),
-        }));
-    }
-    const value = insightValue(metric, insight.total_value?.value);
-    return value ? [{ date: until, value }] : [];
-  } catch {
-    return [];
-  }
-}
-
 export async function fetchInstagramAccountMetrics(
   accountId: string,
   since: string,
   until: string,
-): Promise<InstagramDailyMetric[]> {
+): Promise<InstagramMetricResult> {
   const names = [
     "reach",
     "impressions",
@@ -231,7 +313,7 @@ export async function fetchInstagramAccountMetrics(
     return row;
   };
   names.forEach((name, index) => {
-    for (const point of series[index]) {
+    for (const point of series[index].points) {
       const row = ensure(point.date);
       if (name === "reach") row.reach = point.value;
       if (name === "impressions") row.impressions = point.value;
@@ -245,7 +327,12 @@ export async function fetchInstagramAccountMetrics(
       if (name === "follows_and_unfollows") row.followerGrowth = point.value;
     }
   });
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    metrics: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    failedMetrics: names
+      .map((name, index) => series[index].error ? `${name}: ${series[index].error}` : null)
+      .filter((value): value is string => value !== null),
+  };
 }
 
 type MediaBase = {
@@ -311,7 +398,9 @@ export async function fetchInstagramMedia(accountId: string): Promise<InstagramM
     `/${accountId}/media?fields=${fields}&limit=25`,
     25,
   );
-  const insights = await Promise.all(media.map(mediaInsights));
+  // Ограничиваем параллелизм: у одного агентского токена может быть много аккаунтов
+  // и публикаций, а резкий пакет запросов быстро упирается в лимиты Meta.
+  const insights = await mapInBatches(media, 5, mediaInsights);
   return media.map((item, index) => {
     const metric = insights[index] ?? {};
     const likes = Number(item.like_count ?? 0);

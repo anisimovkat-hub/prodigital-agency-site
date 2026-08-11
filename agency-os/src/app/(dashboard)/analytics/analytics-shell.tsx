@@ -24,6 +24,7 @@ export function AnalyticsShell({
   socialAccounts,
   adsPanel,
   contentSettings,
+  dataWarnings = [],
 }: {
   payload: MarketingPayload;
   initialSection: MarketingSection;
@@ -32,26 +33,37 @@ export function AnalyticsShell({
   socialAccounts: SocialAccountOption[];
   adsPanel: ReactNode;
   contentSettings?: ReactNode;
+  dataWarnings?: string[];
 }) {
   const [section, setSection] = useState<MarketingSection>(initialSection);
 
   return (
-    <MarketingDashboard
-      payload={payload}
-      section={section}
-      controls={<ClientReportAction projectId={params.project} />}
-      contentActions={<><InstagramSyncAction />{contentSettings}</>}
-      adsPanel={adsPanel}
-      audienceActions={<AudienceSyncAction />}
-      filters={
-        <AnalyticsFilters
-          params={params}
-          projects={projects}
-          socialAccounts={socialAccounts}
-          section={section}
-          onSectionChange={setSection}
-        />
-      }
-    />
+    <>
+      {dataWarnings.length > 0 && (
+        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+          <p className="font-semibold">Часть аналитики временно недоступна</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+            {dataWarnings.slice(0, 4).map((warning) => <li key={warning}>{warning}</li>)}
+          </ul>
+        </div>
+      )}
+      <MarketingDashboard
+        payload={payload}
+        section={section}
+        controls={<ClientReportAction projectId={params.project} />}
+        contentActions={<><InstagramSyncAction />{contentSettings}</>}
+        adsPanel={adsPanel}
+        audienceActions={<AudienceSyncAction />}
+        filters={
+          <AnalyticsFilters
+            params={params}
+            projects={projects}
+            socialAccounts={socialAccounts}
+            section={section}
+            onSectionChange={setSection}
+          />
+        }
+      />
+    </>
   );
 }
