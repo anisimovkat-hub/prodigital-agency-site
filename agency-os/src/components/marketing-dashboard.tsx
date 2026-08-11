@@ -390,19 +390,17 @@ export function MarketingDashboard({
         </>
       )}
       {section === "ads" && (
-        <>
-          {adsPanel ?? (
-            <>
+        adsPanel ?? (
+          <>
               <MetricBand payload={payload} type="paid" />
               <ReachChart payload={payload} section="ads" />
               <CampaignGoals payload={payload} />
               <PerformanceTable payload={payload} />
               <AdDetailTable title="Группы объявлений" subtitle="Топ-10 групп по расходу; все значения рассчитаны за выбранный период" rows={payload.paid.adSets} />
               <AdDetailTable title="Объявления" subtitle="Топ-10 объявлений по расходу с результатами и стоимостью результата" rows={payload.paid.ads} />
-            </>
-          )}
-          <AudienceSection payload={payload} actions={audienceActions} hideWhenEmpty={publicReport} />
-        </>
+              <AudienceSection payload={payload} actions={audienceActions} hideWhenEmpty={publicReport} />
+          </>
+        )
       )}
     </div>
   );

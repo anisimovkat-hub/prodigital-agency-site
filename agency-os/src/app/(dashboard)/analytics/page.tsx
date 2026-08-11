@@ -2,6 +2,7 @@ import { AdAnalyticsPanel } from "@/app/(dashboard)/analytics/meta/ad-analytics-
 import type { AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
 import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import {
+  AudienceSyncAction,
   InstagramAccountAssignment,
   type AnalyticsParams,
 } from "@/app/(dashboard)/analytics/analytics-controls";
@@ -726,6 +727,8 @@ export default async function AnalyticsPage({
           currencies={detailCurrencies}
           goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
           tree={adTree}
+          audience={audience}
+          audienceActions={<AudienceSyncAction />}
         />
       }
     />

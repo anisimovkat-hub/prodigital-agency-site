@@ -81,6 +81,14 @@ export type MetaAudienceMetric = {
   reach: number;
   clicks: number;
 };
+export type MetaAudienceFailure = {
+  breakdown: MetaAudienceBreakdown;
+  error: string;
+};
+export type MetaAudienceInsights = {
+  metrics: MetaAudienceMetric[];
+  failures: MetaAudienceFailure[];
+};
 
 type MetaAction = { action_type?: string; value?: string };
 type MetaAccountRow = { account_id?: string; name?: string; currency?: string };
@@ -376,7 +384,7 @@ export async function fetchMetaAudienceInsights(
   externalId: string,
   since: string,
   until: string,
-): Promise<MetaAudienceMetric[]> {
+): Promise<MetaAudienceInsights> {
   const breakdowns: MetaAudienceBreakdown[] = [
     "age",
     "gender",
@@ -387,7 +395,10 @@ export async function fetchMetaAudienceInsights(
   const settled = await Promise.allSettled(
     breakdowns.map(async (breakdown) => {
       const params = new URLSearchParams({
-        fields: `campaign_id,impressions,reach,clicks,${breakdown}`,
+        // Поле breakdown Meta добавляет в ответ через параметр breakdowns.
+        // Если продублировать age/gender/country/... в fields, Insights API
+        // отклоняет запрос как запрос несуществующей метрики.
+        fields: "campaign_id,impressions,reach,clicks",
         level: "campaign",
         breakdowns: breakdown,
         time_increment: "1",
@@ -411,9 +422,19 @@ export async function fetchMetaAudienceInsights(
         }));
     }),
   );
-  return settled.flatMap((result) =>
-    result.status === "fulfilled" ? result.value : [],
-  );
+  return {
+    metrics: settled.flatMap((result) =>
+      result.status === "fulfilled" ? result.value : [],
+    ),
+    failures: settled.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [{
+            breakdown: breakdowns[index],
+            error: result.reason instanceof Error ? result.reason.message : "неизвестная ошибка Meta API",
+          }]
+        : [],
+    ),
+  };
 }
 
 async function fetchEntityInsights(

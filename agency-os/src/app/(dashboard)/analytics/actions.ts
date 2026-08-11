@@ -262,7 +262,7 @@ export async function syncMetaAudienceAnalytics(
     const results = await Promise.allSettled(
       accounts.map(async (account) => ({
         account,
-        metrics: await fetchMetaAudienceInsights(account.external_id, since, until),
+        insights: await fetchMetaAudienceInsights(account.external_id, since, until),
       })),
     );
     const campaignByExternal = new Map(
@@ -273,7 +273,7 @@ export async function syncMetaAudienceAnalytics(
     );
     const rows = results.flatMap((result) => {
       if (result.status !== "fulfilled") return [];
-      return result.value.metrics.flatMap((metric) => {
+      return result.value.insights.metrics.flatMap((metric) => {
         const campaignId = campaignByExternal.get(
           `${result.value.account.id}:${metric.campaignExternalId}`,
         );
@@ -298,12 +298,25 @@ export async function syncMetaAudienceAnalytics(
       if (error) throw new Error(error.message);
     }
     revalidatePath("/analytics");
-    const failed = results.filter((result) => result.status === "rejected").length;
+    const failedAccounts = results.filter((result) => result.status === "rejected").length;
+    const failedBreakdowns = results.flatMap((result) =>
+      result.status === "fulfilled"
+        ? result.value.insights.failures.map((failure) => `${failure.breakdown}: ${failure.error}`)
+        : [],
+    );
+    const failureHint = [
+      failedAccounts ? `кабинетов пропущено: ${failedAccounts}` : null,
+      failedBreakdowns.length
+        ? `не загрузились срезы: ${[...new Set(failedBreakdowns)].slice(0, 5).join("; ")}`
+        : null,
+    ].filter(Boolean).join("; ");
     return {
       ok: rows.length > 0,
       message: rows.length
-        ? `Аудитория Meta обновлена: ${rows.length} срезов за 30 дней${failed ? `, кабинетов пропущено: ${failed}` : ""}.`
-        : "Meta не вернула доступных срезов аудитории.",
+        ? `Аудитория Meta обновлена: ${rows.length} срезов за 30 дней${failureHint ? `. Частично: ${failureHint}` : ""}.`
+        : failureHint
+          ? `Meta не вернула доступных срезов аудитории. ${failureHint}.`
+          : "Meta не вернула доступных срезов аудитории за последние 30 дней.",
     };
   } catch (error) {
     return {

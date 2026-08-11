@@ -27,15 +27,17 @@ export function AdTimeseriesChart({
   granularity,
   currency,
   goalLabel,
+  compact = false,
 }: {
   points: TimeseriesPoint[];
   granularity: Granularity;
   currency: string | null;
   goalLabel: string | null;
+  compact?: boolean;
 }) {
   if (points.length === 0) {
     return (
-      <div className="rounded-lg border border-neutral-200 bg-white p-8 text-center text-sm text-neutral-500">
+      <div className="flex h-full min-h-44 items-center justify-center rounded-xl border border-neutral-200 bg-white p-5 text-center text-sm text-neutral-500">
         Нет данных за выбранный период. Измените фильтры или обновите статистику.
       </div>
     );
@@ -61,7 +63,7 @@ export function AdTimeseriesChart({
   const labelEvery = Math.max(1, Math.ceil(n / 14));
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4">
+    <div className="flex h-full min-h-44 flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-4">
       <div className="flex flex-wrap items-center gap-4 text-xs">
         <span className="flex items-center gap-1.5 text-neutral-600">
           <span className="inline-block h-3 w-3 rounded-sm bg-blue-500" />
@@ -77,7 +79,7 @@ export function AdTimeseriesChart({
 
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-auto w-full"
+        className={compact ? "mt-auto h-auto w-full" : "h-auto w-full"}
         role="img"
         aria-label="График расхода и конверсий по времени"
       >

@@ -1,8 +1,13 @@
+import type { ComponentType, ReactNode } from "react";
+import { Layers3, MapPin, UsersRound } from "lucide-react";
+
 import { AdTimeseriesChart } from "@/app/(dashboard)/analytics/meta/ad-timeseries-chart";
 import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
 import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import { sumTimeseries, type Granularity, type TimeseriesPoint } from "@/lib/ad-analytics";
+import { formatCompact, type MarketingAudience, type MarketingAudienceItem } from "@/lib/marketing-analytics";
+import { cn } from "@/lib/utils";
 
 type Option = { id: string; name: string };
 type AccountOption = Option & { project_id: string | null };
@@ -30,6 +35,50 @@ function KpiCard({ label, value, hint }: { label: string; value: string; hint?: 
   );
 }
 
+function AudienceMiniCard({
+  title,
+  rows,
+  color,
+  icon: Icon,
+}: {
+  title: string;
+  rows: MarketingAudienceItem[];
+  color: string;
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+}) {
+  const visible = rows.slice(0, 5);
+  const max = Math.max(1, ...visible.map((row) => row.impressions));
+  const total = rows.reduce((sum, row) => sum + row.impressions, 0);
+  return (
+    <article className="flex min-h-44 flex-col rounded-xl border border-neutral-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-neutral-500" aria-hidden={true} />
+          <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
+        </div>
+        {total > 0 && <span className="text-[11px] text-neutral-400">{formatCompact(total)} показов</span>}
+      </div>
+      {visible.length ? (
+        <div className="mt-3 space-y-2.5">
+          {visible.map((row) => (
+            <div key={row.label}>
+              <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+                <span className="truncate font-medium text-neutral-700">{row.label}</span>
+                <span className="shrink-0 tabular-nums text-neutral-400">{formatCompact(row.impressions)}</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(2, row.impressions / max * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="my-auto text-center text-xs leading-relaxed text-neutral-400">Данные появятся после обновления аудитории Meta</p>
+      )}
+    </article>
+  );
+}
+
 export function AdAnalyticsPanel({
   current,
   accounts,
@@ -41,6 +90,8 @@ export function AdAnalyticsPanel({
   currencies,
   goalLabel,
   tree,
+  audience,
+  audienceActions,
 }: {
   current: AdsFilterValues;
   accounts: AccountOption[];
@@ -52,6 +103,8 @@ export function AdAnalyticsPanel({
   currencies: string[];
   goalLabel: string | null;
   tree: AdTreeRow[];
+  audience: MarketingAudience;
+  audienceActions?: ReactNode;
 }) {
   const totals = sumTimeseries(points);
   const mixedCurrency = currencies.length > 1;
@@ -94,7 +147,14 @@ export function AdAnalyticsPanel({
         <KpiCard label="CPA" value={goalLabel && totals.cpa !== null ? formatMoney(totals.cpa) : "—"} hint={goalLabel ? (currency ?? undefined) : "по выбранной цели"} />
       </section>
 
-      <AdTimeseriesChart points={points} granularity={granularity} currency={currency} goalLabel={goalLabel} />
+      {audienceActions}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AdTimeseriesChart points={points} granularity={granularity} currency={currency} goalLabel={goalLabel} compact />
+        <AudienceMiniCard title="Возраст" rows={audience.age} color="bg-violet-500" icon={UsersRound} />
+        <AudienceMiniCard title="Пол" rows={audience.gender} color="bg-fuchsia-500" icon={UsersRound} />
+        <AudienceMiniCard title="Страны" rows={audience.country} color="bg-emerald-500" icon={MapPin} />
+      </section>
 
       <section className="flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3">
@@ -112,6 +172,16 @@ export function AdAnalyticsPanel({
           <div className="overflow-x-auto"><AdTreeTable rows={tree} /></div>
         )}
       </section>
+
+      {(audience.region.length > 0 || audience.placement.length > 0) && (
+        <details className="rounded-xl border border-neutral-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">Дополнительные срезы: регионы и площадки</summary>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <AudienceMiniCard title="Регионы" rows={audience.region} color="bg-cyan-500" icon={MapPin} />
+            <AudienceMiniCard title="Площадки показов" rows={audience.placement} color="bg-blue-600" icon={Layers3} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }
