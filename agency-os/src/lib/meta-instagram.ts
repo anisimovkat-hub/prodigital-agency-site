@@ -264,7 +264,12 @@ function insightValue(
   metric: string,
   value: number | Record<string, number> | undefined,
 ): number {
-  if (metric !== "follows_and_unfollows" || typeof value !== "object" || !value) {
+  if (metric !== "follows_and_unfollows") {
+    // Meta изредка возвращает отрицательный технический счётчик. Для накопительных
+    // метрик он не имеет бизнес-смысла и не должен нарушать CHECK >= 0 в БД.
+    return Math.max(0, numericValue(value));
+  }
+  if (typeof value !== "object" || !value) {
     return numericValue(value);
   }
   return Object.entries(value).reduce((total, [key, item]) =>
