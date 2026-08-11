@@ -7,6 +7,7 @@ import { ProjectBadge } from "@/components/project-badge";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { formatDate, formatDuration, todayISO } from "@/lib/format";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
+import { isTaskOperational } from "@/lib/project-lifecycle";
 import type { Enums } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/server";
 import { filterTasksByAudience } from "@/lib/task-audience-filter";
@@ -24,7 +25,11 @@ type WeekTask = {
   is_important: boolean | null;
   project_id: string | null;
   assignee_id: string | null;
-  project: { id: string; name: string } | null;
+  project: {
+    id: string;
+    name: string;
+    stage: Enums<"project_stage"> | null;
+  } | null;
   assignee: { id: string; full_name: string } | null;
 };
 
@@ -49,7 +54,7 @@ export default async function WeekPage({
     supabase
       .from("tasks")
       .select(
-        "id,title,priority,due_date,estimate_minutes,is_important,project_id,assignee_id,project:projects(id,name),assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+        "id,title,priority,due_date,estimate_minutes,is_important,project_id,assignee_id,project:projects(id,name,stage),assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
       )
       .neq("status", "done")
       .neq("status", "cancelled")
@@ -70,11 +75,14 @@ export default async function WeekPage({
     ? await getPersonalCalendarEvents(weekStart, weekEnd)
     : null;
 
-  const tasks = filterTasksByAudience((data ?? []) as WeekTask[], {
-    userId: uid,
-    who,
-    assigneeId: assignee,
-  });
+  const tasks = filterTasksByAudience(
+    ((data ?? []) as WeekTask[]).filter(isTaskOperational),
+    {
+      userId: uid,
+      who,
+      assigneeId: assignee,
+    },
+  );
   const priorityRank: Record<string, number> = {
     urgent: 0,
     high: 1,

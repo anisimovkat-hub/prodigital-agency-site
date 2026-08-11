@@ -2,6 +2,7 @@ import { PriorityBadge, TaskTypeBadge } from "@/components/badges";
 import { ProjectBadge } from "@/components/project-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { todayISO } from "@/lib/format";
+import { isOperationalProject } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import type { Enums } from "@/lib/supabase/types";
@@ -20,7 +21,11 @@ type RecurringTaskView = {
   weekdays: number[] | null;
   anchor_date: string;
   is_active: boolean;
-  project: { id: string; name: string } | null;
+  project: {
+    id: string;
+    name: string;
+    stage: Enums<"project_stage"> | null;
+  } | null;
   assignee: { id: string; full_name: string } | null;
 };
 
@@ -42,7 +47,7 @@ export default async function RecurringPage() {
       supabase
         .from("recurring_tasks")
         .select(
-          "*, project:projects(id,name), assignee:profiles!recurring_tasks_assignee_id_fkey(id,full_name)",
+          "*, project:projects(id,name,stage), assignee:profiles!recurring_tasks_assignee_id_fkey(id,full_name)",
         )
         .order("is_active", { ascending: false })
         .order("created_at", { ascending: false }),
@@ -69,10 +74,12 @@ export default async function RecurringPage() {
           </summary>
           <div className="mt-4">
             <RecurringForm
-              projects={sortProjectsForDisplay(projects ?? []).map((project) => ({
-                id: project.id,
-                name: project.name,
-              }))}
+              projects={sortProjectsForDisplay(projects ?? [])
+                .filter((project) => isOperationalProject(project.stage))
+                .map((project) => ({
+                  id: project.id,
+                  name: project.name,
+                }))}
               profiles={(profiles ?? []).map((employee) => ({
                 id: employee.id,
                 full_name: employee.full_name,
@@ -98,63 +105,76 @@ export default async function RecurringPage() {
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {recurringTasks.map((task) => (
-            <Card
-              key={task.id}
-              className={task.is_active ? "" : "bg-neutral-50 opacity-75"}
-            >
-              <CardHeader className="gap-3 pb-3">
-                <div className="flex items-start justify-between gap-3">
-                  <CardTitle className="text-base">{task.title}</CardTitle>
-                  <span
-                    className={
-                      task.is_active
-                        ? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700"
-                        : "rounded-full bg-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600"
-                    }
-                  >
-                    {task.is_active ? "Активен" : "На паузе"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <ProjectBadge
-                    projectId={task.project?.id}
-                    name={task.project?.name}
-                  />
-                  <PriorityBadge priority={task.priority} />
-                  <TaskTypeBadge type={task.task_type} />
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-4">
-                <dl className="grid gap-1 text-sm">
-                  <div className="flex justify-between gap-3">
-                    <dt className="text-neutral-500">Исполнитель</dt>
-                    <dd className="text-right text-neutral-800">
-                      {task.assignee?.full_name ?? "Не назначен"}
-                    </dd>
+          {recurringTasks.map((task) => {
+            const projectOperational = task.project
+              ? isOperationalProject(task.project.stage)
+              : true;
+            const effectivelyActive = task.is_active && projectOperational;
+            return (
+              <Card
+                key={task.id}
+                className={
+                  effectivelyActive ? "" : "bg-neutral-50 opacity-75"
+                }
+              >
+                <CardHeader className="gap-3 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <CardTitle className="text-base">{task.title}</CardTitle>
+                    <span
+                      className={
+                        effectivelyActive
+                          ? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700"
+                          : "rounded-full bg-neutral-200 px-2 py-1 text-xs font-medium text-neutral-600"
+                      }
+                    >
+                      {effectivelyActive ? "Активен" : "На паузе"}
+                    </span>
                   </div>
-                  {task.workstream && (
+                  <div className="flex flex-wrap gap-2">
+                    <ProjectBadge
+                      projectId={task.project?.id}
+                      name={task.project?.name}
+                    />
+                    <PriorityBadge priority={task.priority} />
+                    <TaskTypeBadge type={task.task_type} />
+                  </div>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <dl className="grid gap-1 text-sm">
                     <div className="flex justify-between gap-3">
-                      <dt className="text-neutral-500">Направление</dt>
+                      <dt className="text-neutral-500">Исполнитель</dt>
                       <dd className="text-right text-neutral-800">
-                        {task.workstream}
+                        {task.assignee?.full_name ?? "Не назначен"}
                       </dd>
                     </div>
+                    {task.workstream && (
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-neutral-500">Направление</dt>
+                        <dd className="text-right text-neutral-800">
+                          {task.workstream}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                  <RecurringItem
+                    recurringTask={{
+                      id: task.id,
+                      frequency: task.frequency,
+                      weekdays: task.weekdays,
+                      anchor_date: task.anchor_date,
+                      is_active: task.is_active,
+                    }}
+                    canManage={canManage && projectOperational}
+                  />
+                  {!projectOperational && (
+                    <p className="text-xs text-amber-700">
+                      Сначала возобновите проект, затем включите повтор вручную.
+                    </p>
                   )}
-                </dl>
-                <RecurringItem
-                  recurringTask={{
-                    id: task.id,
-                    frequency: task.frequency,
-                    weekdays: task.weekdays,
-                    anchor_date: task.anchor_date,
-                    is_active: task.is_active,
-                  }}
-                  canManage={canManage}
-                />
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

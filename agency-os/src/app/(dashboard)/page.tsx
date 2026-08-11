@@ -26,6 +26,7 @@ import {
 } from "@/lib/format";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { PROJECT_HEALTH_LABEL } from "@/lib/labels";
+import { isTaskOperational } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { isActiveTaskStatus } from "@/lib/task-status";
@@ -41,7 +42,11 @@ type DashTask = {
   creator_id: string | null;
   project_id: string | null;
   assignee: { id: string; full_name: string } | null;
-  project: { id: string; name: string } | null;
+  project: {
+    id: string;
+    name: string;
+    stage: Enums<"project_stage"> | null;
+  } | null;
 };
 
 function DayTaskRow({ task, today }: { task: DashTask; today: string }) {
@@ -95,7 +100,7 @@ export default async function DashboardPage({
     supabase
       .from("tasks")
       .select(
-        "id,project_id,title,status,due_date,is_urgent,assignee_id,creator_id, assignee:profiles!tasks_assignee_id_fkey(id,full_name), project:projects(id,name)",
+        "id,project_id,title,status,due_date,is_urgent,assignee_id,creator_id, assignee:profiles!tasks_assignee_id_fkey(id,full_name), project:projects(id,name,stage)",
       ),
     supabase
       .from("kpi_entries")
@@ -116,10 +121,13 @@ export default async function DashboardPage({
     (project) =>
       project.stage === "active" || project.stage === "launching",
   ).length;
-  const todayTasksCount = (tasks ?? []).filter(
+  const operationalTasks = ((tasks ?? []) as unknown as DashTask[]).filter(
+    isTaskOperational,
+  );
+  const todayTasksCount = operationalTasks.filter(
     (task) => isActiveTaskStatus(task.status) && task.due_date === today,
   ).length;
-  const overdueTasksCount = (tasks ?? []).filter(
+  const overdueTasksCount = operationalTasks.filter(
     (task) =>
       isActiveTaskStatus(task.status) && task.due_date && task.due_date < today,
   ).length;
@@ -162,7 +170,7 @@ export default async function DashboardPage({
     string,
     { urgent: number; overdue: number; nearestDueDate: string | null }
   >();
-  for (const task of tasks ?? []) {
+  for (const task of operationalTasks) {
     if (!task.project_id) continue;
     const stats = taskStatsByProject.get(task.project_id) ?? {
       urgent: 0,
@@ -211,7 +219,7 @@ export default async function DashboardPage({
   }));
 
   // ── Мой день / загрузка команды / зависшие делегированные ──
-  const allTasks = (tasks ?? []) as unknown as DashTask[];
+  const allTasks = operationalTasks;
   const isOpen = (t: DashTask) => isActiveTaskStatus(t.status);
   const byDue = (a: DashTask, b: DashTask) =>
     (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1;

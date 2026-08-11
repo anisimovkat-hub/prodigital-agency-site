@@ -15,6 +15,7 @@ import {
 import { formatDate, todayISO } from "@/lib/format";
 import { USER_ROLE_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { isTaskOperational } from "@/lib/project-lifecycle";
 import { isActiveTaskStatus } from "@/lib/task-status";
 
 export default async function EmployeeDetailPage({
@@ -34,7 +35,7 @@ export default async function EmployeeDetailPage({
         .eq("profile_id", id),
       supabase
         .from("tasks")
-        .select("*, project:projects(id,name)")
+        .select("*, project:projects(id,name,stage)")
         .eq("assignee_id", id)
         .order("due_date"),
     ]);
@@ -42,7 +43,10 @@ export default async function EmployeeDetailPage({
   if (!profile) notFound();
 
   const today = todayISO();
-  const openTasks = (tasks ?? []).filter((t) => isActiveTaskStatus(t.status));
+  const operationalTasks = (tasks ?? []).filter(isTaskOperational);
+  const openTasks = operationalTasks.filter((t) =>
+    isActiveTaskStatus(t.status),
+  );
   const todayTasks = openTasks.filter((t) => t.due_date === today);
   const overdueTasks = openTasks.filter(
     (t) => t.due_date && t.due_date < today,
@@ -125,8 +129,8 @@ export default async function EmployeeDetailPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(tasks ?? []).length === 0 && <TableEmpty colSpan={5} />}
-            {(tasks ?? []).map((task) => (
+            {operationalTasks.length === 0 && <TableEmpty colSpan={5} />}
+            {operationalTasks.map((task) => (
               <TableRow key={task.id}>
                 <TableCell className="font-medium text-neutral-900">
                   <Link

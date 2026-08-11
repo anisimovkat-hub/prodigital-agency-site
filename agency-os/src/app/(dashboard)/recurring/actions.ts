@@ -15,6 +15,19 @@ export type RecurringFormState =
   | { errors?: undefined; success: true }
   | undefined;
 
+async function projectAcceptsWork(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string | null | undefined,
+) {
+  if (!projectId) return true;
+  const { data } = await supabase
+    .from("projects")
+    .select("stage")
+    .eq("id", projectId)
+    .maybeSingle();
+  return data?.stage === "active" || data?.stage === "launching";
+}
+
 export async function createRecurringTask(
   _prevState: RecurringFormState,
   formData: FormData,
@@ -49,6 +62,14 @@ export async function createRecurringTask(
   if (profile?.role !== "owner") {
     return {
       errors: { _root: ["Управлять повторами может только владелец"] },
+    };
+  }
+
+  if (!(await projectAcceptsWork(supabase, parsed.data.project_id))) {
+    return {
+      errors: {
+        project_id: ["Для проекта на паузе или в архиве нельзя включить новый повтор"],
+      },
     };
   }
 
@@ -158,6 +179,21 @@ export async function toggleRecurringTask(
     return {
       errors: { _root: ["Управлять повторами может только владелец"] },
     };
+  }
+
+  if (parsed.data.is_active) {
+    const { data: recurring } = await supabase
+      .from("recurring_tasks")
+      .select("project_id")
+      .eq("id", parsed.data.id)
+      .maybeSingle();
+    if (!(await projectAcceptsWork(supabase, recurring?.project_id))) {
+      return {
+        errors: {
+          _root: ["Сначала возобновите проект, затем включите повтор"],
+        },
+      };
+    }
   }
 
   const { data: updated, error } = await supabase

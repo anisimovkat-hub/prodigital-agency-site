@@ -61,6 +61,19 @@ export type TaskRelatedFormState =
   | { errors?: undefined; success: true }
   | undefined;
 
+async function projectAcceptsTasks(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string | null | undefined,
+) {
+  if (!projectId) return true;
+  const { data } = await supabase
+    .from("projects")
+    .select("stage")
+    .eq("id", projectId)
+    .maybeSingle();
+  return data?.stage === "active" || data?.stage === "launching";
+}
+
 export async function createTask(
   _prevState: CreateTaskFormState,
   formData: FormData,
@@ -87,6 +100,14 @@ export async function createTask(
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (!(await projectAcceptsTasks(supabase, parsed.data.project_id))) {
+    return {
+      errors: {
+        project_id: ["Проект на паузе или завершён — новые задачи отключены"],
+      },
+    };
+  }
 
   const { error } = await supabase.from("tasks").insert({
     title: parsed.data.title,
@@ -145,6 +166,21 @@ export async function updateTask(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { errors: { _root: ["Нет авторизации"] } };
+
+  const projectOperational = await projectAcceptsTasks(
+    supabase,
+    parsed.data.project_id,
+  );
+  if (
+    !projectOperational &&
+    !["paused", "done", "cancelled"].includes(parsed.data.status)
+  ) {
+    return {
+      errors: {
+        status: ["Задача не может быть активной, пока проект на паузе или завершён"],
+      },
+    };
+  }
 
   const { data: updatedTask, error } = await supabase
     .from("tasks")
@@ -264,6 +300,9 @@ export async function createSubtask(
     .eq("id", parsed.data.parent_task_id)
     .maybeSingle();
   if (!parent) return { errors: ["Родительская задача не найдена"] };
+  if (!(await projectAcceptsTasks(supabase, parent.project_id))) {
+    return { errors: ["Проект на паузе или завершён — подзадачи отключены"] };
+  }
 
   const { error } = await supabase.from("tasks").insert({
     title: parsed.data.title,

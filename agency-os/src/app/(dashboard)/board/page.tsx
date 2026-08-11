@@ -1,5 +1,9 @@
 import { KanbanBoard, type BoardTask } from "@/app/(dashboard)/board/kanban-board";
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
+import {
+  isOperationalProject,
+  isTaskOperational,
+} from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { sumRawTaskTime } from "@/lib/time-analytics";
@@ -29,7 +33,7 @@ export default async function BoardPage({
       supabase
         .from("tasks")
         .select(
-          "id,title,status,priority,due_date,is_important,is_urgent,project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+          "id,project_id,title,status,priority,due_date,is_important,is_urgent,project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
         )
         .neq("status", "cancelled")
         .order("created_at", { ascending: false }),
@@ -43,7 +47,8 @@ export default async function BoardPage({
     timeEntries ?? [],
     timeSnapshotAt,
   );
-  const boardTasks = ((tasks ?? []) as Omit<
+  const operationalTasks = (tasks ?? []).filter(isTaskOperational);
+  const boardTasks = (operationalTasks as Omit<
     BoardTask,
     "tracked_seconds"
   >[]).map((task) => ({
@@ -61,10 +66,12 @@ export default async function BoardPage({
       </div>
       <KanbanBoard
         tasks={boardTasks}
-        projects={sortProjectsForDisplay(projects ?? []).map((project) => ({
-          id: project.id,
-          name: project.name,
-        }))}
+        projects={sortProjectsForDisplay(projects ?? [])
+          .filter((project) => isOperationalProject(project.stage))
+          .map((project) => ({
+            id: project.id,
+            name: project.name,
+          }))}
         profiles={(profiles ?? []).map((profile) => ({
           id: profile.id,
           name: profile.full_name,

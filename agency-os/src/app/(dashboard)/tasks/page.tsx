@@ -26,6 +26,10 @@ import { formatDuration } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { completedTasksVisibleSince } from "@/lib/task-retention";
 import { sortProjectsForDisplay } from "@/lib/project-order";
+import {
+  isOperationalProject,
+  isTaskOperational,
+} from "@/lib/project-lifecycle";
 import { sumRawTaskTime } from "@/lib/time-analytics";
 
 type SearchParams = {
@@ -53,7 +57,7 @@ export default async function TasksPage({
   let tasksQuery = supabase
     .from("tasks")
     .select(
-      "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+      "*, project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
     )
     .order(isCompletedView ? "completed_at" : "created_at", {
       ascending: false,
@@ -87,7 +91,10 @@ export default async function TasksPage({
     timeSnapshotAt,
   );
 
-  const filtered = (tasks ?? []).filter((task) => {
+  const visibleTasks = isCompletedView
+    ? (tasks ?? [])
+    : (tasks ?? []).filter(isTaskOperational);
+  const filtered = visibleTasks.filter((task) => {
     if (filters.project && task.project_id !== filters.project) return false;
     if (filters.assignee && task.assignee_id !== filters.assignee)
       return false;
@@ -150,7 +157,12 @@ export default async function TasksPage({
         <FilterSelect
           name="project"
           label="Проект"
-          options={sortProjectsForDisplay(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
+          options={sortProjectsForDisplay(projects ?? [])
+            .filter(
+              (project) =>
+                isCompletedView || isOperationalProject(project.stage),
+            )
+            .map((p) => ({ value: p.id, label: p.name }))}
         />
         <FilterSelect
           name="assignee"
@@ -190,10 +202,12 @@ export default async function TasksPage({
           </summary>
           <div className="mt-4">
             <TaskForm
-              projects={sortProjectsForDisplay(projects ?? []).map((p) => ({
-                id: p.id,
-                name: p.name,
-              }))}
+              projects={sortProjectsForDisplay(projects ?? [])
+                .filter((project) => isOperationalProject(project.stage))
+                .map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                }))}
               profiles={(profiles ?? []).map((p) => ({
                 id: p.id,
                 full_name: p.full_name,

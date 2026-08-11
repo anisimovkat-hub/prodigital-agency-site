@@ -32,6 +32,7 @@ import {
 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { PROJECT_OWNERSHIP_MODE_LABEL } from "@/lib/labels";
+import { isOperationalProject } from "@/lib/project-lifecycle";
 import {
   allocateTaskTime,
   type TaskTimeEntry,
@@ -345,17 +346,23 @@ export default async function ProjectDetailPage({
           </TableBody>
         </Table>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Новая задача</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TaskForm
-              profiles={profiles ?? []}
-              defaultProjectId={project.id}
-            />
-          </CardContent>
-        </Card>
+        {isOperationalProject(project.stage) ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Новая задача</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TaskForm
+                profiles={profiles ?? []}
+                defaultProjectId={project.id}
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Новые задачи отключены, пока проект находится на паузе или завершён.
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-3">

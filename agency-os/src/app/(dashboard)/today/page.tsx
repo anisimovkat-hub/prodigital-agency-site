@@ -5,6 +5,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
+import { isTaskOperational } from "@/lib/project-lifecycle";
 import { filterTasksByAudience } from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { createClient } from "@/lib/supabase/server";
@@ -28,7 +29,7 @@ export default async function TodayPage({
     supabase
       .from("tasks")
       .select(
-        "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+        "*, project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
       )
       .neq("status", "done")
       .neq("status", "cancelled"),
@@ -43,7 +44,7 @@ export default async function TodayPage({
     ? await getPersonalCalendarEvents(calendarToday, calendarToday)
     : null;
 
-  const filtered = filterTasksByAudience(tasks ?? [], {
+  const filtered = filterTasksByAudience((tasks ?? []).filter(isTaskOperational), {
     userId: uid,
     who,
     assigneeId: assignee,

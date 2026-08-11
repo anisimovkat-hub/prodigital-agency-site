@@ -53,6 +53,29 @@ async function syncClientStatus(
   await supabase.from("clients").update({ status }).eq("id", clientId);
 }
 
+async function pauseProjectWork(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string,
+  stage: SavedProjectFormValues["stage"],
+) {
+  if (stage !== "paused" && stage !== "finished") return null;
+
+  const [{ error: recurringError }, { error: tasksError }] = await Promise.all([
+    supabase
+      .from("recurring_tasks")
+      .update({ is_active: false })
+      .eq("project_id", projectId)
+      .eq("is_active", true),
+    supabase
+      .from("tasks")
+      .update({ status: "paused" })
+      .eq("project_id", projectId)
+      .in("status", ["backlog", "todo", "in_progress", "review"]),
+  ]);
+
+  return recurringError?.message ?? tasksError?.message ?? null;
+}
+
 export async function addProject(
   _prevState: CreateProjectFormState,
   formData: FormData,
@@ -171,6 +194,18 @@ export async function updateProject(
     };
   }
 
+  const pauseError = await pauseProjectWork(
+    supabase,
+    id,
+    updatedProject.stage,
+  );
+  if (pauseError) {
+    return {
+      errors: {
+        _root: [`Проект сохранён, но не удалось остановить его задачи: ${pauseError}`],
+      },
+    };
+  }
 
   const clientIds = new Set(
     [previousProject?.client_id, updatedProject.client_id].filter(
@@ -185,6 +220,11 @@ export async function updateProject(
   revalidatePath(`/projects/${id}`);
   revalidatePath("/clients");
   revalidatePath("/analytics");
+  revalidatePath("/board");
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+  revalidatePath("/week");
+  revalidatePath("/recurring");
   revalidatePath("/");
 
   return { success: true, project: updatedProject };
@@ -234,6 +274,19 @@ export async function updateProjectQuickField(
     return { error: "Проект не изменён: проверьте права доступа" };
   }
 
+  if (parsed.data.field === "stage") {
+    const pauseError = await pauseProjectWork(
+      supabase,
+      parsed.data.id,
+      parsed.data.value,
+    );
+    if (pauseError) {
+      return {
+        error: `Стадия сохранена, но задачи не остановлены: ${pauseError}`,
+      };
+    }
+  }
+
   if (parsed.data.field === "stage" && updateResult.data.client_id) {
     await syncClientStatus(supabase, updateResult.data.client_id);
   }
@@ -242,6 +295,11 @@ export async function updateProjectQuickField(
   revalidatePath(`/projects/${parsed.data.id}`);
   revalidatePath("/clients");
   revalidatePath("/analytics");
+  revalidatePath("/board");
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+  revalidatePath("/week");
+  revalidatePath("/recurring");
   revalidatePath("/");
 
   return { success: true };
