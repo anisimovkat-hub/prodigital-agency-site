@@ -178,7 +178,7 @@ export default async function AnalyticsPage({
     supabase
       .from("projects")
       .select("id,name,logo_url,stage")
-      .neq("stage", "finished"),
+      .in("stage", ["launching", "active"]),
     supabase
       .from("social_accounts")
       .select("id,project_id,username,name,profile_picture_url,followers_count,last_synced_at")
