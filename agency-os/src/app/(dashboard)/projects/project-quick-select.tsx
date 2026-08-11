@@ -75,7 +75,7 @@ export function ProjectQuickSelect(props: ProjectQuickSelectProps) {
         aria-label={`Изменить ${fieldLabel} проекта «${props.projectName}»`}
         title={state?.error ?? `Нажмите, чтобы изменить ${fieldLabel}`}
         className={cn(
-          "h-8 min-w-28 cursor-pointer rounded-full border px-3 py-0 pr-7 font-medium shadow-none transition-colors hover:brightness-95 focus-visible:ring-2",
+          "h-7 w-auto min-w-0 cursor-pointer rounded-full border px-2 py-0 pr-6 text-sm font-medium shadow-none transition-colors hover:brightness-95 focus-visible:ring-2",
           colorClass,
         )}
       >
