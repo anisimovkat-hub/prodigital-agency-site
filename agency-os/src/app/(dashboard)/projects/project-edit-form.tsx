@@ -202,7 +202,11 @@ export function ProjectEditForm({
 
       <div className="col-span-2 sm:col-span-4">
         <FieldErrors errors={state?.errors?._root} />
-        <Button type="submit" disabled={pending}>
+        <Button
+          type="submit"
+          disabled={pending}
+          className="bg-emerald-800 text-white hover:bg-emerald-700"
+        >
           {pending ? "Сохраняем..." : "Сохранить изменения"}
         </Button>
         <p
