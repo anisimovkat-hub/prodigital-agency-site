@@ -155,7 +155,8 @@ export async function syncInstagramAnalytics(
       }
     }
 
-    const since = isoDaysAgo(90);
+    // Instagram account insights ограничивает один запрос интервалом до 30 дней.
+    const since = isoDaysAgo(29);
     const until = isoDaysAgo(0);
     const results = await settleInBatches(
       rows,
