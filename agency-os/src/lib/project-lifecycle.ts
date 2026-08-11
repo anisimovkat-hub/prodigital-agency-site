@@ -9,7 +9,11 @@ export function isCurrentProject(
 export function clientStatusFromProjectStages(
   stages: Array<Enums<"project_stage"> | null>,
 ): Enums<"client_status"> {
-  if (stages.some((stage) => stage === "active" || stage === null)) {
+  if (
+    stages.some(
+      (stage) => stage === "active" || stage === "launching" || stage === null,
+    )
+  ) {
     return "active";
   }
   if (stages.some((stage) => stage === "paused")) {

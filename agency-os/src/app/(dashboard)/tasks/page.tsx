@@ -25,6 +25,7 @@ import {
 import { formatDuration } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { completedTasksVisibleSince } from "@/lib/task-retention";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import { sumRawTaskTime } from "@/lib/time-analytics";
 
 type SearchParams = {
@@ -65,7 +66,7 @@ export default async function TasksPage({
         .or(
           `completed_at.gte.${completedTasksVisibleSince().toISOString()},completed_at.is.null`,
         )
-    : tasksQuery.neq("status", "done");
+    : tasksQuery.neq("status", "done").neq("status", "cancelled");
 
   const [
     { data: tasks },
@@ -75,7 +76,7 @@ export default async function TasksPage({
   ] =
     await Promise.all([
       tasksQuery,
-      supabase.from("projects").select("id,name").order("name"),
+      supabase.from("projects").select("id,name,stage"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase
         .from("task_time_entries")
@@ -149,7 +150,7 @@ export default async function TasksPage({
         <FilterSelect
           name="project"
           label="Проект"
-          options={(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
+          options={sortProjectsForDisplay(projects ?? []).map((p) => ({ value: p.id, label: p.name }))}
         />
         <FilterSelect
           name="assignee"
@@ -164,7 +165,7 @@ export default async function TasksPage({
             name="status"
             label="Статус"
             options={enumOptions(TASK_STATUS_LABEL).filter(
-              ({ value }) => value !== "done",
+              ({ value }) => value !== "done" && value !== "cancelled",
             )}
           />
         )}
@@ -189,7 +190,7 @@ export default async function TasksPage({
           </summary>
           <div className="mt-4">
             <TaskForm
-              projects={(projects ?? []).map((p) => ({
+              projects={sortProjectsForDisplay(projects ?? []).map((p) => ({
                 id: p.id,
                 name: p.name,
               }))}

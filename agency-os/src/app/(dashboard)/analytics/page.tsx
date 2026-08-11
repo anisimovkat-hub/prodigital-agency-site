@@ -26,6 +26,7 @@ import type {
   MarketingPost,
 } from "@/lib/marketing-analytics";
 import { projectLogoUrl } from "@/lib/project-logos";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
 import { createClient } from "@/lib/supabase/server";
 
@@ -178,9 +179,8 @@ export default async function AnalyticsPage({
   ] = await Promise.all([
     supabase
       .from("projects")
-      .select("id,name,logo_url")
-      .neq("stage", "finished")
-      .order("name"),
+      .select("id,name,logo_url,stage")
+      .neq("stage", "finished"),
     supabase
       .from("social_accounts")
       .select("id,project_id,username,name,profile_picture_url,followers_count,last_synced_at")
@@ -193,7 +193,7 @@ export default async function AnalyticsPage({
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
   ]);
 
-  const projectRows = projects ?? [];
+  const projectRows = sortProjectsForDisplay(projects ?? []);
   const currentProjectIds = new Set(projectRows.map((project) => project.id));
   if (projectId && !currentProjectIds.has(projectId)) projectId = "";
   const accountRows = (socialAccounts ?? []).filter(

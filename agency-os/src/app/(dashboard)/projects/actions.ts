@@ -25,7 +25,7 @@ export type SavedProjectFormValues = {
   name: string;
   client_id: string | null;
   health: "green" | "yellow" | "red" | null;
-  stage: "active" | "paused" | "finished" | null;
+  stage: "active" | "launching" | "paused" | "finished" | null;
   budget: number | null;
   monthly_fee: number | null;
   ownership_mode: string | null;

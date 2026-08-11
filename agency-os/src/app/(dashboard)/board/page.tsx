@@ -1,6 +1,7 @@
 import { KanbanBoard, type BoardTask } from "@/app/(dashboard)/board/kanban-board";
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
 import { createClient } from "@/lib/supabase/server";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import { sumRawTaskTime } from "@/lib/time-analytics";
 
 type BoardSearchParams = {
@@ -30,8 +31,9 @@ export default async function BoardPage({
         .select(
           "id,title,status,priority,due_date,is_important,is_urgent,project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
         )
+        .neq("status", "cancelled")
         .order("created_at", { ascending: false }),
-      supabase.from("projects").select("id,name").order("name"),
+      supabase.from("projects").select("id,name,stage"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase
         .from("task_time_entries")
@@ -59,7 +61,7 @@ export default async function BoardPage({
       </div>
       <KanbanBoard
         tasks={boardTasks}
-        projects={(projects ?? []).map((project) => ({
+        projects={sortProjectsForDisplay(projects ?? []).map((project) => ({
           id: project.id,
           name: project.name,
         }))}

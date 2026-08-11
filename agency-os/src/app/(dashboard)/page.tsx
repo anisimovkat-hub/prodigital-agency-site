@@ -27,6 +27,8 @@ import {
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { PROJECT_HEALTH_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { sortProjectsForDisplay } from "@/lib/project-order";
+import { isActiveTaskStatus } from "@/lib/task-status";
 import type { Enums } from "@/lib/supabase/types";
 
 type DashTask = {
@@ -111,14 +113,15 @@ export default async function DashboardPage({
     ? await getPersonalCalendarEvents(today, today)
     : null;
   const activeProjectsCount = (projects ?? []).filter(
-    (project) => project.stage === "active",
+    (project) =>
+      project.stage === "active" || project.stage === "launching",
   ).length;
   const todayTasksCount = (tasks ?? []).filter(
-    (task) => task.status !== "done" && task.due_date === today,
+    (task) => isActiveTaskStatus(task.status) && task.due_date === today,
   ).length;
   const overdueTasksCount = (tasks ?? []).filter(
     (task) =>
-      task.status !== "done" && task.due_date && task.due_date < today,
+      isActiveTaskStatus(task.status) && task.due_date && task.due_date < today,
   ).length;
   const activeClientsCount = (clients ?? []).filter(
     (item) => item.status === "active",
@@ -162,7 +165,7 @@ export default async function DashboardPage({
       overdue: 0,
       nearestDueDate: null,
     };
-    const open = task.status !== "done";
+    const open = isActiveTaskStatus(task.status);
     if (open && task.is_urgent) stats.urgent += 1;
     if (open && task.due_date && task.due_date < today) stats.overdue += 1;
     if (
@@ -186,11 +189,13 @@ export default async function DashboardPage({
     }
   }
 
-  const filteredProjects = (projects ?? []).filter((project) => {
-    if (health && project.health !== health) return false;
-    if (client && project.client_id !== client) return false;
-    return true;
-  });
+  const filteredProjects = sortProjectsForDisplay(
+    (projects ?? []).filter((project) => {
+      if (health && project.health !== health) return false;
+      if (client && project.client_id !== client) return false;
+      return true;
+    }),
+  );
 
   const healthOptions = (
     Object.keys(PROJECT_HEALTH_LABEL) as Enums<"project_health">[]
@@ -203,7 +208,7 @@ export default async function DashboardPage({
 
   // ── Мой день / загрузка команды / зависшие делегированные ──
   const allTasks = (tasks ?? []) as unknown as DashTask[];
-  const isOpen = (t: DashTask) => t.status !== "done";
+  const isOpen = (t: DashTask) => isActiveTaskStatus(t.status);
   const byDue = (a: DashTask, b: DashTask) =>
     (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1;
 
@@ -253,7 +258,10 @@ export default async function DashboardPage({
   for (const t of allTasks) {
     if (isOpen(t) && t.project_id) projectsWithOpenTask.add(t.project_id);
   }
-  const activeProjects = (projects ?? []).filter((p) => p.stage === "active");
+  const activeProjects = (projects ?? []).filter(
+    (project) =>
+      project.stage === "active" || project.stage === "launching",
+  );
   const redProjects = activeProjects.filter((p) => p.health === "red");
   const quietProjects = activeProjects.filter(
     (p) => !projectsWithOpenTask.has(p.id),

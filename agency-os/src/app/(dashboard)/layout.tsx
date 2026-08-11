@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/sidebar";
 import { TimerBar } from "@/components/timer-bar";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 
 export default async function DashboardLayout({
   children,
@@ -25,9 +26,8 @@ export default async function DashboardLayout({
       .maybeSingle(),
     supabase
       .from("projects")
-      .select("id,name")
-      .eq("stage", "active")
-      .order("name"),
+      .select("id,name,stage")
+      .in("stage", ["launching", "active"]),
   ]);
 
   return (
@@ -37,7 +37,7 @@ export default async function DashboardLayout({
         <div className="mb-4">
           <TimerBar
             active={activeEntry ?? null}
-            projects={timerProjects ?? []}
+            projects={sortProjectsForDisplay(timerProjects ?? [])}
           />
         </div>
         {children}

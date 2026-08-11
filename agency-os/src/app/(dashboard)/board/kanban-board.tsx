@@ -30,6 +30,7 @@ const COLUMN_DOT: Record<Enums<"task_status">, string> = {
   review: "bg-violet-500",
   paused: "bg-orange-500",
   done: "bg-emerald-500",
+  cancelled: "bg-red-500",
 };
 
 export type BoardTask = {

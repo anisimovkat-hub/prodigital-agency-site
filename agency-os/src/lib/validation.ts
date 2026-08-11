@@ -70,6 +70,7 @@ export const TASK_STATUS_VALUES = [
   "review",
   "paused",
   "done",
+  "cancelled",
 ] as const;
 
 export const RECURRING_FREQUENCY_VALUES = [
@@ -212,7 +213,12 @@ export const createClientSchema = z.object({
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 
 export const PROJECT_HEALTH_VALUES = ["green", "yellow", "red"] as const;
-export const PROJECT_STAGE_VALUES = ["active", "paused", "finished"] as const;
+export const PROJECT_STAGE_VALUES = [
+  "launching",
+  "active",
+  "paused",
+  "finished",
+] as const;
 export const updateProjectQuickFieldSchema = z.discriminatedUnion("field", [
   z.object({
     id: z.string().uuid("Некорректный проект"),

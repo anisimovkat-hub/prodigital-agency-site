@@ -31,10 +31,14 @@ export default async function ClientsPage() {
   for (const project of projects ?? []) {
     if (!project.client_id) continue;
     const current = representativeProjectByClient.get(project.client_id);
-    if (!current || (current.stage !== "active" && project.stage === "active")) {
+    if (
+      !current ||
+      (current.stage !== "active" && current.stage !== "launching" &&
+        (project.stage === "active" || project.stage === "launching"))
+    ) {
       representativeProjectByClient.set(project.client_id, project);
     }
-    if (project.stage === "active") {
+    if (project.stage === "active" || project.stage === "launching") {
       activeProjectsByClient.set(
         project.client_id,
         (activeProjectsByClient.get(project.client_id) ?? 0) + 1,

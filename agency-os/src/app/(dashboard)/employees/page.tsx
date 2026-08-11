@@ -14,6 +14,7 @@ import {
 import { USER_ROLE_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, todayISO } from "@/lib/format";
+import { isActiveTaskStatus } from "@/lib/task-status";
 
 export default async function EmployeesPage() {
   const supabase = await createClient();
@@ -51,7 +52,7 @@ export default async function EmployeesPage() {
       today: 0,
       overdue: 0,
     };
-    if (task.status !== "done") {
+    if (isActiveTaskStatus(task.status)) {
       stats.open += 1;
       if (task.due_date === today) stats.today += 1;
       if (task.due_date && task.due_date < today) stats.overdue += 1;
@@ -61,7 +62,12 @@ export default async function EmployeesPage() {
 
   const activeProjectsByEmployee = new Map<string, number>();
   for (const member of members ?? []) {
-    if (member.project?.stage !== "active") continue;
+    if (
+      member.project?.stage !== "active" &&
+      member.project?.stage !== "launching"
+    ) {
+      continue;
+    }
     activeProjectsByEmployee.set(
       member.profile_id,
       (activeProjectsByEmployee.get(member.profile_id) ?? 0) + 1,

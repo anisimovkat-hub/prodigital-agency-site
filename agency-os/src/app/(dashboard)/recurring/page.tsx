@@ -3,6 +3,7 @@ import { ProjectBadge } from "@/components/project-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { todayISO } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import type { Enums } from "@/lib/supabase/types";
 import type { RecurringFrequency } from "@/lib/validation";
 
@@ -45,7 +46,7 @@ export default async function RecurringPage() {
         )
         .order("is_active", { ascending: false })
         .order("created_at", { ascending: false }),
-      supabase.from("projects").select("id,name").order("name"),
+      supabase.from("projects").select("id,name,stage"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
     ]);
 
@@ -68,7 +69,7 @@ export default async function RecurringPage() {
           </summary>
           <div className="mt-4">
             <RecurringForm
-              projects={(projects ?? []).map((project) => ({
+              projects={sortProjectsForDisplay(projects ?? []).map((project) => ({
                 id: project.id,
                 name: project.name,
               }))}

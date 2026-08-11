@@ -61,6 +61,7 @@ export default async function PersonalPage() {
         .select(TASK_SELECT)
         .is("project_id", null)
         .eq("assignee_id", uid)
+        .neq("status", "cancelled")
         .order("created_at", { ascending: false }),
       // Задачи личных проектов (личный бренд и т.п.)
       personalProjectIds.length > 0
@@ -68,6 +69,7 @@ export default async function PersonalPage() {
             .from("tasks")
             .select(TASK_SELECT)
             .in("project_id", personalProjectIds)
+            .neq("status", "cancelled")
             .order("created_at", { ascending: false })
         : Promise.resolve({ data: [] as PersonalTask[] }),
       supabase.from("profiles").select("role").eq("id", uid).maybeSingle(),

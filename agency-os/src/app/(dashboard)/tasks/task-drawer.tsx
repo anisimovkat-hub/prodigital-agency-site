@@ -6,6 +6,7 @@ import {
   type SubtaskRow,
 } from "@/app/(dashboard)/tasks/task-editor";
 import { createClient } from "@/lib/supabase/server";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import { sumRawTaskTime } from "@/lib/time-analytics";
 
 export async function TaskDrawer({
@@ -58,7 +59,7 @@ export async function TaskDrawer({
         )
         .eq("parent_task_id", taskId)
         .order("created_at"),
-      supabase.from("projects").select("id,name").order("name"),
+      supabase.from("projects").select("id,name,stage"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
       supabase.from("tasks").select("workstream").not("workstream", "is", null),
       supabase
@@ -89,7 +90,7 @@ export async function TaskDrawer({
       <TaskEditor
         key={task.id}
         task={task as EditableTask}
-        projects={projects ?? []}
+        projects={sortProjectsForDisplay(projects ?? [])}
         profiles={profiles ?? []}
         checklist={checklist ?? []}
         comments={comments ?? []}

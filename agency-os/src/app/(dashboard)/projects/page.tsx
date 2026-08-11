@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/format";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import { createClient } from "@/lib/supabase/server";
 import {
   allocateTaskTime,
@@ -60,8 +61,8 @@ export default async function ProjectsPage() {
       seconds / 3_600,
     ]),
   );
-  const currentProjects = (projects ?? []).filter(
-    (project) => project.stage !== "finished",
+  const currentProjects = sortProjectsForDisplay(
+    (projects ?? []).filter((project) => project.stage !== "finished"),
   );
   const finishedProjects = (projects ?? []).filter(
     (project) => project.stage === "finished",

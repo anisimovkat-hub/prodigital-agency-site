@@ -15,7 +15,14 @@ export function HealthBadge({ health }: { health: Enums<"project_health"> }) {
 }
 
 export function ProjectStageBadge({ stage }: { stage: Enums<"project_stage"> }) {
-  const variant = stage === "active" ? "green" : stage === "paused" ? "yellow" : "neutral";
+  const variant =
+    stage === "active"
+      ? "green"
+      : stage === "launching"
+        ? "blue"
+        : stage === "paused"
+          ? "yellow"
+          : "neutral";
   return <Badge variant={variant}>{PROJECT_STAGE_LABEL[stage]}</Badge>;
 }
 
@@ -28,6 +35,8 @@ export function TaskStatusBadge({ status }: { status: Enums<"task_status"> }) {
   const variant =
     status === "done"
       ? "green"
+      : status === "cancelled"
+        ? "red"
       : status === "in_progress"
         ? "blue"
         : status === "review"

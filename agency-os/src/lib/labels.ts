@@ -12,6 +12,7 @@ export const PROJECT_HEALTH_LABEL: Record<
 
 export const PROJECT_STAGE_LABEL: Record<Enums<"project_stage">, string> = {
   active: "Активен",
+  launching: "На запуске",
   paused: "На паузе",
   finished: "Завершён",
 };
@@ -38,6 +39,7 @@ export const TASK_STATUS_LABEL: Record<Enums<"task_status">, string> = {
   review: "На проверке",
   done: "Сделано",
   paused: "На паузе",
+  cancelled: "Отменена",
 };
 
 export const TASK_PRIORITY_LABEL: Record<Enums<"task_priority">, string> = {

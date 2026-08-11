@@ -35,6 +35,7 @@ export type SavedTaskFormValues = {
     | "review"
     | "done"
     | "paused"
+    | "cancelled"
     | null;
   task_type:
     | "ads"
@@ -291,6 +292,7 @@ export async function updateTaskStatus(taskId: string, status: string) {
       "review",
       "paused",
       "done",
+      "cancelled",
     ].includes(status)
   ) {
     return { success: false as const, error: "Некорректный статус задачи" };

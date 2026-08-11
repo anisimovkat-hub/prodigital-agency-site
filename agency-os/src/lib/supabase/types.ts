@@ -1522,7 +1522,7 @@ export type Database = {
     Enums: {
       user_role: "owner" | "pm" | "specialist" | "viewer";
       project_health: "green" | "yellow" | "red";
-      project_stage: "active" | "paused" | "finished";
+      project_stage: "active" | "launching" | "paused" | "finished";
       client_status: "active" | "paused" | "churned";
       task_status:
         | "backlog"
@@ -1530,7 +1530,8 @@ export type Database = {
         | "in_progress"
         | "review"
         | "done"
-        | "paused";
+        | "paused"
+        | "cancelled";
       task_priority: "low" | "medium" | "high" | "urgent";
       task_type:
         | "ads"

@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency } from "@/lib/format";
+import { sortProjectsForDisplay } from "@/lib/project-order";
 import { createClient } from "@/lib/supabase/server";
 
 const LINK_LABELS: Record<string, string> = {
@@ -49,8 +50,12 @@ export default async function ClientDetailPage({
 
   const links = (client.links ?? {}) as Record<string, string | undefined>;
   const linkEntries = Object.entries(LINK_LABELS).filter(([key]) => links[key]);
+  const sortedProjects = sortProjectsForDisplay(projects ?? []);
   const representativeProject =
-    (projects ?? []).find((project) => project.stage === "active") ?? projects?.[0];
+    sortedProjects.find(
+      (project) =>
+        project.stage === "active" || project.stage === "launching",
+    ) ?? sortedProjects[0];
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,8 +140,8 @@ export default async function ClientDetailPage({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {(projects ?? []).length === 0 && <TableEmpty colSpan={5} />}
-            {(projects ?? []).map((project) => (
+            {sortedProjects.length === 0 && <TableEmpty colSpan={5} />}
+            {sortedProjects.map((project) => (
               <TableRow key={project.id}>
                 <TableCell className="font-medium text-neutral-900">
                   <Link

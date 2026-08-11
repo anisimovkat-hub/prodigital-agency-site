@@ -15,6 +15,7 @@ import {
 import { formatDate, todayISO } from "@/lib/format";
 import { USER_ROLE_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
+import { isActiveTaskStatus } from "@/lib/task-status";
 
 export default async function EmployeeDetailPage({
   params,
@@ -41,13 +42,14 @@ export default async function EmployeeDetailPage({
   if (!profile) notFound();
 
   const today = todayISO();
-  const openTasks = (tasks ?? []).filter((t) => t.status !== "done");
+  const openTasks = (tasks ?? []).filter((t) => isActiveTaskStatus(t.status));
   const todayTasks = openTasks.filter((t) => t.due_date === today);
   const overdueTasks = openTasks.filter(
     (t) => t.due_date && t.due_date < today,
   );
   const activeProjects = (members ?? []).filter(
-    (m) => m.project?.stage === "active",
+    (m) =>
+      m.project?.stage === "active" || m.project?.stage === "launching",
   );
 
   return (
@@ -143,7 +145,7 @@ export default async function EmployeeDetailPage({
                     className={
                       task.due_date &&
                       task.due_date < today &&
-                      task.status !== "done"
+                      isActiveTaskStatus(task.status)
                         ? "text-red-600"
                         : ""
                     }

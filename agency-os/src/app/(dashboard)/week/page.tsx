@@ -52,6 +52,7 @@ export default async function WeekPage({
         "id,title,priority,due_date,estimate_minutes,is_important,project_id,assignee_id,project:projects(id,name),assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
       )
       .neq("status", "done")
+      .neq("status", "cancelled")
       .order("created_at", { ascending: true }),
     supabase.from("profiles").select("id,full_name,role").order("full_name"),
   ]);

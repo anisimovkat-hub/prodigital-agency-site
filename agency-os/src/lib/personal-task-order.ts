@@ -27,17 +27,21 @@ export function isExpiredPersonalCompletedTask(
   );
 }
 
+function isTerminal(status: Enums<"task_status"> | null): boolean {
+  return status === "done" || status === "cancelled";
+}
+
 export function sortPersonalTasks<T extends PersonalTaskOrderable>(
   tasks: T[],
 ): T[] {
   return [...tasks].sort((a, b) => {
-    const doneDiff = Number(a.status === "done") - Number(b.status === "done");
+    const doneDiff = Number(isTerminal(a.status)) - Number(isTerminal(b.status));
     if (doneDiff !== 0) return doneDiff;
 
     if (a.due_date !== b.due_date) {
       if (!a.due_date) return 1;
       if (!b.due_date) return -1;
-      return a.status === "done"
+      return isTerminal(a.status)
         ? b.due_date.localeCompare(a.due_date)
         : a.due_date.localeCompare(b.due_date);
     }

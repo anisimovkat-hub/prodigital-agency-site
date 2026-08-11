@@ -57,7 +57,7 @@ export function isOverdue(
   dueDate: string | null | undefined,
   status: string | null | undefined,
 ): boolean {
-  if (!dueDate || status === "done") return false;
+  if (!dueDate || status === "done" || status === "cancelled") return false;
   return dueDate < todayISO();
 }
 

@@ -30,7 +30,8 @@ export default async function TodayPage({
       .select(
         "*, project:projects(id,name), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
       )
-      .neq("status", "done"),
+      .neq("status", "done")
+      .neq("status", "cancelled"),
     supabase.from("profiles").select("id,full_name,role").order("full_name"),
   ]);
 
