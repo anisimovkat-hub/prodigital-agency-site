@@ -18,6 +18,21 @@ export type AnalyticsActionState =
   | { ok: boolean; message: string; url?: string }
   | undefined;
 
+const AUDIENCE_BREAKDOWN_LABELS: Record<string, string> = {
+  age: "возраст",
+  gender: "пол",
+  country: "страны",
+  region: "регионы",
+  publisher_platform: "площадки",
+};
+
+function compactAudienceError(message: string): string {
+  if (message.includes("ads_management") || message.includes("ads_read")) {
+    return "у владельца кабинета нет права ads_read";
+  }
+  return message.replace(/https?:\/\/\S+/g, "").trim().slice(0, 180);
+}
+
 const GENERIC_TOKENS = new Set(["ads", "account", "new", "the", "com", "lab", "asia"]);
 function matchProjectId(
   account: { username: string | null; name: string | null },
@@ -314,13 +329,26 @@ export async function syncMetaAudienceAnalytics(
     const failedAccounts = results.filter((result) => result.status === "rejected").length;
     const failedBreakdowns = results.flatMap((result) =>
       result.status === "fulfilled"
-        ? result.value.insights.failures.map((failure) => `${failure.breakdown}: ${failure.error}`)
+        ? result.value.insights.failures.map((failure) => ({
+            breakdown: AUDIENCE_BREAKDOWN_LABELS[failure.breakdown] ?? failure.breakdown,
+            error: compactAudienceError(failure.error),
+          }))
         : [],
     );
+    const failuresByError = new Map<string, Set<string>>();
+    for (const failure of failedBreakdowns) {
+      const breakdowns = failuresByError.get(failure.error) ?? new Set<string>();
+      breakdowns.add(failure.breakdown);
+      failuresByError.set(failure.error, breakdowns);
+    }
+    const breakdownHint = [...failuresByError.entries()]
+      .slice(0, 3)
+      .map(([error, breakdowns]) => `${error} (${[...breakdowns].join(", ")})`)
+      .join("; ");
     const failureHint = [
       failedAccounts ? `кабинетов пропущено: ${failedAccounts}` : null,
-      failedBreakdowns.length
-        ? `не загрузились срезы: ${[...new Set(failedBreakdowns)].slice(0, 5).join("; ")}`
+      breakdownHint
+        ? `не загрузились срезы: ${breakdownHint}`
         : null,
     ].filter(Boolean).join("; ");
     return {
