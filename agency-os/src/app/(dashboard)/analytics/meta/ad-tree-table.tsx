@@ -31,15 +31,21 @@ export type AdTreeRow = {
   children: AdTreeRow[];
 };
 
+function formatNumber(value: number, maximumFractionDigits: number): string {
+  const rounded = value.toFixed(maximumFractionDigits);
+  const [integer, rawFraction = ""] = rounded.split(".");
+  const fraction = rawFraction.replace(/0+$/, "");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return fraction ? `${grouped},${fraction}` : grouped;
+}
+
 function fmt(value: number): string {
-  return value.toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+  return formatNumber(value, 0);
 }
 
 function fmtMoney(value: number | null): string {
   if (value === null) return "—";
-  return value.toLocaleString("ru-RU", {
-    maximumFractionDigits: value < 100 ? 2 : 0,
-  });
+  return formatNumber(value, value < 100 ? 2 : 0);
 }
 
 function fmtPercent(value: number | null): string {
