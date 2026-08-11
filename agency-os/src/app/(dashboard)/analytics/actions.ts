@@ -319,12 +319,16 @@ export async function syncMetaAudienceAnalytics(
       });
     });
 
-    for (const batch of chunk(rows, 500)) {
+    const upserts = await settleInBatches(chunk(rows, 500), 4, async (batch) => {
       const { error } = await supabase.from("ad_audience_metrics").upsert(batch, {
         onConflict: "campaign_id,date,breakdown,value",
       });
       if (error) throw new Error(error.message);
-    }
+    });
+    const failedUpsert = upserts.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failedUpsert) throw failedUpsert.reason;
     revalidatePath("/analytics");
     const failedAccounts = results.filter((result) => result.status === "rejected").length;
     const failedBreakdowns = results.flatMap((result) =>
