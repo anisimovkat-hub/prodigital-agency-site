@@ -242,14 +242,27 @@ export async function syncInstagramAnalytics(
 
 export async function syncMetaAudienceAnalytics(
   _prevState: AnalyticsActionState,
+  formData: FormData,
 ): Promise<AnalyticsActionState> {
   void _prevState;
   try {
     const supabase = await requireOwner();
+    const projectId = String(formData.get("project_id") ?? "");
+    let accountsQuery = supabase
+      .from("ad_accounts")
+      .select("id,external_id,name")
+      .eq("platform", "meta");
+    let campaignsQuery = supabase
+      .from("ad_campaigns")
+      .select("id,external_id,ad_account_id");
+    if (projectId) {
+      accountsQuery = accountsQuery.eq("project_id", projectId);
+      campaignsQuery = campaignsQuery.eq("project_id", projectId);
+    }
     const [{ data: accounts, error: accountsError }, { data: campaigns, error: campaignsError }] =
       await Promise.all([
-        supabase.from("ad_accounts").select("id,external_id,name").eq("platform", "meta"),
-        supabase.from("ad_campaigns").select("id,external_id,ad_account_id"),
+        accountsQuery,
+        campaignsQuery,
       ]);
     if (accountsError) throw new Error(accountsError.message);
     if (campaignsError) throw new Error(campaignsError.message);

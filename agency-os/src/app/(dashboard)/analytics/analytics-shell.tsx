@@ -53,7 +53,7 @@ export function AnalyticsShell({
         controls={<ClientReportAction projectId={params.project} />}
         contentActions={<><InstagramSyncAction />{contentSettings}</>}
         adsPanel={adsPanel}
-        audienceActions={<AudienceSyncAction />}
+        audienceActions={<AudienceSyncAction projectId={params.project} />}
         filters={
           <AnalyticsFilters
             params={params}

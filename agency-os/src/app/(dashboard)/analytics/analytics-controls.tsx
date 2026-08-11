@@ -232,7 +232,7 @@ export function InstagramSyncAction() {
   );
 }
 
-export function AudienceSyncAction() {
+export function AudienceSyncAction({ projectId = "" }: { projectId?: string }) {
   const [state, action, pending] = useActionState<AnalyticsActionState, FormData>(
     syncMetaAudienceAnalytics,
     undefined,
@@ -241,6 +241,7 @@ export function AudienceSyncAction() {
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white p-3">
       <p className="text-sm text-neutral-600">Возраст, пол, география и площадки показов Meta</p>
       <form action={action} className="flex items-center gap-3">
+        <input type="hidden" name="project_id" value={projectId} />
         <Button type="submit" variant="outline" disabled={pending}>
           <RefreshCw className={cn("h-4 w-4", pending && "animate-spin")} />
           {pending ? "Обновляем…" : "Обновить аудиторию Meta"}

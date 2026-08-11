@@ -728,7 +728,7 @@ export default async function AnalyticsPage({
           goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
           tree={adTree}
           audience={audience}
-          audienceActions={<AudienceSyncAction />}
+          audienceActions={<AudienceSyncAction projectId={projectId} />}
         />
       }
     />
