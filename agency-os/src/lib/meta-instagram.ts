@@ -101,18 +101,6 @@ async function graphAll<T>(path: string, limit = 200): Promise<T[]> {
   return rows.slice(0, limit);
 }
 
-async function mapInBatches<T, R>(
-  items: T[],
-  size: number,
-  worker: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const result: R[] = [];
-  for (let index = 0; index < items.length; index += size) {
-    result.push(...await Promise.all(items.slice(index, index + size).map(worker)));
-  }
-  return result;
-}
-
 type FacebookPage = {
   instagram_business_account?: InstagramProfile;
 };
@@ -207,6 +195,11 @@ type InsightSeriesResult = {
   error: string | null;
 };
 
+type InsightBatchResult = {
+  series: Map<string, { date: string; value: number }[]>;
+  failedMetrics: string[];
+};
+
 function insightPoints(metric: string, insight: Insight | undefined, until: string) {
   if (!insight) return [];
   if (insight.values?.length) {
@@ -278,23 +271,64 @@ function insightValue(
     /unfollow/i.test(key) ? total - Number(item || 0) : total + Number(item || 0), 0);
 }
 
+async function insightBatch(
+  accountId: string,
+  metrics: readonly string[],
+  since: string,
+  until: string,
+  totalValue = false,
+): Promise<InsightBatchResult> {
+  const metricType = totalValue ? "&metric_type=total_value" : "";
+  try {
+    const result = await graph<{ data?: Insight[] }>(
+      `/${accountId}/insights?metric=${metrics.join(",")}${metricType}&period=day&since=${since}&until=${until}`,
+    );
+    const byName = new Map((result.data ?? []).map((item) => [item.name, item]));
+    return {
+      series: new Map(metrics.map((metric) => [
+        metric,
+        insightPoints(metric, byName.get(metric), until),
+      ])),
+      failedMetrics: metrics
+        .filter((metric) => !byName.has(metric))
+        .map((metric) => `${metric}: Meta не вернула метрику`),
+    };
+  } catch {
+    // Один недоступный показатель не должен обнулять весь аккаунт. Редкий
+    // fallback остаётся точечным, а штатный путь делает один запрос на группу.
+    const fallback = await Promise.all(
+      metrics.map((metric) => insightSeries(accountId, metric, since, until)),
+    );
+    return {
+      series: new Map(metrics.map((metric, index) => [metric, fallback[index].points])),
+      failedMetrics: metrics
+        .map((metric, index) => fallback[index].error
+          ? `${metric}: ${fallback[index].error}`
+          : null)
+        .filter((value): value is string => value !== null),
+    };
+  }
+}
+
 export async function fetchInstagramAccountMetrics(
   accountId: string,
   since: string,
   until: string,
 ): Promise<InstagramMetricResult> {
-  const names = [
-    "reach",
-    "impressions",
+  // Meta больше не отдаёт account-level impressions. Дневные ряды и итоговые
+  // показатели запрашиваются двумя пакетами вместо семи отдельных запросов.
+  const dailyNames = ["reach", "follower_count"] as const;
+  const totalNames = [
     "profile_views",
     "total_interactions",
     "accounts_engaged",
-    "follower_count",
     "follows_and_unfollows",
   ] as const;
-  const series = await Promise.all(
-    names.map((name) => insightSeries(accountId, name, since, until)),
-  );
+  const [dailyBatch, totalBatch] = await Promise.all([
+    insightBatch(accountId, dailyNames, since, until),
+    insightBatch(accountId, totalNames, since, until, true),
+  ]);
+  const series = new Map([...dailyBatch.series, ...totalBatch.series]);
   const byDate = new Map<string, InstagramDailyMetric>();
   const ensure = (date: string) => {
     const existing = byDate.get(date);
@@ -312,11 +346,10 @@ export async function fetchInstagramAccountMetrics(
     byDate.set(date, row);
     return row;
   };
-  names.forEach((name, index) => {
-    for (const point of series[index].points) {
+  [...dailyNames, ...totalNames].forEach((name) => {
+    for (const point of series.get(name) ?? []) {
       const row = ensure(point.date);
       if (name === "reach") row.reach = point.value;
-      if (name === "impressions") row.impressions = point.value;
       if (name === "profile_views") row.profileViews = point.value;
       if (name === "total_interactions") row.engagements = point.value;
       if (name === "accounts_engaged") row.accountsEngaged = point.value;
@@ -329,9 +362,7 @@ export async function fetchInstagramAccountMetrics(
   });
   return {
     metrics: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    failedMetrics: names
-      .map((name, index) => series[index].error ? `${name}: ${series[index].error}` : null)
-      .filter((value): value is string => value !== null),
+    failedMetrics: [...dailyBatch.failedMetrics, ...totalBatch.failedMetrics],
   };
 }
 
@@ -345,45 +376,11 @@ type MediaBase = {
   timestamp: string;
   like_count?: number;
   comments_count?: number;
+  insights?: { data?: Insight[] };
 };
 
-async function mediaInsights(media: MediaBase): Promise<Record<string, number>> {
-  const metricNames = media.media_type === "VIDEO"
-    ? ["reach", "saved", "shares", "total_interactions", "views"]
-    : ["reach", "saved", "shares", "total_interactions", "impressions"];
-  try {
-    const result = await graph<{ data?: Insight[] }>(
-      `/${media.id}/insights?metric=${metricNames.join(",")}`,
-    );
-    return Object.fromEntries(
-      (result.data ?? []).map((item) => [
-        item.name ?? "",
-        numericValue(item.values?.[0]?.value ?? item.total_value?.value),
-      ]),
-    );
-  } catch {
-    const attempts = await Promise.allSettled(
-      metricNames.map(async (metric) => {
-        const result = await graph<{ data?: Insight[] }>(
-          `/${media.id}/insights?metric=${metric}`,
-        );
-        const item = result.data?.[0];
-        return [
-          metric,
-          numericValue(item?.values?.[0]?.value ?? item?.total_value?.value),
-        ] as const;
-      }),
-    );
-    return Object.fromEntries(
-      attempts
-        .filter((item): item is PromiseFulfilledResult<readonly [string, number]> => item.status === "fulfilled")
-        .map((item) => item.value),
-    );
-  }
-}
-
 export async function fetchInstagramMedia(accountId: string): Promise<InstagramMedia[]> {
-  const fields = [
+  const baseFields = [
     "id",
     "caption",
     "media_type",
@@ -393,16 +390,33 @@ export async function fetchInstagramMedia(accountId: string): Promise<InstagramM
     "timestamp",
     "like_count",
     "comments_count",
+  ];
+  const fields = [
+    ...baseFields,
+    "insights.metric(reach,saved,shares,total_interactions,views)",
   ].join(",");
-  const media = await graphAll<MediaBase>(
-    `/${accountId}/media?fields=${fields}&limit=25`,
-    25,
-  );
-  // Ограничиваем параллелизм: у одного агентского токена может быть много аккаунтов
-  // и публикаций, а резкий пакет запросов быстро упирается в лимиты Meta.
-  const insights = await mapInBatches(media, 5, mediaInsights);
-  return media.map((item, index) => {
-    const metric = insights[index] ?? {};
+  let media: MediaBase[];
+  try {
+    // Field expansion возвращает публикацию и её insights одним запросом вместо
+    // 25 отдельных запросов — это критично для агентского портфеля аккаунтов.
+    media = await graphAll<MediaBase>(
+      `/${accountId}/media?fields=${encodeURIComponent(fields)}&limit=25`,
+      25,
+    );
+  } catch {
+    const fallbackFields = baseFields.join(",");
+    media = await graphAll<MediaBase>(
+      `/${accountId}/media?fields=${encodeURIComponent(fallbackFields)}&limit=25`,
+      25,
+    );
+  }
+  return media.map((item) => {
+    const metric = Object.fromEntries(
+      (item.insights?.data ?? []).map((insight) => [
+        insight.name ?? "",
+        numericValue(insight.values?.[0]?.value ?? insight.total_value?.value),
+      ]),
+    );
     const likes = Number(item.like_count ?? 0);
     const comments = Number(item.comments_count ?? 0);
     const saved = Number(metric.saved ?? 0);
@@ -416,7 +430,7 @@ export async function fetchInstagramMedia(accountId: string): Promise<InstagramM
       permalink: item.permalink ?? null,
       publishedAt: item.timestamp,
       reach: Number(metric.reach ?? 0),
-      impressions: Number(metric.impressions ?? 0),
+      impressions: 0,
       views: Number(metric.views ?? 0),
       likes,
       comments,

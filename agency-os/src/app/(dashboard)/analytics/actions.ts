@@ -34,10 +34,25 @@ function compactAudienceError(message: string): string {
 }
 
 const GENERIC_TOKENS = new Set(["ads", "account", "new", "the", "com", "lab", "asia"]);
+const INSTAGRAM_PROJECT_ALIASES: Record<string, string> = {
+  accademialiricaosimo: "Озимо",
+  "katerina_pro_digital": "Личный бренд",
+  "mm.document": "M&M Documents",
+  "mm.document_rus": "M&M Documents",
+  "mm.document_uz": "M&M Documents",
+  "unicorns_bali": "Сад на Бали // Единорожки",
+};
+
 function matchProjectId(
   account: { username: string | null; name: string | null },
   projects: { id: string; name: string }[],
 ): string | null {
+  const alias = account.username
+    ? INSTAGRAM_PROJECT_ALIASES[account.username.toLocaleLowerCase("en-US")]
+    : null;
+  if (alias) {
+    return projects.find((project) => project.name === alias)?.id ?? null;
+  }
   const haystack = `${account.username ?? ""} ${account.name ?? ""}`.toLocaleLowerCase("ru-RU");
   for (const project of projects) {
     const tokens = project.name
@@ -144,7 +159,7 @@ export async function syncInstagramAnalytics(
     const until = isoDaysAgo(0);
     const results = await settleInBatches(
       rows,
-      3,
+      4,
       async (row) => {
         const label = `@${row.username || row.name || row.external_id}`;
         const [metricsResult, mediaResult] = await Promise.allSettled([
