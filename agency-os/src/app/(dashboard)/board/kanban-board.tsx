@@ -10,18 +10,11 @@ import { Avatar } from "@/components/avatar";
 import { PriorityBadge } from "@/components/badges";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
+import { BOARD_COLUMNS, sortBoardTasks } from "@/lib/board-sort";
 import { formatDate, formatTimerDuration, todayISO } from "@/lib/format";
 import { PRIORITY_ACCENT, TASK_STATUS_LABEL } from "@/lib/labels";
 import type { Enums } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
-
-const COLUMNS: Enums<"task_status">[] = [
-  "todo",
-  "in_progress",
-  "review",
-  "paused",
-  "done",
-];
 
 const COLUMN_DOT: Record<Enums<"task_status">, string> = {
   backlog: "bg-neutral-400",
@@ -136,9 +129,12 @@ export function KanbanBoard({
       )}
 
       <div className="flex gap-3 overflow-x-auto pb-4">
-        {COLUMNS.map((status) => {
-          const columnTasks = filteredTasks.filter(
-            (task) => (task.status ?? "todo") === status,
+        {BOARD_COLUMNS.map((status) => {
+          const columnTasks = sortBoardTasks(
+            filteredTasks.filter(
+              (task) => (task.status ?? "todo") === status,
+            ),
+            today,
           );
           return (
             <div
