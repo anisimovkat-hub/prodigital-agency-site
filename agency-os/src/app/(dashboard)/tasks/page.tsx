@@ -117,7 +117,7 @@ export default async function TasksPage({
         </h1>
         <p className="text-sm text-neutral-500">
           {isCompletedView
-            ? "Задачи хранятся здесь 1 месяц, затем уходят в архив."
+            ? "Задачи хранятся здесь 3 дня после завершения, затем удаляются."
             : "Активные задачи агентства с фильтрами."}
         </p>
       </div>
@@ -237,7 +237,7 @@ export default async function TasksPage({
           {filtered.length === 0 && (
             <TableEmpty colSpan={11}>
               {isCompletedView
-                ? "Выполненных задач за последний месяц нет."
+                ? "Выполненных задач за последние 3 дня нет."
                 : "Активных задач пока нет."}
             </TableEmpty>
           )}
