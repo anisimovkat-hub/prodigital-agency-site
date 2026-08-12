@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { Layers3, MapPin, UsersRound } from "lucide-react";
+import { AlertTriangle, Layers3, MapPin, UsersRound } from "lucide-react";
 
 import { AdTimeseriesChart } from "@/app/(dashboard)/analytics/meta/ad-timeseries-chart";
 import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
@@ -92,6 +92,7 @@ export function AdAnalyticsPanel({
   tree,
   audience,
   audienceActions,
+  freshnessWarning,
 }: {
   current: AdsFilterValues;
   accounts: AccountOption[];
@@ -105,6 +106,7 @@ export function AdAnalyticsPanel({
   tree: AdTreeRow[];
   audience: MarketingAudience;
   audienceActions?: ReactNode;
+  freshnessWarning?: string | null;
 }) {
   const totals = sumTimeseries(points);
   const mixedCurrency = currencies.length > 1;
@@ -131,6 +133,16 @@ export function AdAnalyticsPanel({
         goals={goals}
         current={current}
       />
+
+      {freshnessWarning && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+          role="alert"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>{freshnessWarning}</p>
+        </div>
+      )}
 
       {mixedCurrency && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">

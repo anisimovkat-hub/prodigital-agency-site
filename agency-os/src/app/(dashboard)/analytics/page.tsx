@@ -17,6 +17,7 @@ import {
   type Granularity,
   type TimeseriesPoint,
 } from "@/lib/ad-analytics";
+import { describeAdDataFreshness } from "@/lib/ad-data-freshness";
 import type {
   MarketingAdDetail,
   MarketingAudience,
@@ -284,6 +285,15 @@ export default async function AnalyticsPage({
       ? audienceQuery.in("campaign_id", campaignIdList).range(0, 19999)
       : Promise.resolve({ data: [] as AudienceRow[], error: null })
     : audienceQuery.range(0, 19999);
+  const latestPaidMetricPromise = campaignIdList.length
+    ? supabase
+        .from("ad_campaign_metrics")
+        .select("date")
+        .in("campaign_id", campaignIdList)
+        .order("date", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : Promise.resolve({ data: null as { date: string } | null, error: null });
 
   const [
     socialMetricsResult,
@@ -295,6 +305,7 @@ export default async function AnalyticsPage({
     adSummaryResult,
     audienceMetricsResult,
     adTimeseriesResult,
+    latestPaidMetricResult,
   ] = await Promise.all([
     socialMetricsPromise,
     socialPostsPromise,
@@ -313,6 +324,7 @@ export default async function AnalyticsPage({
       p_campaign_id: campaignFilter || null,
       p_action_type: goalFilter || null,
     }),
+    latestPaidMetricPromise,
   ]);
   const { data: socialMetrics } = socialMetricsResult;
   const { data: socialPosts } = socialPostsResult;
@@ -323,6 +335,7 @@ export default async function AnalyticsPage({
   const { data: adSummary } = adSummaryResult;
   const { data: audienceMetrics } = audienceMetricsResult;
   const { data: adTimeseries } = adTimeseriesResult;
+  const { data: latestPaidMetric } = latestPaidMetricResult;
   dataWarnings.push(...[
     ["метрики Instagram", socialMetricsResult.error],
     ["публикации Instagram", socialPostsResult.error],
@@ -333,6 +346,7 @@ export default async function AnalyticsPage({
     ["сводку объявлений", adSummaryResult.error],
     ["аудиторию", audienceMetricsResult.error],
     ["график рекламы", adTimeseriesResult.error],
+    ["дату последнего обновления рекламы", latestPaidMetricResult.error],
   ].flatMap(([label, error]) => error && typeof error !== "string"
     ? [`Не удалось загрузить ${label}: ${error.message}`]
     : []));
@@ -667,6 +681,11 @@ export default async function AnalyticsPage({
     goal: goalFilter,
   };
   const params: AnalyticsParams = { from, to, project: projectId, social: socialId, section };
+  const freshnessWarning = describeAdDataFreshness({
+    latestDate: latestPaidMetric?.date ?? null,
+    from,
+    to,
+  });
 
   const contentSettings = accountRows.length > 0 ? (
     <details className="rounded-xl border border-neutral-200 bg-white p-4">
@@ -729,6 +748,7 @@ export default async function AnalyticsPage({
           tree={adTree}
           audience={audience}
           audienceActions={<AudienceSyncAction projectId={projectId} />}
+          freshnessWarning={freshnessWarning}
         />
       }
     />
