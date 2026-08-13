@@ -161,6 +161,14 @@ export default async function ProjectDetailPage({
         </div>
       </ProjectEditDisclosure>
 
+      <Link
+        href={`/analytics?project=${project.id}`}
+        className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3 text-sm text-blue-950 transition-colors hover:bg-blue-100/70"
+      >
+        <span><span className="font-semibold">Плановые KPI и факт</span><span className="ml-2 text-xs text-blue-700">медиаплан, выполнение и версии</span></span>
+        <span aria-hidden="true">→</span>
+      </Link>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>

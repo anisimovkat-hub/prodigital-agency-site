@@ -7,6 +7,7 @@ import {
   type AnalyticsParams,
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
+import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
 import {
   actionTypeLabel,
   GOAL_ACTION_TYPES,
@@ -26,6 +27,7 @@ import type {
   MarketingPost,
 } from "@/lib/marketing-analytics";
 import { projectLogoUrl } from "@/lib/project-logos";
+import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
 import { createClient } from "@/lib/supabase/server";
@@ -79,6 +81,7 @@ type AudienceRow = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function daysAgo(days: number): string {
   const date = new Date();
@@ -160,7 +163,7 @@ export default async function AnalyticsPage({
   const raw = await searchParams;
   const from = raw.from && ISO_DATE.test(raw.from) ? raw.from : daysAgo(29);
   const to = raw.to && ISO_DATE.test(raw.to) ? raw.to : daysAgo(0);
-  let projectId = raw.project ?? "";
+  let projectId = raw.project && UUID.test(raw.project) ? raw.project : "";
   let socialId = raw.social ?? "";
   const section = marketingSection(raw.section, raw.view);
   const granularity: Granularity = isGranularity(raw.gran) ? raw.gran : "day";
@@ -176,6 +179,7 @@ export default async function AnalyticsPage({
     adSetsResult,
     adsResult,
     customConversionsResult,
+    mediaPlansResult,
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -191,6 +195,13 @@ export default async function AnalyticsPage({
     supabase.from("ad_sets").select("id,name,status,campaign_id"),
     supabase.from("ads").select("id,name,status,adset_id"),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
+    projectId
+      ? supabase
+          .from("media_plans")
+          .select("id,project_id,workstream,period_start,period_end,name,status,currency,source_type,updated_at")
+          .eq("project_id", projectId)
+          .order("updated_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
   const { data: projects } = projectsResult;
   const { data: socialAccounts } = socialAccountsResult;
@@ -199,6 +210,7 @@ export default async function AnalyticsPage({
   const { data: adSets } = adSetsResult;
   const { data: ads } = adsResult;
   const { data: customConversions } = customConversionsResult;
+  let mediaPlans = mediaPlansResult.data ?? [];
   const dataWarnings = [
     ["проекты", projectsResult.error],
     ["Instagram-аккаунты", socialAccountsResult.error],
@@ -207,6 +219,7 @@ export default async function AnalyticsPage({
     ["группы объявлений", adSetsResult.error],
     ["объявления", adsResult.error],
     ["названия конверсий", customConversionsResult.error],
+    ["медиапланы", mediaPlansResult.error],
   ].flatMap(([label, error]) => error && typeof error !== "string"
     ? [`Не удалось загрузить ${label}: ${error.message}`]
     : []);
@@ -214,6 +227,7 @@ export default async function AnalyticsPage({
   const projectRows = sortProjectsForDisplay(projects ?? []);
   const currentProjectIds = new Set(projectRows.map((project) => project.id));
   if (projectId && !currentProjectIds.has(projectId)) projectId = "";
+  if (!projectId) mediaPlans = [];
   const accountRows = (socialAccounts ?? []).filter(
     (account) => !account.project_id || currentProjectIds.has(account.project_id),
   );
@@ -235,6 +249,39 @@ export default async function AnalyticsPage({
   const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
   const campaignIdList = [...campaignIds];
+  const approvedPlans = mediaPlans.filter((plan) => plan.status === "approved");
+  const activePlan = approvedPlans
+    .filter((plan) => plan.period_start <= to && plan.period_end >= from)
+    .sort((a, b) => {
+      const exactA = a.period_start === from && a.period_end === to ? 0 : 1;
+      const exactB = b.period_start === from && b.period_end === to ? 0 : 1;
+      return exactA - exactB || b.updated_at.localeCompare(a.updated_at);
+    })[0] ?? null;
+  const activePlanMetricsPromise = activePlan
+    ? supabase
+        .from("media_plan_metrics")
+        .select("id,metric_key,label,target_value,unit,conversion_action_type,campaign_id,sort_order,notes")
+        .eq("media_plan_id", activePlan.id)
+        .order("sort_order")
+    : Promise.resolve({ data: [], error: null });
+  const planMetricsFactPromise = activePlan && campaignIdList.length
+    ? supabase
+        .from("ad_campaign_metrics")
+        .select("campaign_id,spend,impressions,clicks,reach")
+        .in("campaign_id", campaignIdList)
+        .gte("date", activePlan.period_start)
+        .lte("date", activePlan.period_end)
+        .range(0, 19999)
+    : Promise.resolve({ data: [], error: null });
+  const planConversionsFactPromise = activePlan && campaignIdList.length
+    ? supabase
+        .from("ad_conversions")
+        .select("campaign_id,date,action_type,count,value")
+        .in("campaign_id", campaignIdList)
+        .gte("date", activePlan.period_start)
+        .lte("date", activePlan.period_end)
+        .range(0, 19999)
+    : Promise.resolve({ data: [], error: null });
 
   const socialMetricsPromise = socialIds.length
     ? supabase
@@ -306,6 +353,9 @@ export default async function AnalyticsPage({
     audienceMetricsResult,
     adTimeseriesResult,
     latestPaidMetricResult,
+    activePlanMetricsResult,
+    planMetricsFactResult,
+    planConversionsFactResult,
   ] = await Promise.all([
     socialMetricsPromise,
     socialPostsPromise,
@@ -325,6 +375,9 @@ export default async function AnalyticsPage({
       p_action_type: goalFilter || null,
     }),
     latestPaidMetricPromise,
+    activePlanMetricsPromise,
+    planMetricsFactPromise,
+    planConversionsFactPromise,
   ]);
   const { data: socialMetrics } = socialMetricsResult;
   const { data: socialPosts } = socialPostsResult;
@@ -347,6 +400,8 @@ export default async function AnalyticsPage({
     ["аудиторию", audienceMetricsResult.error],
     ["график рекламы", adTimeseriesResult.error],
     ["дату последнего обновления рекламы", latestPaidMetricResult.error],
+    ["метрики медиаплана", activePlanMetricsResult.error],
+    ["факт медиаплана", planMetricsFactResult.error || planConversionsFactResult.error],
   ].flatMap(([label, error]) => error && typeof error !== "string"
     ? [`Не удалось загрузить ${label}: ${error.message}`]
     : []));
@@ -402,6 +457,21 @@ export default async function AnalyticsPage({
   const campaignAccountIds = new Set(campaignRows.map((campaign) => campaign.ad_account_id));
   const currencies = [...new Set(currentAdAccountRows.filter((account) => campaignAccountIds.has(account.id) && account.currency).map((account) => account.currency!))];
   const selectedProject = projectRows.find((project) => project.id === projectId);
+  const mediaPlanFactRows = activePlan
+    ? calculateMediaPlanFact({
+        projectId: activePlan.project_id,
+        currency: activePlan.currency,
+        metrics: (activePlanMetricsResult.data ?? []).map((metric) => ({
+          ...metric,
+          target_value: Number(metric.target_value),
+          unit: metric.unit as "money" | "count" | "percent",
+        })),
+        campaigns: campaignRows,
+        accounts: currentAdAccountRows,
+        campaignMetrics: planMetricsFactResult.data ?? [],
+        conversions: planConversionsFactResult.data ?? [],
+      })
+    : [];
 
   const customNames = new Map(
     (customConversions ?? [])
@@ -725,6 +795,38 @@ export default async function AnalyticsPage({
       }))}
       contentSettings={contentSettings}
       dataWarnings={dataWarnings}
+      mediaPlan={
+        <MediaPlanPanel
+          projectId={projectId || null}
+          from={from}
+          to={to}
+          currencies={currencies}
+          campaigns={campaignRows.map((campaign) => ({
+            id: campaign.id,
+            name: campaign.name ?? "Кампания без названия",
+            currency: accountCurrency.get(campaign.ad_account_id) ?? null,
+          }))}
+          plans={mediaPlans.map((plan) => ({
+            id: plan.id,
+            name: plan.name,
+            workstream: plan.workstream,
+            period_start: plan.period_start,
+            period_end: plan.period_end,
+            currency: plan.currency,
+            status: plan.status as "draft" | "approved" | "archived",
+            source_type: plan.source_type as "manual" | "google_sheets",
+          }))}
+          activePlan={activePlan ? {
+            id: activePlan.id,
+            name: activePlan.name,
+            workstream: activePlan.workstream,
+            period_start: activePlan.period_start,
+            period_end: activePlan.period_end,
+            currency: activePlan.currency,
+          } : null}
+          factRows={mediaPlanFactRows}
+        />
+      }
       adsPanel={
         <AdAnalyticsPanel
           current={currentAdsFilters}

@@ -39,6 +39,7 @@ type MarketingDashboardProps = {
   contentActions?: ReactNode;
   adsPanel?: ReactNode;
   audienceActions?: ReactNode;
+  mediaPlan?: ReactNode;
 };
 
 const INSIGHT_STYLE = {
@@ -361,6 +362,7 @@ export function MarketingDashboard({
   contentActions,
   adsPanel,
   audienceActions,
+  mediaPlan,
 }: MarketingDashboardProps) {
   const insights = buildMarketingInsights(payload);
   return (
@@ -370,6 +372,7 @@ export function MarketingDashboard({
       {publicReport && <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800"><BadgeCheck className="h-4 w-4" />Актуальный клиентский отчёт · данные доступны только для этого проекта</div>}
       {section === "overview" && (
         <>
+          {mediaPlan}
           <div className="grid gap-3 lg:grid-cols-3">
             {insights.map((insight, index) => <div key={`${insight.title}-${index}`} className={cn("rounded-xl border p-3", INSIGHT_STYLE[insight.tone])}><div className="flex items-start gap-2.5">{insight.tone === "warning" ? <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" /> : <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" />}<div><p className="text-sm font-semibold">{insight.title}</p><p className="mt-0.5 text-xs leading-relaxed opacity-75">{insight.detail}</p></div></div></div>)}
           </div>
@@ -390,7 +393,9 @@ export function MarketingDashboard({
         </>
       )}
       {section === "ads" && (
-        adsPanel ?? (
+        <>
+          {mediaPlan}
+          {adsPanel ?? (
           <>
               <MetricBand payload={payload} type="paid" />
               <ReachChart payload={payload} section="ads" />
@@ -400,7 +405,8 @@ export function MarketingDashboard({
               <AdDetailTable title="Объявления" subtitle="Топ-10 объявлений по расходу с результатами и стоимостью результата" rows={payload.paid.ads} />
               <AudienceSection payload={payload} actions={audienceActions} hideWhenEmpty={publicReport} />
           </>
-        )
+          )}
+        </>
       )}
     </div>
   );

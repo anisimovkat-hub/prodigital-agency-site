@@ -1,4 +1,4 @@
-// Сгенерировано вручную по схеме `supabase/migrations/0001_init.sql`
+// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0029).
 // в формате, который выдаёт `supabase gen types typescript`.
 // Когда проект будет подключён через Supabase CLI, перегенерировать командой:
 //   supabase gen types typescript --linked > src/lib/supabase/types.ts
@@ -1494,6 +1494,135 @@ export type Database = {
           },
         ];
       };
+      media_plans: {
+        Row: {
+          id: string;
+          project_id: string;
+          workstream: string | null;
+          period_start: string;
+          period_end: string;
+          name: string;
+          status: string;
+          currency: string;
+          source_type: string;
+          source_spreadsheet_id: string | null;
+          source_range: string | null;
+          source_url: string | null;
+          imported_at: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          workstream?: string | null;
+          period_start: string;
+          period_end: string;
+          name: string;
+          status?: string;
+          currency: string;
+          source_type?: string;
+          source_spreadsheet_id?: string | null;
+          source_range?: string | null;
+          source_url?: string | null;
+          imported_at?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          workstream?: string | null;
+          period_start?: string;
+          period_end?: string;
+          name?: string;
+          status?: string;
+          currency?: string;
+          source_type?: string;
+          source_spreadsheet_id?: string | null;
+          source_range?: string | null;
+          source_url?: string | null;
+          imported_at?: string | null;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "media_plans_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "media_plans_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      media_plan_metrics: {
+        Row: {
+          id: string;
+          media_plan_id: string;
+          metric_key: string;
+          label: string;
+          target_value: number;
+          unit: string;
+          conversion_action_type: string | null;
+          campaign_id: string | null;
+          sort_order: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          media_plan_id: string;
+          metric_key: string;
+          label: string;
+          target_value: number;
+          unit: string;
+          conversion_action_type?: string | null;
+          campaign_id?: string | null;
+          sort_order?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          media_plan_id?: string;
+          metric_key?: string;
+          label?: string;
+          target_value?: number;
+          unit?: string;
+          conversion_action_type?: string | null;
+          campaign_id?: string | null;
+          sort_order?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "media_plan_metrics_media_plan_id_fkey";
+            columns: ["media_plan_id"];
+            isOneToOne: false;
+            referencedRelation: "media_plans";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "media_plan_metrics_campaign_id_fkey";
+            columns: ["campaign_id"];
+            isOneToOne: false;
+            referencedRelation: "ad_campaigns";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -1514,6 +1643,10 @@ export type Database = {
         Returns: undefined;
       };
       client_report_payload: {
+        Args: { p_token: string; p_since: string; p_until: string };
+        Returns: Json;
+      };
+      client_report_plan_fact: {
         Args: { p_token: string; p_since: string; p_until: string };
         Returns: Json;
       };

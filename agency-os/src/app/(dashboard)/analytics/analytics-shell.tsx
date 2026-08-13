@@ -23,6 +23,7 @@ export function AnalyticsShell({
   projects,
   socialAccounts,
   adsPanel,
+  mediaPlan,
   contentSettings,
   dataWarnings = [],
 }: {
@@ -32,6 +33,7 @@ export function AnalyticsShell({
   projects: { id: string; name: string }[];
   socialAccounts: SocialAccountOption[];
   adsPanel: ReactNode;
+  mediaPlan?: ReactNode;
   contentSettings?: ReactNode;
   dataWarnings?: string[];
 }) {
@@ -53,6 +55,7 @@ export function AnalyticsShell({
         controls={<ClientReportAction projectId={params.project} />}
         contentActions={<><InstagramSyncAction />{contentSettings}</>}
         adsPanel={adsPanel}
+        mediaPlan={mediaPlan}
         audienceActions={<AudienceSyncAction projectId={params.project} />}
         filters={
           <AnalyticsFilters

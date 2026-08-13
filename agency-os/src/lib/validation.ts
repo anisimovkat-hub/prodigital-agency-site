@@ -46,6 +46,36 @@ export const kpiEntrySchema = z.object({
 
 export type KpiEntryInput = z.infer<typeof kpiEntrySchema>;
 
+export const MEDIA_PLAN_STATUS_VALUES = ["draft", "approved", "archived"] as const;
+export const MEDIA_PLAN_SOURCE_VALUES = ["manual", "google_sheets"] as const;
+
+export const mediaPlanSchema = z
+  .object({
+    project_id: z.string().uuid("Выберите проект"),
+    workstream: optionalString,
+    period_start: z.string().date("Укажите начало периода"),
+    period_end: z.string().date("Укажите конец периода"),
+    name: z.string().trim().min(1, "Укажите название медиаплана"),
+    status: z.enum(MEDIA_PLAN_STATUS_VALUES),
+    currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "Укажите код валюты из трёх букв"),
+    source_type: z.enum(MEDIA_PLAN_SOURCE_VALUES),
+    source_url: optionalUrl,
+    source_range: optionalString,
+  })
+  .superRefine((value, context) => {
+    if (value.period_end < value.period_start) {
+      context.addIssue({ code: "custom", path: ["period_end"], message: "Конец периода раньше начала" });
+    }
+    if (value.source_type === "google_sheets" && !value.source_url) {
+      context.addIssue({ code: "custom", path: ["source_url"], message: "Вставьте ссылку Google Sheets" });
+    }
+    if (value.source_type === "google_sheets" && !value.source_range?.trim()) {
+      context.addIssue({ code: "custom", path: ["source_range"], message: "Укажите диапазон листа" });
+    }
+  });
+
+export type MediaPlanInput = z.infer<typeof mediaPlanSchema>;
+
 export const TASK_PRIORITY_VALUES = [
   "low",
   "medium",

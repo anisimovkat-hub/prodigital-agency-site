@@ -5,9 +5,11 @@ import { ChartNoAxesCombined, Images, Megaphone } from "lucide-react";
 import {
   MarketingDashboard,
 } from "@/components/marketing-dashboard";
+import { MediaPlanFactCard, type MediaPlanSummary } from "@/components/media-plan-fact-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MarketingPayload, MarketingPost } from "@/lib/marketing-analytics";
+import type { MediaPlanFactRow } from "@/lib/media-plan-fact";
 import { marketingSection, type MarketingSection } from "@/lib/marketing-sections";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -148,6 +150,52 @@ function parsePayload(value: unknown): MarketingPayload | null {
   };
 }
 
+function parsePlanFact(value: unknown): { plan: MediaPlanSummary; rows: MediaPlanFactRow[] } | null {
+  const root = object(value);
+  const plan = object(root.plan);
+  const id = string(plan.id);
+  const name = string(plan.name);
+  const periodStart = string(plan.period_start);
+  const periodEnd = string(plan.period_end);
+  const currency = string(plan.currency);
+  if (!id || !name || !periodStart || !periodEnd || !currency) return null;
+  const rows = list(root.metrics).flatMap((metric) => {
+    const metricId = string(metric.id);
+    const metricKey = string(metric.metric_key);
+    const label = string(metric.label);
+    const unit = string(metric.unit);
+    if (!metricId || !metricKey || !label || (unit !== "money" && unit !== "count" && unit !== "percent")) return [];
+    const target = number(metric.target_value);
+    const fact = number(metric.fact_value);
+    return [{
+      id: metricId,
+      metric_key: metricKey,
+      label,
+      target_value: target,
+      unit,
+      conversion_action_type: string(metric.conversion_action_type),
+      campaign_id: string(metric.campaign_id),
+      sort_order: number(metric.sort_order),
+      notes: null,
+      factValue: fact,
+      completion: target > 0 ? fact / target : null,
+      variance: fact - target,
+      currencyMismatch: false,
+    } satisfies MediaPlanFactRow];
+  });
+  return {
+    plan: {
+      id,
+      name,
+      workstream: string(plan.workstream),
+      period_start: periodStart,
+      period_end: periodEnd,
+      currency,
+    },
+    rows,
+  };
+}
+
 function PublicFilters({
   token,
   from,
@@ -197,14 +245,22 @@ export default async function ClientReportPage({
   const to = query.to && ISO_DATE.test(query.to) ? query.to : daysAgo(0);
   const section = marketingSection(query.section, query.view);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("client_report_payload", {
-    p_token: token,
-    p_since: from,
-    p_until: to,
-  });
+  const [{ data, error }, { data: planData }] = await Promise.all([
+    supabase.rpc("client_report_payload", {
+      p_token: token,
+      p_since: from,
+      p_until: to,
+    }),
+    supabase.rpc("client_report_plan_fact", {
+      p_token: token,
+      p_since: from,
+      p_until: to,
+    }),
+  ]);
   if (error || !data) notFound();
   const payload = parsePayload(data);
   if (!payload) notFound();
+  const planFact = parsePlanFact(planData);
 
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-10">
@@ -214,6 +270,7 @@ export default async function ClientReportPage({
         publicReport
         controls={<span className="text-sm font-semibold text-neutral-400">ProDigital</span>}
         filters={<PublicFilters token={token} from={from} to={to} section={section} />}
+        mediaPlan={planFact ? <MediaPlanFactCard plan={planFact.plan} rows={planFact.rows} compact /> : null}
       />
     </main>
   );

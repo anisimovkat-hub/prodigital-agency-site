@@ -3,12 +3,38 @@ import { describe, expect, it } from "vitest";
 import {
   createRecurringTaskSchema,
   createTaskSchema,
+  mediaPlanSchema,
   taskAttachmentSchema,
   updateProjectQuickFieldSchema,
   updateTaskDueDateSchema,
   updateRecurringScheduleSchema,
   updateTaskSchema,
 } from "@/lib/validation";
+
+describe("mediaPlanSchema", () => {
+  const validPlan = {
+    project_id: "00000000-0000-4000-8000-000000000001",
+    workstream: "Telegram Ads",
+    period_start: "2026-08-01",
+    period_end: "2026-08-31",
+    name: "Август 2026",
+    status: "draft",
+    currency: "rub",
+    source_type: "manual",
+  };
+
+  it("нормализует валюту и принимает ручной план", () => {
+    expect(mediaPlanSchema.parse(validPlan).currency).toBe("RUB");
+  });
+
+  it("не принимает обратный период", () => {
+    expect(mediaPlanSchema.safeParse({ ...validPlan, period_end: "2026-07-31" }).success).toBe(false);
+  });
+
+  it("требует ссылку и диапазон для Google Sheets", () => {
+    expect(mediaPlanSchema.safeParse({ ...validPlan, source_type: "google_sheets" }).success).toBe(false);
+  });
+});
 
 const validTask = {
   title: "Подготовить отчёт",

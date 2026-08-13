@@ -1,6 +1,20 @@
 import type { Enums } from "@/lib/supabase/types";
 import type { RecurringFrequency } from "@/lib/validation";
 
+export const MEDIA_PLAN_STATUS_LABEL = {
+  draft: "Черновик",
+  approved: "Утверждён",
+  archived: "Архив",
+} as const;
+
+export const MEDIA_PLAN_METRIC_LABEL: Record<string, string> = {
+  spend: "Рекламный бюджет",
+  impressions: "Показы",
+  clicks: "Клики",
+  reach: "Охват",
+  revenue: "Выручка",
+};
+
 export const PROJECT_HEALTH_LABEL: Record<
   Enums<"project_health">,
   string
