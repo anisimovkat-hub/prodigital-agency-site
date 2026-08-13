@@ -444,6 +444,8 @@
 по `ad_*`, клиентская RPC и строгая изоляция валют. Перед эксплуатацией приватного импорта
 нужно добавить read-only Google Sheets credentials в sensitive env Vercel. Миграция 0029
 применена в production 2026-08-13; обе таблицы и RPC подтверждены SQL-проверкой.
+Коммит `c54e92f` опубликован; production `/analytics` подтверждает новый блок управления без
+ошибок консоли. Приватный Sheets-импорт остаётся неактивен до добавления read-only credentials.
 
 - `docs/MEDIA_PLAN_PROPOSAL.md` описывает модель `media_plans` + `media_plan_metrics`,
   безопасный импорт Google Sheets и сопоставление план/факт с существующими `ad_*`.
