@@ -17,13 +17,21 @@ import {
 } from "@/components/ui/table";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import {
+  aggregateProjectAdMetrics,
+  formatAdMoney,
+  rollingDateRange,
+  summarizeProjectAdDelivery,
+  type DashboardAdAccount,
+  type DashboardAdCampaign,
+  type DashboardCampaignPeriodRow,
+} from "@/lib/dashboard-ad-metrics";
+import {
   formatCurrency,
   formatDate,
   formatNumber,
-  formatPercent,
-  todayISO,
 } from "@/lib/format";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
+import { actionTypeLabel } from "@/lib/ad-analytics";
 import { PROJECT_HEALTH_LABEL } from "@/lib/labels";
 import { isTaskOperational } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
@@ -117,13 +125,17 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
   const uid = user?.id ?? "";
+  const today = dateISOInTimeZone(new Date());
+  const adPeriod = rollingDateRange(today, 7);
 
   const [
     { data: projects },
     { data: clients },
     { data: tasks },
-    { data: kpiEntries },
     { data: profiles },
+    { data: adAccounts, error: adAccountsError },
+    { data: adCampaigns, error: adCampaignsError },
+    { data: adPeriodRows, error: adPeriodError },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -135,18 +147,22 @@ export default async function DashboardPage({
       .select(
         "id,project_id,title,status,due_date,priority,is_important,is_urgent,assignee_id,creator_id, assignee:profiles!tasks_assignee_id_fkey(id,full_name), project:projects(id,name,stage)",
       ),
-    supabase
-      .from("kpi_entries")
-      .select("*")
-      .order("entry_date", { ascending: false }),
     supabase.from("profiles").select("id,full_name,role").order("full_name"),
+    supabase
+      .from("ad_accounts")
+      .select("id,project_id,currency")
+      .eq("platform", "meta"),
+    supabase
+      .from("ad_campaigns")
+      .select("id,ad_account_id,project_id"),
+    supabase.rpc("ad_campaign_period_summary", {
+      p_since: adPeriod.since,
+      p_until: adPeriod.until,
+    }),
   ]);
 
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
   const showPersonalCalendar = currentProfile?.role === "owner";
-  const today = showPersonalCalendar
-    ? dateISOInTimeZone(new Date())
-    : todayISO();
   const calendar = showPersonalCalendar
     ? await getPersonalCalendarEvents(today, today)
     : null;
@@ -223,16 +239,15 @@ export default async function DashboardPage({
     taskStatsByProject.set(task.project_id, stats);
   }
 
-  const latestKpiByProject = new Map<
-    string,
-    NonNullable<typeof kpiEntries>[number]
-  >();
-  for (const entry of kpiEntries ?? []) {
-    if (!entry.project_id) continue;
-    if (!latestKpiByProject.has(entry.project_id)) {
-      latestKpiByProject.set(entry.project_id, entry);
-    }
-  }
+  const projectAdMetrics = aggregateProjectAdMetrics(
+    (adAccounts ?? []) as DashboardAdAccount[],
+    (adCampaigns ?? []) as DashboardAdCampaign[],
+    (adPeriodRows ?? []) as DashboardCampaignPeriodRow[],
+    new Set((projects ?? []).map((project) => project.id)),
+  );
+  const adDataUnavailable = Boolean(
+    adAccountsError || adCampaignsError || adPeriodError,
+  );
 
   const filteredProjects = sortProjectsForDisplay(
     (projects ?? []).filter((project) => {
@@ -536,6 +551,17 @@ export default async function DashboardPage({
         <FilterSelect name="client" label="Клиент" options={clientOptions} />
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
+        <span>
+          Реклама Meta: {formatDate(adPeriod.since)}–{formatDate(adPeriod.until)}
+        </span>
+        {adDataUnavailable && (
+          <span className="font-medium text-amber-700">
+            Meta-метрики временно недоступны; данные проектов и задач загружены.
+          </span>
+        )}
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -544,9 +570,11 @@ export default async function DashboardPage({
             <TableHead>Статус</TableHead>
             <TableHead>Ответственный</TableHead>
             <TableHead>Бюджет</TableHead>
-            <TableHead>Расход</TableHead>
-            <TableHead>Лиды</TableHead>
-            <TableHead>CPL</TableHead>
+            <TableHead>Расход Meta · 7д</TableHead>
+            <TableHead>Показы · 7д</TableHead>
+            <TableHead>Клики · 7д</TableHead>
+            <TableHead>Результаты · 7д</TableHead>
+            <TableHead>CPA · 7д</TableHead>
             <TableHead>ДРР</TableHead>
             <TableHead>ROMI</TableHead>
             <TableHead>Срочных</TableHead>
@@ -556,10 +584,11 @@ export default async function DashboardPage({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {filteredProjects.length === 0 && <TableEmpty colSpan={14} />}
+          {filteredProjects.length === 0 && <TableEmpty colSpan={16} />}
           {filteredProjects.map((project) => {
             const stats = taskStatsByProject.get(project.id);
-            const kpi = latestKpiByProject.get(project.id);
+            const adMetrics = projectAdMetrics.get(project.id) ?? [];
+            const delivery = summarizeProjectAdDelivery(adMetrics);
             const nearestOverdue =
               stats?.nearestDueDate ? stats.nearestDueDate < today : false;
 
@@ -582,11 +611,53 @@ export default async function DashboardPage({
                 </TableCell>
                 <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
                 <TableCell>{formatCurrency(project.budget)}</TableCell>
-                <TableCell>{formatCurrency(kpi?.spend)}</TableCell>
-                <TableCell>{formatNumber(kpi?.leads)}</TableCell>
-                <TableCell>{formatCurrency(kpi?.cpl)}</TableCell>
-                <TableCell>{formatPercent(kpi?.drr)}</TableCell>
-                <TableCell>{formatPercent(kpi?.romi)}</TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {adDataUnavailable
+                    ? "—"
+                    : adMetrics.length
+                      ? adMetrics.map((item) => (
+                          <span key={item.currency ?? "unknown"} className="block">
+                            {formatAdMoney(item.spend, item.currency)}
+                          </span>
+                        ))
+                      : "—"}
+                </TableCell>
+                <TableCell>
+                  {adDataUnavailable || adMetrics.length === 0
+                    ? "—"
+                    : formatNumber(delivery.impressions)}
+                </TableCell>
+                <TableCell>
+                  {adDataUnavailable || adMetrics.length === 0
+                    ? "—"
+                    : formatNumber(delivery.clicks)}
+                </TableCell>
+                <TableCell className="min-w-40">
+                  {adDataUnavailable
+                    ? "—"
+                    : delivery.goals.length
+                      ? delivery.goals.map((goal) => (
+                          <span key={goal.actionType} className="block whitespace-nowrap">
+                            {actionTypeLabel(goal.actionType)}: {formatNumber(goal.count)}
+                          </span>
+                        ))
+                      : "—"}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {adDataUnavailable
+                    ? "—"
+                    : adMetrics.length
+                      ? adMetrics.map((item) => (
+                          <span key={item.currency ?? "unknown"} className="block">
+                            {item.hasMixedGoals
+                              ? "разные цели"
+                              : formatAdMoney(item.costPerResult, item.currency)}
+                          </span>
+                        ))
+                      : "—"}
+                </TableCell>
+                <TableCell>—</TableCell>
+                <TableCell>—</TableCell>
                 <TableCell>{stats?.urgent ?? 0}</TableCell>
                 <TableCell>{stats?.overdue ?? 0}</TableCell>
                 <TableCell>
