@@ -4,6 +4,7 @@ export type DashboardAdAccount = {
   id: string;
   project_id: string | null;
   currency: string | null;
+  is_active?: boolean;
 };
 
 export type DashboardAdCampaign = {
@@ -58,6 +59,30 @@ export function rollingDateRange(until: string, days: number): {
   return { since: start.toISOString().slice(0, 10), until };
 }
 
+export function precedingDateRange(range: {
+  since: string;
+  until: string;
+}): { since: string; until: string } {
+  const days = Math.max(
+    1,
+    Math.round(
+      (new Date(`${range.until}T00:00:00Z`).getTime() -
+        new Date(`${range.since}T00:00:00Z`).getTime()) /
+        86_400_000,
+    ) + 1,
+  );
+  const previousUntil = new Date(`${range.since}T00:00:00Z`);
+  previousUntil.setUTCDate(previousUntil.getUTCDate() - 1);
+  return rollingDateRange(previousUntil.toISOString().slice(0, 10), days);
+}
+
+function projectIdForCampaign(
+  campaign: DashboardAdCampaign,
+  accountById: Map<string, DashboardAdAccount>,
+): string | null {
+  return campaign.project_id ?? accountById.get(campaign.ad_account_id)?.project_id ?? null;
+}
+
 export function aggregateProjectAdMetrics(
   accounts: DashboardAdAccount[],
   campaigns: DashboardAdCampaign[],
@@ -74,7 +99,7 @@ export function aggregateProjectAdMetrics(
     const campaign = campaignById.get(row.campaign_id);
     if (!campaign) continue;
     const account = accountById.get(campaign.ad_account_id);
-    const projectId = campaign.project_id ?? account?.project_id ?? null;
+    const projectId = projectIdForCampaign(campaign, accountById);
     if (!projectId || !visibleProjectIds.has(projectId)) continue;
 
     const currency = account?.currency?.trim().toUpperCase() || null;
@@ -142,6 +167,49 @@ export function aggregateProjectAdMetrics(
   }
 
   return result;
+}
+
+export function linkedAdProjectIds(
+  accounts: DashboardAdAccount[],
+  campaigns: DashboardAdCampaign[],
+  visibleProjectIds: Set<string>,
+): Set<string> {
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+  const linked = new Set<string>();
+  for (const account of accounts) {
+    if (
+      account.is_active !== false &&
+      account.project_id &&
+      visibleProjectIds.has(account.project_id)
+    ) {
+      linked.add(account.project_id);
+    }
+  }
+  for (const campaign of campaigns) {
+    const projectId = projectIdForCampaign(campaign, accountById);
+    if (projectId && visibleProjectIds.has(projectId)) linked.add(projectId);
+  }
+  return linked;
+}
+
+export function latestProjectAdMetricDates(
+  accounts: DashboardAdAccount[],
+  campaigns: DashboardAdCampaign[],
+  rows: { campaign_id: string; date: string }[],
+  visibleProjectIds: Set<string>,
+): Map<string, string> {
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+  const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+  const latest = new Map<string, string>();
+  for (const row of rows) {
+    const campaign = campaignById.get(row.campaign_id);
+    if (!campaign) continue;
+    const projectId = projectIdForCampaign(campaign, accountById);
+    if (!projectId || !visibleProjectIds.has(projectId)) continue;
+    const current = latest.get(projectId);
+    if (!current || row.date > current) latest.set(projectId, row.date);
+  }
+  return latest;
 }
 
 export function summarizeProjectAdDelivery(

@@ -15,10 +15,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { buildAdAlerts } from "@/lib/ad-alerts";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import {
   aggregateProjectAdMetrics,
   formatAdMoney,
+  latestProjectAdMetricDates,
+  linkedAdProjectIds,
+  precedingDateRange,
   rollingDateRange,
   summarizeProjectAdDelivery,
   type DashboardAdAccount,
@@ -127,6 +131,7 @@ export default async function DashboardPage({
   const uid = user?.id ?? "";
   const today = dateISOInTimeZone(new Date());
   const adPeriod = rollingDateRange(today, 7);
+  const previousAdPeriod = precedingDateRange(adPeriod);
 
   const [
     { data: projects },
@@ -136,6 +141,8 @@ export default async function DashboardPage({
     { data: adAccounts, error: adAccountsError },
     { data: adCampaigns, error: adCampaignsError },
     { data: adPeriodRows, error: adPeriodError },
+    { data: previousAdPeriodRows, error: previousAdPeriodError },
+    { data: latestAdMetricRows, error: latestAdMetricError },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -150,7 +157,7 @@ export default async function DashboardPage({
     supabase.from("profiles").select("id,full_name,role").order("full_name"),
     supabase
       .from("ad_accounts")
-      .select("id,project_id,currency")
+      .select("id,project_id,currency,is_active")
       .eq("platform", "meta"),
     supabase
       .from("ad_campaigns")
@@ -159,6 +166,15 @@ export default async function DashboardPage({
       p_since: adPeriod.since,
       p_until: adPeriod.until,
     }),
+    supabase.rpc("ad_campaign_period_summary", {
+      p_since: previousAdPeriod.since,
+      p_until: previousAdPeriod.until,
+    }),
+    supabase
+      .from("ad_campaign_metrics")
+      .select("campaign_id,date")
+      .order("date", { ascending: false })
+      .range(0, 9999),
   ]);
 
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
@@ -239,14 +255,26 @@ export default async function DashboardPage({
     taskStatsByProject.set(task.project_id, stats);
   }
 
+  const accountRows = (adAccounts ?? []) as DashboardAdAccount[];
+  const campaignRows = (adCampaigns ?? []) as DashboardAdCampaign[];
+  const visibleProjectIds = new Set((projects ?? []).map((project) => project.id));
   const projectAdMetrics = aggregateProjectAdMetrics(
-    (adAccounts ?? []) as DashboardAdAccount[],
-    (adCampaigns ?? []) as DashboardAdCampaign[],
+    accountRows,
+    campaignRows,
     (adPeriodRows ?? []) as DashboardCampaignPeriodRow[],
-    new Set((projects ?? []).map((project) => project.id)),
+    visibleProjectIds,
+  );
+  const previousProjectAdMetrics = aggregateProjectAdMetrics(
+    accountRows,
+    campaignRows,
+    (previousAdPeriodRows ?? []) as DashboardCampaignPeriodRow[],
+    visibleProjectIds,
   );
   const adDataUnavailable = Boolean(
     adAccountsError || adCampaignsError || adPeriodError,
+  );
+  const adAlertDataUnavailable = Boolean(
+    adDataUnavailable || previousAdPeriodError || latestAdMetricError,
   );
 
   const filteredProjects = sortProjectsForDisplay(
@@ -330,6 +358,26 @@ export default async function DashboardPage({
   const quietProjects = activeProjects.filter(
     (p) => !projectsWithOpenTask.has(p.id),
   );
+  const adAlerts = buildAdAlerts({
+    projects: activeProjects.map((project) => ({
+      id: project.id,
+      name: project.name,
+    })),
+    current: projectAdMetrics,
+    previous: previousProjectAdMetrics,
+    linkedProjectIds: linkedAdProjectIds(
+      accountRows,
+      campaignRows,
+      visibleProjectIds,
+    ),
+    latestMetricDateByProject: latestProjectAdMetricDates(
+      accountRows,
+      campaignRows,
+      (latestAdMetricRows ?? []) as { campaign_id: string; date: string }[],
+      visibleProjectIds,
+    ),
+    today,
+  });
 
   const attentionTones = {
     red: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
@@ -471,26 +519,67 @@ export default async function DashboardPage({
           <h2 className="mb-3 text-base font-semibold text-neutral-900">
             Требует внимания
           </h2>
-          {attention.length === 0 ? (
+          {attention.length === 0 &&
+          adAlerts.length === 0 &&
+          !adAlertDataUnavailable ? (
             <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
               Всё под контролем
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              {attention.map((item) => (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className={`flex min-h-14 items-center gap-3 rounded-md border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 ${attentionTones[item.tone]}`}
-                >
-                  <span className="text-2xl font-semibold tabular-nums">
-                    {item.count}
-                  </span>
-                  <span className="text-sm font-medium leading-tight">
-                    {item.label}
-                  </span>
-                </Link>
-              ))}
+            <div className="flex flex-col gap-3">
+              {adAlertDataUnavailable && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                  Не удалось получить полный срез Meta за два периода. Рекламные
+                  предупреждения временно скрыты, а не заменены нулевыми значениями.
+                </p>
+              )}
+              {attention.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                  {attention.map((item) => (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      className={`flex min-h-14 items-center gap-3 rounded-md border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 ${attentionTones[item.tone]}`}
+                    >
+                      <span className="text-2xl font-semibold tabular-nums">
+                        {item.count}
+                      </span>
+                      <span className="text-sm font-medium leading-tight">
+                        {item.label}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              {!adAlertDataUnavailable && adAlerts.length > 0 && (
+                <div className="grid gap-2 lg:grid-cols-2">
+                  {adAlerts.map((alert) => (
+                    <Link
+                      key={alert.id}
+                      href={alert.href}
+                      className={cn(
+                        "rounded-md border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2",
+                        alert.severity === "red"
+                          ? "border-red-200 bg-red-50 text-red-800 hover:bg-red-100"
+                          : "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{alert.title}</p>
+                          <p className="mt-0.5 text-xs font-medium">
+                            {alert.projectName}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[11px] font-medium uppercase tracking-wide opacity-70">
+                          Meta · 7д
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs opacity-80">{alert.detail}</p>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </CardContent>

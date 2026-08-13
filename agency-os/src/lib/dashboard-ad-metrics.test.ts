@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateProjectAdMetrics,
   formatAdMoney,
+  latestProjectAdMetricDates,
+  linkedAdProjectIds,
+  precedingDateRange,
   rollingDateRange,
   summarizeProjectAdDelivery,
   type DashboardCampaignPeriodRow,
@@ -44,6 +47,12 @@ describe("rollingDateRange", () => {
       since: "2026-08-07",
       until: "2026-08-13",
     });
+  });
+
+  it("строит предыдущий период той же длины без пересечения", () => {
+    expect(
+      precedingDateRange({ since: "2026-08-07", until: "2026-08-13" }),
+    ).toEqual({ since: "2026-07-31", until: "2026-08-06" });
   });
 });
 
@@ -115,6 +124,30 @@ describe("formatAdMoney", () => {
   it("сохраняет валюту в подписи", () => {
     expect(formatAdMoney(12.5, "EUR")).toContain("€");
     expect(formatAdMoney(12.5, null)).toContain("валюта не указана");
+  });
+});
+
+describe("project ad links and freshness", () => {
+  it("учитывает прямую привязку кабинета и override кампании", () => {
+    expect(
+      [...linkedAdProjectIds(accounts, campaigns, new Set(["p1", "p2"]))].sort(),
+    ).toEqual(["p1", "p2"]);
+  });
+
+  it("находит последнюю дату метрик только видимых проектов", () => {
+    expect(
+      latestProjectAdMetricDates(
+        accounts,
+        campaigns,
+        [
+          { campaign_id: "c1", date: "2026-08-10" },
+          { campaign_id: "c1", date: "2026-08-12" },
+          { campaign_id: "c3", date: "2026-08-11" },
+          { campaign_id: "c-hidden", date: "2026-08-13" },
+        ],
+        new Set(["p1", "p2"]),
+      ),
+    ).toEqual(new Map([["p1", "2026-08-12"], ["p2", "2026-08-11"]]));
   });
 });
 
