@@ -150,7 +150,7 @@ function parsePayload(value: unknown): MarketingPayload | null {
   };
 }
 
-function parsePlanFact(value: unknown): { plan: MediaPlanSummary; rows: MediaPlanFactRow[] } | null {
+function parsePlanFactEntry(value: unknown): { plan: MediaPlanSummary; rows: MediaPlanFactRow[] } | null {
   const root = object(value);
   const plan = object(root.plan);
   const id = string(plan.id);
@@ -194,6 +194,15 @@ function parsePlanFact(value: unknown): { plan: MediaPlanSummary; rows: MediaPla
     },
     rows,
   };
+}
+
+function parsePlanFacts(value: unknown): Array<{ plan: MediaPlanSummary; rows: MediaPlanFactRow[] }> {
+  const root = object(value);
+  const source = Array.isArray(root.plans) ? root.plans : [root];
+  return source.flatMap((entry) => {
+    const parsed = parsePlanFactEntry(entry);
+    return parsed ? [parsed] : [];
+  });
 }
 
 function PublicFilters({
@@ -260,7 +269,7 @@ export default async function ClientReportPage({
   if (error || !data) notFound();
   const payload = parsePayload(data);
   if (!payload) notFound();
-  const planFact = parsePlanFact(planData);
+  const planFacts = parsePlanFacts(planData);
 
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-6 sm:px-6 lg:px-10">
@@ -270,7 +279,13 @@ export default async function ClientReportPage({
         publicReport
         controls={<span className="text-sm font-semibold text-neutral-400">ProDigital</span>}
         filters={<PublicFilters token={token} from={from} to={to} section={section} />}
-        mediaPlan={planFact ? <MediaPlanFactCard plan={planFact.plan} rows={planFact.rows} compact /> : null}
+        mediaPlan={planFacts.length ? (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {planFacts.map(({ plan, rows }) => (
+              <MediaPlanFactCard key={plan.id} plan={plan} rows={rows} compact />
+            ))}
+          </div>
+        ) : null}
       />
     </main>
   );

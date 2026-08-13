@@ -32,8 +32,7 @@ export function MediaPlanPanel({
   currencies,
   campaigns,
   plans,
-  activePlan,
-  factRows,
+  activePlans,
 }: {
   projectId: string | null;
   from: string;
@@ -41,8 +40,7 @@ export function MediaPlanPanel({
   currencies: string[];
   campaigns: CampaignOption[];
   plans: PlanListItem[];
-  activePlan: MediaPlanSummary | null;
-  factRows: MediaPlanFactRow[];
+  activePlans: Array<{ plan: MediaPlanSummary; rows: MediaPlanFactRow[] }>;
 }) {
   if (!projectId) {
     return <section className="rounded-xl border border-dashed border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-500">Выберите один проект, чтобы увидеть и настроить плановые KPI.</section>;
@@ -50,8 +48,12 @@ export function MediaPlanPanel({
   const defaultCurrency = currencies[0] ?? "RUB";
   return (
     <div className="space-y-3">
-      {activePlan ? (
-        <MediaPlanFactCard plan={activePlan} rows={factRows} compact />
+      {activePlans.length ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {activePlans.map(({ plan, rows }) => (
+            <MediaPlanFactCard key={plan.id} plan={plan} rows={rows} compact />
+          ))}
+        </div>
       ) : (
         <section className="rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-4 py-3 text-sm text-blue-900">
           Для выбранного проекта пока нет утверждённого медиаплана. Создайте черновик и утвердите его ниже.

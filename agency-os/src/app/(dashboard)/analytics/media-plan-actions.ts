@@ -82,6 +82,9 @@ export async function saveManualMediaPlan(
     });
   }
   if (!metrics.length) return { ok: false, message: "Добавьте хотя бы одну плановую метрику" };
+  if (parsed.data.workstream && metrics.some((metric) => !metric.campaign_id)) {
+    return { ok: false, message: "Для плана направления привяжите каждую метрику к кампании" };
+  }
 
   try {
     const { supabase, userId } = await requireOwner();
@@ -192,6 +195,9 @@ export async function importGoogleSheetMediaPlan(
     const missing = campaignExternalIds.filter((id) => !campaignMap.has(id));
     if (missing.length) {
       return { ok: false, message: `Кампании не найдены в выбранном проекте и валюте: ${missing.join(", ")}` };
+    }
+    if (parsedPlan.data.workstream && rowsResult.rows.some((row) => !row.campaignExternalId)) {
+      return { ok: false, message: "Для плана направления укажите campaign_external_id в каждой строке" };
     }
 
     const { data: plan, error: planError } = await supabase

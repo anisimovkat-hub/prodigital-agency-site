@@ -250,36 +250,44 @@ export default async function AnalyticsPage({
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
   const campaignIdList = [...campaignIds];
   const approvedPlans = mediaPlans.filter((plan) => plan.status === "approved");
-  const activePlan = approvedPlans
+  const activePlansByScope = new Map<string, (typeof approvedPlans)[number]>();
+  for (const plan of approvedPlans
     .filter((plan) => plan.period_start <= to && plan.period_end >= from)
     .sort((a, b) => {
       const exactA = a.period_start === from && a.period_end === to ? 0 : 1;
       const exactB = b.period_start === from && b.period_end === to ? 0 : 1;
       return exactA - exactB || b.updated_at.localeCompare(a.updated_at);
-    })[0] ?? null;
-  const activePlanMetricsPromise = activePlan
+    })) {
+    const key = `${plan.currency}\u0000${plan.workstream ?? ""}`;
+    if (!activePlansByScope.has(key)) activePlansByScope.set(key, plan);
+  }
+  const activePlans = [...activePlansByScope.values()];
+  const activePlanIds = activePlans.map((plan) => plan.id);
+  const activePlanMetricsPromise = activePlanIds.length
     ? supabase
         .from("media_plan_metrics")
-        .select("id,metric_key,label,target_value,unit,conversion_action_type,campaign_id,sort_order,notes")
-        .eq("media_plan_id", activePlan.id)
+        .select("id,media_plan_id,metric_key,label,target_value,unit,conversion_action_type,campaign_id,sort_order,notes")
+        .in("media_plan_id", activePlanIds)
         .order("sort_order")
     : Promise.resolve({ data: [], error: null });
-  const planMetricsFactPromise = activePlan && campaignIdList.length
+  const earliestPlanStart = activePlans.reduce<string | null>((min, plan) => !min || plan.period_start < min ? plan.period_start : min, null);
+  const latestPlanEnd = activePlans.reduce<string | null>((max, plan) => !max || plan.period_end > max ? plan.period_end : max, null);
+  const planMetricsFactPromise = activePlans.length && campaignIdList.length
     ? supabase
         .from("ad_campaign_metrics")
-        .select("campaign_id,spend,impressions,clicks,reach")
+        .select("campaign_id,date,spend,impressions,clicks,reach")
         .in("campaign_id", campaignIdList)
-        .gte("date", activePlan.period_start)
-        .lte("date", activePlan.period_end)
+        .gte("date", earliestPlanStart!)
+        .lte("date", latestPlanEnd!)
         .range(0, 19999)
     : Promise.resolve({ data: [], error: null });
-  const planConversionsFactPromise = activePlan && campaignIdList.length
+  const planConversionsFactPromise = activePlans.length && campaignIdList.length
     ? supabase
         .from("ad_conversions")
         .select("campaign_id,date,action_type,count,value")
         .in("campaign_id", campaignIdList)
-        .gte("date", activePlan.period_start)
-        .lte("date", activePlan.period_end)
+        .gte("date", earliestPlanStart!)
+        .lte("date", latestPlanEnd!)
         .range(0, 19999)
     : Promise.resolve({ data: [], error: null });
 
@@ -457,21 +465,28 @@ export default async function AnalyticsPage({
   const campaignAccountIds = new Set(campaignRows.map((campaign) => campaign.ad_account_id));
   const currencies = [...new Set(currentAdAccountRows.filter((account) => campaignAccountIds.has(account.id) && account.currency).map((account) => account.currency!))];
   const selectedProject = projectRows.find((project) => project.id === projectId);
-  const mediaPlanFactRows = activePlan
-    ? calculateMediaPlanFact({
-        projectId: activePlan.project_id,
-        currency: activePlan.currency,
-        metrics: (activePlanMetricsResult.data ?? []).map((metric) => ({
+  const mediaPlanFacts = activePlans.map((plan) => ({
+    plan,
+    rows: calculateMediaPlanFact({
+      projectId: plan.project_id,
+      currency: plan.currency,
+      metrics: (activePlanMetricsResult.data ?? [])
+        .filter((metric) => metric.media_plan_id === plan.id)
+        .map((metric) => ({
           ...metric,
           target_value: Number(metric.target_value),
           unit: metric.unit as "money" | "count" | "percent",
         })),
-        campaigns: campaignRows,
-        accounts: currentAdAccountRows,
-        campaignMetrics: planMetricsFactResult.data ?? [],
-        conversions: planConversionsFactResult.data ?? [],
-      })
-    : [];
+      campaigns: campaignRows,
+      accounts: currentAdAccountRows,
+      campaignMetrics: (planMetricsFactResult.data ?? []).filter(
+        (row) => row.date >= plan.period_start && row.date <= plan.period_end,
+      ),
+      conversions: (planConversionsFactResult.data ?? []).filter(
+        (row) => row.date >= plan.period_start && row.date <= plan.period_end,
+      ),
+    }),
+  }));
 
   const customNames = new Map(
     (customConversions ?? [])
@@ -816,15 +831,17 @@ export default async function AnalyticsPage({
             status: plan.status as "draft" | "approved" | "archived",
             source_type: plan.source_type as "manual" | "google_sheets",
           }))}
-          activePlan={activePlan ? {
-            id: activePlan.id,
-            name: activePlan.name,
-            workstream: activePlan.workstream,
-            period_start: activePlan.period_start,
-            period_end: activePlan.period_end,
-            currency: activePlan.currency,
-          } : null}
-          factRows={mediaPlanFactRows}
+          activePlans={mediaPlanFacts.map(({ plan, rows }) => ({
+            plan: {
+              id: plan.id,
+              name: plan.name,
+              workstream: plan.workstream,
+              period_start: plan.period_start,
+              period_end: plan.period_end,
+              currency: plan.currency,
+            },
+            rows,
+          }))}
         />
       }
       adsPanel={

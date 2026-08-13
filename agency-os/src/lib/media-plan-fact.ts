@@ -24,6 +24,7 @@ export type MediaPlanAccount = {
 
 export type MediaPlanCampaignMetric = {
   campaign_id: string;
+  date?: string;
   spend: number;
   impressions: number;
   clicks: number;
