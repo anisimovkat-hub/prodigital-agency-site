@@ -1,3 +1,4 @@
+import { Sunrise } from "lucide-react";
 import Link from "next/link";
 
 import { FilterSelect } from "@/components/filter-select";
@@ -424,11 +425,20 @@ export default async function DashboardPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Дашборд</h1>
-        <p className="text-sm text-neutral-500">
-          Проекты агентства, статусы и ключевые показатели.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900">Дашборд</h1>
+          <p className="text-sm text-neutral-500">
+            Проекты агентства, статусы и ключевые показатели.
+          </p>
+        </div>
+        <Link
+          href="/brief"
+          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-semibold text-white transition hover:bg-blue-700"
+        >
+          <Sunrise className="size-4" aria-hidden />
+          Утренняя сводка
+        </Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
