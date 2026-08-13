@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { USER_ROLE_LABEL } from "@/lib/labels";
+import { activeProjectIdsByEmployee } from "@/lib/employee-projects";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, todayISO } from "@/lib/format";
 import { isActiveTaskStatus } from "@/lib/task-status";
@@ -22,13 +23,22 @@ export default async function EmployeesPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profiles }, { data: tasks }, { data: members }, { data: invites }] =
-    await Promise.all([
+  const [
+    { data: profiles },
+    { data: tasks },
+    { data: members },
+    { data: projects },
+    { data: invites },
+  ] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
       supabase.from("tasks").select("assignee_id,status,due_date"),
       supabase
         .from("project_members")
-        .select("profile_id, project:projects(stage)"),
+        .select("profile_id, project_id, project:projects(stage)"),
+      supabase
+        .from("projects")
+        .select("id,responsible_id,stage")
+        .in("stage", ["active", "launching"]),
       supabase
         .from("invite_codes")
         .select("*")
@@ -60,19 +70,10 @@ export default async function EmployeesPage() {
     loadByEmployee.set(task.assignee_id, stats);
   }
 
-  const activeProjectsByEmployee = new Map<string, number>();
-  for (const member of members ?? []) {
-    if (
-      member.project?.stage !== "active" &&
-      member.project?.stage !== "launching"
-    ) {
-      continue;
-    }
-    activeProjectsByEmployee.set(
-      member.profile_id,
-      (activeProjectsByEmployee.get(member.profile_id) ?? 0) + 1,
-    );
-  }
+  const activeProjectsByEmployee = activeProjectIdsByEmployee(
+    projects ?? [],
+    members ?? [],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -145,7 +146,7 @@ export default async function EmployeesPage() {
                 <TableCell>{USER_ROLE_LABEL[profile.role]}</TableCell>
                 <TableCell>{profile.position_title ?? "—"}</TableCell>
                 <TableCell>
-                  {activeProjectsByEmployee.get(profile.id) ?? 0}
+                  {activeProjectsByEmployee.get(profile.id)?.size ?? 0}
                 </TableCell>
                 <TableCell>{load?.today ?? 0}</TableCell>
                 <TableCell>{load?.overdue ?? 0}</TableCell>
