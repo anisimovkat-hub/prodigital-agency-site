@@ -3,6 +3,7 @@ import Link from "next/link";
 import { TodayTable } from "@/app/(dashboard)/today/today-table";
 import { FilterSelect } from "@/components/filter-select";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
+import { TaskViewSwitcher } from "@/components/task-view-switcher";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { isTaskOperational } from "@/lib/project-lifecycle";
@@ -62,11 +63,14 @@ export default async function TodayPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Сегодня</h1>
-        <p className="text-sm text-neutral-500">
-          Просроченные, срочные и сегодняшние задачи — рабочие и личные.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900">Задачи</h1>
+          <p className="text-sm text-neutral-500">
+            День: просроченные, срочные и сегодняшние задачи.
+          </p>
+        </div>
+        <TaskViewSwitcher />
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -108,7 +112,7 @@ export default async function TodayPage({
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1 rounded-lg border border-neutral-200 bg-white py-16 text-center">
           <p className="text-base font-medium text-neutral-900">
-            Здесь задач нет 🎉
+            Здесь задач нет
           </p>
           <p className="text-sm text-neutral-500">
             По выбранному фильтру ничего не найдено.

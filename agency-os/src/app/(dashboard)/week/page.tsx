@@ -4,8 +4,10 @@ import { PriorityBadge } from "@/components/badges";
 import { FilterSelect } from "@/components/filter-select";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { ProjectBadge } from "@/components/project-badge";
+import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
+import { TaskViewSwitcher } from "@/components/task-view-switcher";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
-import { formatDate, formatDuration, todayISO } from "@/lib/format";
+import { formatDuration } from "@/lib/format";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { isTaskOperational } from "@/lib/project-lifecycle";
 import type { Enums } from "@/lib/supabase/types";
@@ -14,7 +16,11 @@ import { filterTasksByAudience } from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { cn } from "@/lib/utils";
 
-type WeekSearch = { who?: string; assignee?: string };
+type WeekSearch = {
+  who?: string;
+  assignee?: string;
+  start?: string;
+};
 
 type WeekTask = {
   id: string;
@@ -33,17 +39,18 @@ type WeekTask = {
   assignee: { id: string; full_name: string } | null;
 };
 
-type WeekDay = {
-  date: Date;
-  dateISO: string;
-};
+type WeekDay = { date: Date; dateISO: string };
+type CalendarData = Awaited<ReturnType<typeof getPersonalCalendarEvents>>;
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default async function WeekPage({
   searchParams,
 }: {
   searchParams: Promise<WeekSearch>;
 }) {
-  const { who, assignee } = await searchParams;
+  const filters = await searchParams;
+  const { who, assignee } = filters;
   const supabase = await createClient();
   const {
     data: { user },
@@ -65,80 +72,69 @@ export default async function WeekPage({
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
   const showPersonalCalendar =
     currentProfile?.role === "owner" && !assignee && who !== "team";
-  const today = showPersonalCalendar
-    ? dateISOInTimeZone(new Date())
-    : todayISO();
-  const weekDays = getCurrentWeek(today);
-  const weekStart = weekDays[0].dateISO;
-  const weekEnd = weekDays.at(-1)!.dateISO;
+  const today = dateISOInTimeZone(new Date());
+  const anchor = filters.start && ISO_DATE.test(filters.start)
+    ? filters.start
+    : today;
+  const days = getTwoWeekDays(anchor);
+  const weekStart = days[0].dateISO;
+  const weekEnd = days.at(-1)!.dateISO;
   const calendar = showPersonalCalendar
     ? await getPersonalCalendarEvents(weekStart, weekEnd)
     : null;
 
   const tasks = filterTasksByAudience(
     ((data ?? []) as WeekTask[]).filter(isTaskOperational),
-    {
-      userId: uid,
-      who,
-      assigneeId: assignee,
-    },
+    { userId: uid, who, assigneeId: assignee },
   );
-  const priorityRank: Record<string, number> = {
-    urgent: 0,
-    high: 1,
-    medium: 2,
-    low: 3,
-  };
-  const overdueTasks = tasks
-    .filter((task) => task.due_date && task.due_date < today)
-    .sort((a, b) => {
-      const byPriority =
-        (priorityRank[a.priority ?? "medium"] ?? 2) -
-        (priorityRank[b.priority ?? "medium"] ?? 2);
-      if (byPriority !== 0) return byPriority;
-      if (!!a.is_important !== !!b.is_important) return a.is_important ? -1 : 1;
-      return (a.due_date ?? "") < (b.due_date ?? "") ? -1 : 1;
-    });
-  const overdueMany = overdueTasks.length > 5;
+  const overdueTasks = sortTodayTasks(
+    tasks.filter((task) => task.due_date && task.due_date < today),
+    today,
+  );
   const undatedTasks = sortTodayTasks(
     tasks.filter((task) => !task.due_date),
     today,
   );
+  const activeKey = assignee ? "assignee" : who ?? "all";
+  const includesToday = weekStart <= today && today <= weekEnd;
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">Неделя</h1>
-        <p className="text-sm text-neutral-500">
-          Задачи и личное расписание на текущую неделю, с{" "}
-          {formatShortDate(weekStart)} по {formatShortDate(weekEnd)}.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900">Задачи</h1>
+          <p className="text-sm text-neutral-500">
+            Недели: компактное расписание с {formatShortDate(weekStart)} по{" "}
+            {formatShortDate(weekEnd)}.
+          </p>
+        </div>
+        <TaskViewSwitcher />
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex gap-1 border-b border-neutral-200">
           {[
-            { key: "all", label: "Все", href: "/week" },
-            { key: "mine", label: "Мои", href: "/week?who=mine" },
-            { key: "personal", label: "Личные", href: "/week?who=personal" },
-            { key: "team", label: "Команда", href: "/week?who=team" },
-          ].map((tab) => {
-            const activeKey = assignee ? "assignee" : who ?? "all";
-            return (
-              <Link
-                key={tab.key}
-                href={tab.href}
-                className={cn(
-                  "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                  activeKey === tab.key
-                    ? "border-neutral-900 text-neutral-900"
-                    : "border-transparent text-neutral-500 hover:text-neutral-800",
-                )}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
+            { key: "all", label: "Все", who: undefined },
+            { key: "mine", label: "Мои", who: "mine" },
+            { key: "personal", label: "Личные", who: "personal" },
+            { key: "team", label: "Команда", who: "team" },
+          ].map((tab) => (
+            <Link
+              key={tab.key}
+              href={buildWeekHref(filters, {
+                who: tab.who,
+                assignee: undefined,
+              })}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                activeKey === tab.key
+                  ? "border-neutral-900 text-neutral-900"
+                  : "border-transparent text-neutral-500 hover:text-neutral-800",
+              )}
+            >
+              {tab.label}
+            </Link>
+          ))}
         </div>
         <FilterSelect
           name="assignee"
@@ -150,84 +146,143 @@ export default async function WeekPage({
         />
       </div>
 
-      {overdueTasks.length === 0 ? (
-        <TaskGroup title="Без даты" tasks={undatedTasks} columns={2} />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-4">
-          <div className={overdueMany ? "lg:col-span-2" : "lg:col-span-3"}>
-            <TaskGroup title="Без даты" tasks={undatedTasks} columns={2} />
-          </div>
-          <div className={overdueMany ? "lg:col-span-2" : "lg:col-span-1"}>
-            <TaskGroup
-              title="Просрочено"
-              tasks={overdueTasks}
-              columns={overdueMany ? 2 : 1}
-              accent
-            />
-          </div>
+      {(undatedTasks.length > 0 || overdueTasks.length > 0) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <TaskGroup title="Без даты" tasks={undatedTasks} />
+          <TaskGroup title="Просрочено" tasks={overdueTasks} accent />
         </div>
       )}
 
-      <div className="overflow-x-auto pb-2">
-        <div className="grid min-w-[112rem] grid-cols-7 gap-3">
-          {weekDays.map((day) => {
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-2">
+          <Link
+            href={buildWeekHref(filters, {
+              start: shiftDate(weekStart, -14),
+            })}
+            className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            ← Предыдущие 2 недели
+          </Link>
+          {!includesToday && (
+            <Link
+              href={buildWeekHref(filters, { start: undefined })}
+              className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              К текущей неделе
+            </Link>
+          )}
+        </div>
+        <Link
+          href={buildWeekHref(filters, { start: shiftDate(weekStart, 14) })}
+          className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+        >
+          Следующие 2 недели →
+        </Link>
+      </div>
+
+      {[days.slice(0, 7), days.slice(7, 14)].map((weekDays, index) => (
+        <WeekGrid
+          key={weekDays[0].dateISO}
+          title={
+            includesToday
+              ? index === 0
+                ? "Текущая неделя"
+                : "Следующая неделя"
+              : `${formatShortDate(weekDays[0].dateISO)}–${formatShortDate(weekDays.at(-1)!.dateISO)}`
+          }
+          days={weekDays}
+          tasks={tasks}
+          calendar={calendar}
+          today={today}
+        />
+      ))}
+    </div>
+  );
+}
+
+function WeekGrid({
+  title,
+  days,
+  tasks,
+  calendar,
+  today,
+}: {
+  title: string;
+  days: WeekDay[];
+  tasks: WeekTask[];
+  calendar: CalendarData | null;
+  today: string;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-sm font-semibold text-neutral-900">{title}</h2>
+      <div className="overflow-x-auto pb-1">
+        <div className="grid min-w-[70rem] grid-cols-7 gap-2">
+          {days.map((day) => {
             const dayTasks = sortTodayTasks(
-              tasks.filter(
-                (task) =>
-                  task.due_date === day.dateISO && task.due_date >= today,
-              ),
+              tasks.filter((task) => task.due_date === day.dateISO),
               today,
             );
-            const totalEstimate = sumEstimate(dayTasks);
             const dayEvents =
-              calendar?.events.filter((event) => event.date === day.dateISO) ??
-              [];
+              calendar?.events.filter((event) => event.date === day.dateISO) ?? [];
+            const hasItems = dayTasks.length > 0 || dayEvents.length > 0;
 
             return (
-              <section
+              <details
                 key={day.dateISO}
-                className="flex min-h-52 flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2"
+                open={dayTasks.length <= 4 || dayEvents.length > 0}
+                className={cn(
+                  "group min-h-28 rounded-lg border bg-neutral-50 p-2",
+                  day.dateISO === today
+                    ? "border-blue-300 ring-1 ring-blue-100"
+                    : "border-neutral-200",
+                )}
               >
-                <h2 className="px-1 pt-1 text-sm font-semibold text-neutral-700">
-                  {formatDayHeading(day.date)} · Σ{" "}
-                  {formatDuration(totalEstimate)}
-                </h2>
-                {dayEvents.length > 0 && (
-                  <PersonalCalendarSchedule
-                    events={dayEvents}
-                    timeZone={calendar?.timeZone ?? "Asia/Bangkok"}
-                    compact
-                    showHeading={false}
-                  />
-                )}
-                {dayTasks.map((task) => (
-                  <WeekTaskCard key={task.id} task={task} />
-                ))}
-                {dayTasks.length === 0 && dayEvents.length === 0 && (
-                  <p className="px-1 py-3 text-xs text-neutral-400">Свободно</p>
-                )}
-              </section>
+                <summary className="cursor-pointer list-none rounded-md px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400">
+                  <span className="block text-sm font-semibold text-neutral-800">
+                    {formatDayHeading(day.date)}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-neutral-500">
+                    {hasItems
+                      ? `${dayTasks.length} задач · Σ ${formatDuration(sumEstimate(dayTasks))}`
+                      : "Свободно"}
+                  </span>
+                </summary>
+                <div className="mt-2 flex flex-col gap-1.5">
+                  {dayEvents.length > 0 && (
+                    <PersonalCalendarSchedule
+                      events={dayEvents}
+                      timeZone={calendar?.timeZone ?? "Europe/Moscow"}
+                      compact
+                      showHeading={false}
+                    />
+                  )}
+                  {dayTasks.map((task) => (
+                    <WeekTaskRow key={task.id} task={task} />
+                  ))}
+                </div>
+              </details>
             );
           })}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
 function TaskGroup({
   title,
   tasks,
-  columns = 2,
   accent = false,
 }: {
   title: string;
   tasks: WeekTask[];
-  columns?: 1 | 2;
   accent?: boolean;
 }) {
+  if (tasks.length === 0) return null;
   return (
-    <section
+    <details
+      open={tasks.length <= 5}
       className={cn(
         "rounded-lg border p-3",
         accent
@@ -235,90 +290,70 @@ function TaskGroup({
           : "border-neutral-200 bg-neutral-50",
       )}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <h2
-          className={cn(
-            "text-sm font-semibold",
-            accent ? "text-red-700" : "text-neutral-800",
-          )}
-        >
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400">
+        <h2 className={cn("text-sm font-semibold", accent && "text-red-700")}>
           {title}
         </h2>
-        <span
-          className={cn(
-            "text-xs",
-            accent ? "text-red-500" : "text-neutral-400",
-          )}
-        >
-          {tasks.length}
-        </span>
+        <span className="text-xs text-neutral-500">{tasks.length}</span>
+      </summary>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        {tasks.map((task) => (
+          <WeekTaskRow key={task.id} task={task} accent={accent} />
+        ))}
       </div>
-      {tasks.length > 0 ? (
-        <div className={cn("grid gap-2", columns === 2 && "sm:grid-cols-2")}>
-          {tasks.map((task) => (
-            <WeekTaskCard key={task.id} task={task} />
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs text-neutral-400">Свободно</p>
-      )}
-    </section>
+    </details>
   );
 }
 
-function WeekTaskCard({ task }: { task: WeekTask }) {
+function WeekTaskRow({
+  task,
+  accent = false,
+}: {
+  task: WeekTask;
+  accent?: boolean;
+}) {
   return (
-    <article className="rounded-md border border-neutral-200 bg-white p-3 shadow-sm">
-      <Link
-        href={`/tasks?task=${task.id}`}
-        className="text-sm font-medium text-neutral-900 hover:underline"
-      >
-        {task.title}
-      </Link>
-      <div className="mt-2">
-        <PriorityBadge priority={task.priority ?? "medium"} />
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-2 rounded-md border bg-white pr-2",
+        accent ? "border-red-100" : "border-neutral-200",
+      )}
+    >
+      <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-neutral-400">
+        <TaskDoneCheckbox taskId={task.id} done={false} />
+      </label>
+      <div className="min-w-0 flex-1 py-1.5">
+        <Link
+          href={`/tasks?task=${task.id}`}
+          className="block truncate text-sm font-medium text-neutral-900 hover:underline"
+        >
+          {task.title}
+        </Link>
+        <div className="mt-1 flex min-w-0 items-center gap-1.5">
+          <PriorityBadge priority={task.priority ?? "medium"} />
+          <ProjectBadge
+            projectId={task.project?.id}
+            name={task.project?.name}
+            className="max-w-28"
+          />
+        </div>
       </div>
-      <dl className="mt-2 grid gap-1 text-xs text-neutral-500">
-        <div className="flex justify-between gap-2">
-          <dt>Проект</dt>
-          <dd className="min-w-0 text-right">
-            <ProjectBadge
-              projectId={task.project?.id}
-              name={task.project?.name}
-              className="max-w-36"
-            />
-          </dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Дедлайн</dt>
-          <dd className="text-right text-neutral-700">
-            {formatDate(task.due_date)}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Исполнитель</dt>
-          <dd className="truncate text-right text-neutral-700">
-            {task.assignee?.full_name ?? "Не назначен"}
-          </dd>
-        </div>
-        <div className="flex justify-between gap-2">
-          <dt>Оценка</dt>
-          <dd className="text-right text-neutral-700">
-            {formatDuration(task.estimate_minutes)}
-          </dd>
-        </div>
-      </dl>
-    </article>
+      <div className="hidden max-w-24 shrink-0 text-right text-[11px] text-neutral-500 xl:block">
+        <span className="block truncate">
+          {task.assignee?.full_name?.split(" ")[0] ?? "Не назначен"}
+        </span>
+        <span className="block">{formatDuration(task.estimate_minutes)}</span>
+      </div>
+    </div>
   );
 }
 
-function getCurrentWeek(today: string): WeekDay[] {
-  const currentDate = new Date(`${today}T00:00:00Z`);
+function getTwoWeekDays(anchor: string): WeekDay[] {
+  const currentDate = new Date(`${anchor}T00:00:00Z`);
   const daysSinceMonday = (currentDate.getUTCDay() + 6) % 7;
   const monday = new Date(currentDate);
   monday.setUTCDate(currentDate.getUTCDate() - daysSinceMonday);
-
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: 14 }, (_, index) => {
     const date = new Date(monday);
     date.setUTCDate(monday.getUTCDate() + index);
     return { date, dateISO: date.toISOString().slice(0, 10) };
@@ -332,7 +367,6 @@ function formatDayHeading(date: Date): string {
     month: "2-digit",
     timeZone: "UTC",
   }).format(date);
-
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
@@ -346,4 +380,23 @@ function formatShortDate(date: string): string {
 
 function sumEstimate(tasks: WeekTask[]): number {
   return tasks.reduce((sum, task) => sum + (task.estimate_minutes ?? 0), 0);
+}
+
+function shiftDate(dateISO: string, days: number): string {
+  const date = new Date(`${dateISO}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function buildWeekHref(
+  current: WeekSearch,
+  overrides: Partial<WeekSearch>,
+): string {
+  const merged = { ...current, ...overrides };
+  const params = new URLSearchParams();
+  if (merged.who) params.set("who", merged.who);
+  if (merged.assignee) params.set("assignee", merged.assignee);
+  if (merged.start) params.set("start", merged.start);
+  const query = params.toString();
+  return `/week${query ? `?${query}` : ""}`;
 }

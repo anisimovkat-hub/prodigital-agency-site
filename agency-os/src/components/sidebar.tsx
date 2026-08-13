@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { type MouseEvent, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  CalendarCheck,
-  CalendarRange,
   SquareKanban,
   FolderKanban,
   ListChecks,
@@ -21,15 +19,18 @@ import {
 } from "lucide-react";
 
 import { logout } from "@/app/login/actions";
+import {
+  normalizeTaskView,
+  taskViewHref,
+  TASK_VIEW_STORAGE_KEY,
+} from "@/lib/task-view";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", label: "Дашборд", icon: LayoutDashboard },
-  { href: "/today", label: "Сегодня", icon: CalendarCheck },
-  { href: "/week", label: "Неделя", icon: CalendarRange },
+  { href: "/tasks", label: "Задачи", icon: ListChecks },
   { href: "/board", label: "Доска", icon: SquareKanban },
   { href: "/projects", label: "Проекты", icon: FolderKanban },
-  { href: "/tasks", label: "Задачи", icon: ListChecks },
   { href: "/time", label: "Трудозатраты", icon: ChartNoAxesCombined },
   { href: "/recurring", label: "Повторы", icon: Repeat2 },
   { href: "/personal", label: "Личное", icon: UserRound },
@@ -40,7 +41,24 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  function handleNavClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
+    setOpen(false);
+    if (href !== "/tasks") return;
+    try {
+      const target = taskViewHref(
+        normalizeTaskView(window.localStorage.getItem(TASK_VIEW_STORAGE_KEY)),
+      );
+      if (target !== href) {
+        event.preventDefault();
+        router.push(target);
+      }
+    } catch {
+      // Без storage ссылка ведёт в обычный список задач.
+    }
+  }
 
   return (
     <>
@@ -89,12 +107,18 @@ export function Sidebar() {
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive =
-              href === "/" ? pathname === "/" : pathname.startsWith(href);
+              href === "/"
+                ? pathname === "/"
+                : href === "/tasks"
+                  ? ["/tasks", "/today", "/week"].some((prefix) =>
+                      pathname.startsWith(prefix),
+                    )
+                  : pathname.startsWith(href);
             return (
               <Link
                 key={href}
                 href={href}
-                onClick={() => setOpen(false)}
+                onClick={(event) => handleNavClick(event, href)}
                 className={cn(
                   "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive

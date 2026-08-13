@@ -8,6 +8,7 @@ import { FilterCheckbox } from "@/components/filter-checkbox";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
+import { TaskViewSwitcher } from "@/components/task-view-switcher";
 import {
   Table,
   TableBody,
@@ -111,15 +112,18 @@ export default async function TasksPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-neutral-900">
-          {isCompletedView ? "Выполненные задачи" : "Задачи"}
-        </h1>
-        <p className="text-sm text-neutral-500">
-          {isCompletedView
-            ? "Задачи хранятся здесь 3 дня после завершения, затем удаляются."
-            : "Активные задачи агентства с фильтрами."}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900">
+            {isCompletedView ? "Выполненные задачи" : "Задачи"}
+          </h1>
+          <p className="text-sm text-neutral-500">
+            {isCompletedView
+              ? "Задачи хранятся здесь 3 дня после завершения, затем удаляются."
+              : "Список: все активные задачи агентства с фильтрами."}
+          </p>
+        </div>
+        <TaskViewSwitcher />
       </div>
 
       <div className="flex w-fit rounded-lg border border-neutral-200 bg-neutral-50 p-1">
