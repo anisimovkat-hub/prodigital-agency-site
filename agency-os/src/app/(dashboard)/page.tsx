@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FilterSelect } from "@/components/filter-select";
 import { HealthBadge } from "@/components/badges";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
+import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProjectBadge } from "@/components/project-badge";
 import {
@@ -14,9 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  dateISOInTimeZone,
-} from "@/lib/calendar-events";
+import { dateISOInTimeZone } from "@/lib/calendar-events";
 import {
   formatCurrency,
   formatDate,
@@ -31,12 +30,16 @@ import { createClient } from "@/lib/supabase/server";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { isActiveTaskStatus } from "@/lib/task-status";
 import type { Enums } from "@/lib/supabase/types";
+import { sortTodayTasks } from "@/lib/today-sort";
+import { cn } from "@/lib/utils";
 
 type DashTask = {
   id: string;
   title: string;
   status: Enums<"task_status"> | null;
   due_date: string | null;
+  priority: Enums<"task_priority"> | null;
+  is_important: boolean | null;
   is_urgent: boolean | null;
   assignee_id: string | null;
   creator_id: string | null;
@@ -52,23 +55,53 @@ type DashTask = {
 function DayTaskRow({ task, today }: { task: DashTask; today: string }) {
   const overdue = !!task.due_date && task.due_date < today;
   return (
-    <li className="flex items-center gap-2 py-2">
-      <Link
-        href={`/tasks?task=${task.id}`}
-        className="min-w-0 flex-1 truncate text-sm text-neutral-800 hover:underline"
-      >
-        {task.title}
-      </Link>
+    <li
+      className={cn(
+        "flex min-h-11 items-center gap-3 rounded-md px-2 py-2",
+        overdue && "bg-red-50/70",
+      )}
+    >
+      <label className="-ml-2 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md focus-within:ring-2 focus-within:ring-neutral-400">
+        <TaskDoneCheckbox taskId={task.id} done={false} />
+      </label>
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/tasks?task=${task.id}`}
+          className="block truncate rounded-sm text-sm font-medium text-neutral-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"
+        >
+          {task.title}
+        </Link>
+        <div className="mt-1 flex items-center gap-2 sm:hidden">
+          <ProjectBadge
+            projectId={task.project?.id}
+            name={task.project?.name ?? "Личное"}
+            className="max-w-40"
+          />
+        </div>
+      </div>
       <ProjectBadge
         projectId={task.project?.id}
         name={task.project?.name ?? "Личное"}
-        className="max-w-36 shrink-0"
+        className="hidden max-w-40 shrink-0 sm:inline-flex"
       />
-      <span
-        className={`shrink-0 text-xs ${overdue ? "text-red-600" : "text-neutral-500"}`}
-      >
-        {formatDate(task.due_date)}
-      </span>
+      <div className="w-24 shrink-0 text-right">
+        <span
+          className={cn(
+            "block text-xs font-medium",
+            overdue ? "text-red-700" : "text-neutral-500",
+          )}
+        >
+          {overdue ? "Просрочено" : "Сегодня"}
+        </span>
+        <span
+          className={cn(
+            "block text-[11px]",
+            overdue ? "text-red-600" : "text-neutral-400",
+          )}
+        >
+          {formatDate(task.due_date)}
+        </span>
+      </div>
     </li>
   );
 }
@@ -100,7 +133,7 @@ export default async function DashboardPage({
     supabase
       .from("tasks")
       .select(
-        "id,project_id,title,status,due_date,is_urgent,assignee_id,creator_id, assignee:profiles!tasks_assignee_id_fkey(id,full_name), project:projects(id,name,stage)",
+        "id,project_id,title,status,due_date,priority,is_important,is_urgent,assignee_id,creator_id, assignee:profiles!tasks_assignee_id_fkey(id,full_name), project:projects(id,name,stage)",
       ),
     supabase
       .from("kpi_entries")
@@ -224,16 +257,20 @@ export default async function DashboardPage({
   const byDue = (a: DashTask, b: DashTask) =>
     (a.due_date ?? "9999") < (b.due_date ?? "9999") ? -1 : 1;
 
-  const myToday = allTasks
-    .filter((t) => isOpen(t) && t.assignee_id === uid && t.due_date === today)
-    .sort(byDue);
+  const myToday = sortTodayTasks(
+    allTasks.filter(
+      (t) => isOpen(t) && t.assignee_id === uid && t.due_date === today,
+    ),
+    today,
+  );
 
-  const myOverdue = allTasks
-    .filter(
+  const myOverdue = sortTodayTasks(
+    allTasks.filter(
       (t) =>
         isOpen(t) && t.assignee_id === uid && !!t.due_date && t.due_date < today,
-    )
-    .sort(byDue);
+    ),
+    today,
+  );
 
   const staleDelegated = allTasks
     .filter(
@@ -320,6 +357,7 @@ export default async function DashboardPage({
       tone: "amber" as const,
     },
   ].filter((item) => item.count > 0);
+  const hasCalendarEvents = !!calendar?.events.length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -353,22 +391,82 @@ export default async function DashboardPage({
         ))}
       </div>
 
+      <div
+        className={cn(
+          "grid gap-4",
+          hasCalendarEvents && "lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]",
+        )}
+      >
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-neutral-900">
+                  Задачи на сегодня
+                </h2>
+                <p className="text-xs text-neutral-500">
+                  Сначала просроченные, затем задачи с дедлайном сегодня
+                </p>
+              </div>
+              <span className="text-xs text-neutral-400">
+                {myOverdue.length + myToday.length}
+              </span>
+            </div>
+            {myOverdue.length > 0 && (
+              <div className="mb-2">
+                <ul className="flex flex-col gap-1">
+                  {myOverdue.map((task) => (
+                    <DayTaskRow key={task.id} task={task} today={today} />
+                  ))}
+                </ul>
+              </div>
+            )}
+            {myToday.length === 0 ? (
+              myOverdue.length === 0 && (
+                <p className="rounded-md bg-neutral-50 px-3 py-3 text-sm text-neutral-500">
+                  На сегодня задач нет.
+                </p>
+              )
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {myToday.map((task) => (
+                  <DayTaskRow key={task.id} task={task} today={today} />
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        {hasCalendarEvents && calendar && (
+          <Card>
+            <CardContent className="p-4">
+              <PersonalCalendarSchedule
+                events={calendar.events}
+                timeZone={calendar.timeZone}
+                title="Расписание"
+                compact
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
       <Card>
         <CardContent className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-neutral-900">
+          <h2 className="mb-3 text-base font-semibold text-neutral-900">
             Требует внимания
           </h2>
           {attention.length === 0 ? (
-            <p className="rounded-md bg-emerald-50 px-3 py-4 text-center text-sm font-medium text-emerald-700">
-              Всё под контролем 👍
+            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+              Всё под контролем
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
               {attention.map((item) => (
                 <Link
                   key={item.key}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-md border px-3 py-2.5 transition-colors ${attentionTones[item.tone]}`}
+                  className={`flex min-h-14 items-center gap-3 rounded-md border px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2 ${attentionTones[item.tone]}`}
                 >
                   <span className="text-2xl font-semibold tabular-nums">
                     {item.count}
@@ -383,134 +481,55 @@ export default async function DashboardPage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardContent className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-neutral-900">
-                Мой день
-              </h2>
-              <span className="text-xs text-neutral-400">
-                сегодня и просроченное
-              </span>
-            </div>
-            {calendar && calendar.events.length > 0 && (
-              <PersonalCalendarSchedule
-                events={calendar.events}
-                timeZone={calendar.timeZone}
-                title="Расписание"
-                compact
-                className="mb-4 border-b border-neutral-100 pb-4"
-              />
-            )}
-            {myOverdue.length > 0 && (
-              <div className="mb-3">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-red-500">
-                  Просрочено · {myOverdue.length}
-                </p>
-                <ul className="flex flex-col divide-y divide-neutral-100">
-                  {myOverdue.map((task) => (
-                    <DayTaskRow key={task.id} task={task} today={today} />
-                  ))}
-                </ul>
-              </div>
-            )}
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-neutral-400">
-              Сегодня
-            </p>
-            {myToday.length === 0 ? (
-              <p className="py-6 text-center text-sm text-neutral-400">
-                На сегодня задач нет 🎉
-              </p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-neutral-100">
-                {myToday.map((task) => (
-                  <DayTaskRow key={task.id} task={task} today={today} />
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
+      {teamLoad.length > 0 && (
         <Card>
           <CardContent className="p-4">
             <h2 className="mb-3 text-sm font-semibold text-neutral-900">
-              Просрочено без отчёта
+              Загрузка команды
             </h2>
-            {staleDelegated.length === 0 ? (
-              <p className="py-6 text-center text-sm text-neutral-400">
-                Все делегированные задачи под контролем 👍
-              </p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-neutral-100">
-                {staleDelegated.map((task) => (
-                  <li key={task.id} className="flex items-center gap-2 py-2">
-                    <Link
-                      href={`/tasks?task=${task.id}`}
-                      className="min-w-0 flex-1 truncate text-sm text-neutral-800 hover:underline"
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Сотрудник</TableHead>
+                  <TableHead>В работе</TableHead>
+                  <TableHead>Открытых</TableHead>
+                  <TableHead>Сегодня</TableHead>
+                  <TableHead>Просрочено</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teamLoad.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-neutral-900">
+                      <Link
+                        href={`/tasks?assignee=${row.id}`}
+                        className="hover:underline"
+                      >
+                        {row.name}
+                      </Link>
+                      {row.open === 0 && (
+                        <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          свободен
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>{row.inProgress}</TableCell>
+                    <TableCell>{row.open}</TableCell>
+                    <TableCell>{row.todayCount}</TableCell>
+                    <TableCell
+                      className={
+                        row.overdue > 0 ? "font-medium text-red-600" : ""
+                      }
                     >
-                      {task.title}
-                    </Link>
-                    <span className="shrink-0 text-xs text-neutral-500">
-                      {task.assignee?.full_name?.split(" ")[0] ?? "—"}
-                    </span>
-                    <span className="shrink-0 text-xs font-medium text-red-600">
-                      {formatDate(task.due_date)}
-                    </span>
-                  </li>
+                      {row.overdue}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </ul>
-            )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-      </div>
-
-      <Card>
-        <CardContent className="p-4">
-          <h2 className="mb-3 text-sm font-semibold text-neutral-900">
-            Загрузка команды
-          </h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Сотрудник</TableHead>
-                <TableHead>В работе</TableHead>
-                <TableHead>Открытых</TableHead>
-                <TableHead>Сегодня</TableHead>
-                <TableHead>Просрочено</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teamLoad.length === 0 && <TableEmpty colSpan={5} />}
-              {teamLoad.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium text-neutral-900">
-                    <Link
-                      href={`/tasks?assignee=${row.id}`}
-                      className="hover:underline"
-                    >
-                      {row.name}
-                    </Link>
-                    {row.open === 0 && (
-                      <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                        свободен
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>{row.inProgress}</TableCell>
-                  <TableCell>{row.open}</TableCell>
-                  <TableCell>{row.todayCount}</TableCell>
-                  <TableCell
-                    className={row.overdue > 0 ? "font-medium text-red-600" : ""}
-                  >
-                    {row.overdue}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      )}
 
       <div className="flex flex-wrap gap-3">
         <FilterSelect name="health" label="Статус" options={healthOptions} />
