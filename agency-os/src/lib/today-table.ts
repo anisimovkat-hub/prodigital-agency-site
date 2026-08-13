@@ -39,10 +39,11 @@ const STATUS_ORDER: Record<Enums<"task_status">, number> = {
   backlog: 1,
   todo: 2,
   in_progress: 3,
-  review: 4,
-  paused: 5,
-  done: 6,
-  cancelled: 7,
+  ai_wait: 4,
+  review: 5,
+  paused: 6,
+  done: 7,
+  cancelled: 8,
 };
 
 export function normalizeTodayColumnOrder(value: unknown): TodayColumnId[] {

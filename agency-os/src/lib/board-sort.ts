@@ -4,6 +4,7 @@ import type { Enums } from "@/lib/supabase/types";
 export const BOARD_COLUMNS: Enums<"task_status">[] = [
   "todo",
   "in_progress",
+  "ai_wait",
   "paused",
   "review",
   "done",

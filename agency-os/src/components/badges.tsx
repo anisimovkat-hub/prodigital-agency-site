@@ -37,6 +37,8 @@ export function TaskStatusBadge({ status }: { status: Enums<"task_status"> }) {
       ? "green"
       : status === "cancelled"
         ? "red"
+      : status === "ai_wait"
+        ? "yellow"
       : status === "in_progress"
         ? "blue"
         : status === "review"

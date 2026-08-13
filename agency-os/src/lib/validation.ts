@@ -67,6 +67,7 @@ export const TASK_TYPE_VALUES = [
 export const TASK_STATUS_VALUES = [
   "todo",
   "in_progress",
+  "ai_wait",
   "review",
   "paused",
   "done",

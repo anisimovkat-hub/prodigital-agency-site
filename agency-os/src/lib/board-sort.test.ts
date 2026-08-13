@@ -27,6 +27,7 @@ describe("BOARD_COLUMNS", () => {
     expect(BOARD_COLUMNS).toEqual([
       "todo",
       "in_progress",
+      "ai_wait",
       "paused",
       "review",
       "done",

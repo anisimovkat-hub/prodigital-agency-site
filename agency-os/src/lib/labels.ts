@@ -36,6 +36,7 @@ export const TASK_STATUS_LABEL: Record<Enums<"task_status">, string> = {
   backlog: "Бэклог",
   todo: "К выполнению",
   in_progress: "В работе",
+  ai_wait: "Ждём ИИ",
   review: "На проверке",
   done: "Сделано",
   paused: "На паузе",

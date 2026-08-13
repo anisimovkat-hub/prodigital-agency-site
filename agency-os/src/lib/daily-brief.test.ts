@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDailyBrief,
   type DailyBriefTask,
+  splitWorkQueue,
 } from "@/lib/daily-brief";
 
 const tasks = [
@@ -52,6 +53,25 @@ describe("buildDailyBrief", () => {
     });
 
     expect(brief.focus).toEqual([]);
+  });
+});
+
+describe("splitWorkQueue", () => {
+  it("separates current focus, AI wait, next and review", () => {
+    const queue = splitWorkQueue(
+      [
+        task("focus", { status: "in_progress" }),
+        task("ai", { status: "ai_wait" }),
+        task("review", { status: "review" }),
+        task("next"),
+      ],
+      "focus",
+    );
+
+    expect(queue.current?.id).toBe("focus");
+    expect(queue.ai.map((item) => item.id)).toEqual(["ai"]);
+    expect(queue.review.map((item) => item.id)).toEqual(["review"]);
+    expect(queue.next.map((item) => item.id)).toEqual(["next"]);
   });
 });
 
