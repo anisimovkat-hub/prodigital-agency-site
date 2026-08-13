@@ -62,6 +62,9 @@
 
 `metric_key | label | target_value | unit | conversion_action_type | campaign_external_id | notes`
 
+Готовый пример строк находится в `docs/MEDIA_PLAN_IMPORT_TEMPLATE.csv`. Его можно импортировать
+в новый Google Sheet и заменить целевые значения, не меняя заголовки колонок.
+
 В форме пользователь вставляет ссылку, выбирает проект, период, валюту и диапазон. Сервер
 извлекает `spreadsheetId`, читает только указанный диапазон через Google Sheets API
 `spreadsheets.values.batchGet`, валидирует все строки и показывает предпросмотр. Запись в БД

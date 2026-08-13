@@ -1,0 +1,7 @@
+metric_key,label,target_value,unit,conversion_action_type,campaign_external_id,notes
+spend,Рекламный бюджет,150000,money,,,Бюджет в валюте медиаплана
+impressions,Показы,500000,count,,,
+clicks,Клики,10000,count,,,
+reach,Охват,300000,count,,,
+conversion:lead,Заявки,250,count,lead,,Укажите точный action_type из Meta
+revenue,Выручка,500000,money,,,Заполняется только если есть план выручки
