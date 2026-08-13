@@ -12,7 +12,10 @@ import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { isTaskOperational } from "@/lib/project-lifecycle";
 import type { Enums } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/server";
-import { filterTasksByAudience } from "@/lib/task-audience-filter";
+import {
+  filterProfilesByTaskAccess,
+  filterTasksByAudience,
+} from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +69,10 @@ export default async function WeekPage({
       .neq("status", "done")
       .neq("status", "cancelled")
       .order("created_at", { ascending: true }),
-    supabase.from("profiles").select("id,full_name,role").order("full_name"),
+    supabase
+      .from("profiles")
+      .select("id,full_name,role,is_active")
+      .order("full_name"),
   ]);
 
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
@@ -86,6 +92,15 @@ export default async function WeekPage({
   const tasks = filterTasksByAudience(
     ((data ?? []) as WeekTask[]).filter(isTaskOperational),
     { userId: uid, who, assigneeId: assignee },
+  );
+  const operationalTasks = ((data ?? []) as WeekTask[]).filter(isTaskOperational);
+  const audienceProfiles = filterProfilesByTaskAccess(
+    (profiles ?? []).filter((profile) => profile.is_active !== false),
+    operationalTasks,
+    {
+      userId: uid,
+      canViewAll: currentProfile?.role === "owner",
+    },
   );
   const overdueTasks = sortTodayTasks(
     tasks.filter((task) => task.due_date && task.due_date < today),
@@ -139,7 +154,7 @@ export default async function WeekPage({
         <FilterSelect
           name="assignee"
           label="Сотрудник"
-          options={(profiles ?? []).map((profile) => ({
+          options={audienceProfiles.map((profile) => ({
             value: profile.id,
             label: profile.full_name,
           }))}

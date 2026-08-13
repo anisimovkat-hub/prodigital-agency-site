@@ -7,7 +7,10 @@ import { TaskViewSwitcher } from "@/components/task-view-switcher";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { isTaskOperational } from "@/lib/project-lifecycle";
-import { filterTasksByAudience } from "@/lib/task-audience-filter";
+import {
+  filterProfilesByTaskAccess,
+  filterTasksByAudience,
+} from "@/lib/task-audience-filter";
 import { sortTodayTasks } from "@/lib/today-sort";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -34,7 +37,10 @@ export default async function TodayPage({
       )
       .neq("status", "done")
       .neq("status", "cancelled"),
-    supabase.from("profiles").select("id,full_name,role").order("full_name"),
+    supabase
+      .from("profiles")
+      .select("id,full_name,role,is_active")
+      .order("full_name"),
   ]);
 
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
@@ -50,6 +56,14 @@ export default async function TodayPage({
     who,
     assigneeId: assignee,
   });
+  const audienceProfiles = filterProfilesByTaskAccess(
+    (profiles ?? []).filter((profile) => profile.is_active !== false),
+    (tasks ?? []).filter(isTaskOperational),
+    {
+      userId: uid,
+      canViewAll: currentProfile?.role === "owner",
+    },
+  );
 
   const sorted = sortTodayTasks(filtered);
 
@@ -93,7 +107,7 @@ export default async function TodayPage({
         <FilterSelect
           name="assignee"
           label="Сотрудник"
-          options={(profiles ?? []).map((p) => ({
+          options={audienceProfiles.map((p) => ({
             value: p.id,
             label: p.full_name,
           }))}

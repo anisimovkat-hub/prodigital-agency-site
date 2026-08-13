@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { filterTasksByAudience } from "@/lib/task-audience-filter";
+import {
+  filterProfilesByTaskAccess,
+  filterTasksByAudience,
+} from "@/lib/task-audience-filter";
 
 const tasks = [
   { id: "mine-project", assignee_id: "me", project_id: "project-1" },
@@ -46,5 +49,42 @@ describe("filterTasksByAudience", () => {
         assigneeId: "colleague",
       }).map((task) => task.id),
     ).toEqual(["team"]);
+  });
+
+  it("never broadens the RLS-filtered source set", () => {
+    const rlsVisibleTasks = tasks.filter((task) => task.id !== "team");
+
+    expect(
+      filterTasksByAudience(rlsVisibleTasks, {
+        userId: "me",
+        assigneeId: "colleague",
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("filterProfilesByTaskAccess", () => {
+  const profiles = [
+    { id: "me", name: "Я" },
+    { id: "colleague", name: "Коллега" },
+    { id: "hidden", name: "Недоступный сотрудник" },
+  ];
+
+  it("keeps every profile for an owner or admin", () => {
+    expect(
+      filterProfilesByTaskAccess(profiles, tasks, {
+        userId: "me",
+        canViewAll: true,
+      }),
+    ).toEqual(profiles);
+  });
+
+  it("shows a specialist only self and assignees already visible through RLS", () => {
+    expect(
+      filterProfilesByTaskAccess(profiles, tasks, {
+        userId: "me",
+        canViewAll: false,
+      }).map((profile) => profile.id),
+    ).toEqual(["me", "colleague"]);
   });
 });

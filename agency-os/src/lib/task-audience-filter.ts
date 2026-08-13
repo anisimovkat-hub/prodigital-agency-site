@@ -12,6 +12,10 @@ type AudienceTask = {
   project_id: string | null;
 };
 
+type AudienceProfile = {
+  id: string;
+};
+
 type AudienceFilter = {
   userId: string;
   who?: string;
@@ -38,4 +42,19 @@ export function filterTasksByAudience<T extends AudienceTask>(
     default:
       return tasks;
   }
+}
+
+export function filterProfilesByTaskAccess<T extends AudienceProfile>(
+  profiles: T[],
+  tasks: AudienceTask[],
+  { userId, canViewAll }: { userId: string; canViewAll: boolean },
+): T[] {
+  if (canViewAll) return profiles;
+
+  const visibleAssigneeIds = new Set(
+    tasks.flatMap((task) => (task.assignee_id ? [task.assignee_id] : [])),
+  );
+  visibleAssigneeIds.add(userId);
+
+  return profiles.filter((profile) => visibleAssigneeIds.has(profile.id));
 }

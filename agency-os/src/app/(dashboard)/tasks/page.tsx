@@ -31,7 +31,12 @@ import {
   isOperationalProject,
   isTaskOperational,
 } from "@/lib/project-lifecycle";
+import {
+  filterProfilesByTaskAccess,
+  filterTasksByAudience,
+} from "@/lib/task-audience-filter";
 import { sumRawTaskTime } from "@/lib/time-analytics";
+import { cn } from "@/lib/utils";
 
 type SearchParams = {
   project?: string;
@@ -43,6 +48,7 @@ type SearchParams = {
   urgent?: string;
   task?: string;
   view?: string;
+  who?: string;
 };
 
 export default async function TasksPage({
@@ -52,6 +58,10 @@ export default async function TasksPage({
 }) {
   const filters = await searchParams;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const uid = user?.id ?? "";
   const isCompletedView = filters.view === "completed";
   const timeSnapshotAt = new Date();
 
@@ -82,7 +92,10 @@ export default async function TasksPage({
     await Promise.all([
       tasksQuery,
       supabase.from("projects").select("id,name,stage"),
-      supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase
+        .from("profiles")
+        .select("id,full_name,role,is_active")
+        .order("full_name"),
       supabase
         .from("task_time_entries")
         .select("task_id,started_at,ended_at"),
@@ -95,7 +108,12 @@ export default async function TasksPage({
   const visibleTasks = isCompletedView
     ? (tasks ?? [])
     : (tasks ?? []).filter(isTaskOperational);
-  const filtered = visibleTasks.filter((task) => {
+  const audienceTasks = filterTasksByAudience(visibleTasks, {
+    userId: uid,
+    who: filters.who,
+    assigneeId: filters.assignee,
+  });
+  const filtered = audienceTasks.filter((task) => {
     if (filters.project && task.project_id !== filters.project) return false;
     if (filters.assignee && task.assignee_id !== filters.assignee)
       return false;
@@ -107,6 +125,14 @@ export default async function TasksPage({
     if (filters.urgent === "1" && !task.is_urgent) return false;
     return true;
   });
+  const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
+  const canViewAll = currentProfile?.role === "owner";
+  const audienceProfiles = filterProfilesByTaskAccess(
+    (profiles ?? []).filter((profile) => profile.is_active),
+    visibleTasks,
+    { userId: uid, canViewAll },
+  );
+  const activeAudience = filters.assignee ? "assignee" : filters.who ?? "all";
 
   const closeHref = buildHref(filters, { task: undefined });
 
@@ -157,6 +183,42 @@ export default async function TasksPage({
         </Link>
       </div>
 
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex gap-1 border-b border-neutral-200">
+          {[
+            { key: "all", label: "Все", who: undefined },
+            { key: "mine", label: "Мои", who: "mine" },
+            { key: "personal", label: "Личные", who: "personal" },
+            { key: "team", label: "Команда", who: "team" },
+          ].map((tab) => (
+            <Link
+              key={tab.key}
+              href={buildHref(filters, {
+                who: tab.who,
+                assignee: undefined,
+                task: undefined,
+              })}
+              className={cn(
+                "-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                activeAudience === tab.key
+                  ? "border-neutral-900 text-neutral-900"
+                  : "border-transparent text-neutral-500 hover:text-neutral-800",
+              )}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
+        <FilterSelect
+          name="assignee"
+          label="Сотрудник"
+          options={audienceProfiles.map((profile) => ({
+            value: profile.id,
+            label: profile.full_name,
+          }))}
+        />
+      </div>
+
       <div className="flex flex-wrap gap-3">
         <FilterSelect
           name="project"
@@ -167,14 +229,6 @@ export default async function TasksPage({
                 isCompletedView || isOperationalProject(project.stage),
             )
             .map((p) => ({ value: p.id, label: p.name }))}
-        />
-        <FilterSelect
-          name="assignee"
-          label="Исполнитель"
-          options={(profiles ?? []).map((p) => ({
-            value: p.id,
-            label: p.full_name,
-          }))}
         />
         {!isCompletedView && (
           <FilterSelect
