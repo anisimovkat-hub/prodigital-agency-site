@@ -3,7 +3,8 @@ import Link from "next/link";
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
 import { TaskDueDateCell } from "@/app/(dashboard)/tasks/task-due-date-cell";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
-import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
+import { TaskQuickSelect } from "@/app/(dashboard)/tasks/task-quick-select";
+import { TaskStatusBadge } from "@/components/badges";
 import { FilterCheckbox } from "@/components/filter-checkbox";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
@@ -25,7 +26,7 @@ import {
 } from "@/lib/labels";
 import { formatDuration } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import { completedTasksVisibleSince } from "@/lib/task-retention";
+import { isCompletedTaskVisible } from "@/lib/task-retention";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import {
   isOperationalProject,
@@ -76,11 +77,7 @@ export default async function TasksPage({
     });
 
   tasksQuery = isCompletedView
-    ? tasksQuery
-        .eq("status", "done")
-        .or(
-          `completed_at.gte.${completedTasksVisibleSince().toISOString()},completed_at.is.null`,
-        )
+    ? tasksQuery.eq("status", "done")
     : tasksQuery.neq("status", "done").neq("status", "cancelled");
 
   const [
@@ -106,7 +103,9 @@ export default async function TasksPage({
   );
 
   const visibleTasks = isCompletedView
-    ? (tasks ?? [])
+    ? (tasks ?? []).filter((task) =>
+        isCompletedTaskVisible(task.completed_at, timeSnapshotAt),
+      )
     : (tasks ?? []).filter(isTaskOperational);
   const audienceTasks = filterTasksByAudience(visibleTasks, {
     userId: uid,
@@ -254,8 +253,8 @@ export default async function TasksPage({
       </div>
 
       {!isCompletedView && (
-        <details className="group rounded-lg border border-neutral-200 bg-white p-4">
-          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
+        <details className="group rounded-lg border border-neutral-200 bg-white p-3">
+          <summary className="inline-flex cursor-pointer list-none items-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 [&::-webkit-details-marker]:hidden">
             + Новая задача
           </summary>
           <div className="mt-4">
@@ -333,12 +332,28 @@ export default async function TasksPage({
                   <ProjectBadge projectId={null} name={null} />
                 )}
               </TableCell>
-              <TableCell>{task.assignee?.full_name ?? "—"}</TableCell>
+              <TableCell>
+                <TaskQuickSelect
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  field="assignee_id"
+                  value={task.assignee_id}
+                  options={audienceProfiles.map((profile) => ({
+                    id: profile.id,
+                    name: profile.full_name,
+                  }))}
+                />
+              </TableCell>
               <TableCell>
                 <TaskStatusBadge status={task.status ?? "todo"} />
               </TableCell>
               <TableCell>
-                <PriorityBadge priority={task.priority ?? "medium"} />
+                <TaskQuickSelect
+                  taskId={task.id}
+                  taskTitle={task.title}
+                  field="priority"
+                  value={task.priority}
+                />
               </TableCell>
               <TableCell>
                 {TASK_TYPE_LABEL[task.task_type ?? "other"]}

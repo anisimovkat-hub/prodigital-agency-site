@@ -7,6 +7,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { sumRawTaskTime } from "@/lib/time-analytics";
+import { isCompletedTaskVisible } from "@/lib/task-retention";
 
 type BoardSearchParams = {
   project?: string;
@@ -34,7 +35,7 @@ export default async function BoardPage({
       supabase
         .from("tasks")
         .select(
-          "id,project_id,title,status,priority,due_date,is_important,is_urgent,project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+          "id,project_id,title,status,priority,due_date,completed_at,is_important,is_urgent,project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
         )
         .neq("status", "cancelled")
         .order("created_at", { ascending: false }),
@@ -52,7 +53,13 @@ export default async function BoardPage({
     timeEntries ?? [],
     timeSnapshotAt,
   );
-  const operationalTasks = (tasks ?? []).filter(isTaskOperational);
+  const operationalTasks = (tasks ?? [])
+    .filter(isTaskOperational)
+    .filter(
+      (task) =>
+        task.status !== "done" ||
+        isCompletedTaskVisible(task.completed_at, timeSnapshotAt),
+    );
   const boardTasks = (operationalTasks as Omit<
     BoardTask,
     "tracked_seconds" | "focus_user_id"

@@ -7,6 +7,7 @@ import {
   GripVertical,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   type DragEvent,
   type KeyboardEvent,
@@ -15,7 +16,8 @@ import {
   useSyncExternalStore,
 } from "react";
 
-import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
+import { TaskQuickSelect } from "@/app/(dashboard)/tasks/task-quick-select";
+import { TaskStatusBadge } from "@/components/badges";
 import { ProjectBadge } from "@/components/project-badge";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import {
@@ -81,7 +83,16 @@ type TodayRow = {
   done: boolean;
 };
 
-export function TodayTable({ tasks }: { tasks: TodayTask[] }) {
+type TodayProfileOption = { id: string; name: string };
+
+export function TodayTable({
+  tasks,
+  profiles,
+}: {
+  tasks: TodayTask[];
+  profiles: TodayProfileOption[];
+}) {
+  const searchParams = useSearchParams();
   const [sort, setSort] = useState<TodayTableSort | null>(null);
   const [volatileColumnOrder, setVolatileColumnOrder] = useState<
     TodayColumnId[] | null
@@ -253,7 +264,12 @@ export function TodayTable({ tasks }: { tasks: TodayTask[] }) {
                     column === "title" && "font-medium text-neutral-900",
                   )}
                 >
-                  <TodayCell task={task} column={column} />
+                  <TodayCell
+                    task={task}
+                    column={column}
+                    profiles={profiles}
+                    taskHref={taskHref(searchParams, task.id)}
+                  />
                 </TableCell>
               ))}
             </TableRow>
@@ -267,9 +283,13 @@ export function TodayTable({ tasks }: { tasks: TodayTask[] }) {
 function TodayCell({
   task,
   column,
+  profiles,
+  taskHref,
 }: {
   task: TodayTask;
   column: TodayColumnId;
+  profiles: TodayProfileOption[];
+  taskHref: string;
 }) {
   switch (column) {
     case "project":
@@ -285,11 +305,30 @@ function TodayCell({
         </Link>
       );
     case "title":
-      return task.title;
+      return (
+        <Link href={taskHref} className="hover:underline">
+          {task.title}
+        </Link>
+      );
     case "assignee":
-      return task.assignee?.full_name ?? "—";
+      return (
+        <TaskQuickSelect
+          taskId={task.id}
+          taskTitle={task.title}
+          field="assignee_id"
+          value={task.assignee_id}
+          options={profiles}
+        />
+      );
     case "priority":
-      return <PriorityBadge priority={task.priority ?? "medium"} />;
+      return (
+        <TaskQuickSelect
+          taskId={task.id}
+          taskTitle={task.title}
+          field="priority"
+          value={task.priority}
+        />
+      );
     case "due_date":
       return (
         <span
@@ -305,6 +344,12 @@ function TodayCell({
     case "done":
       return <TaskDoneCheckbox taskId={task.id} done={false} />;
   }
+}
+
+function taskHref(searchParams: URLSearchParams, taskId: string): string {
+  const params = new URLSearchParams(searchParams.toString());
+  params.set("task", taskId);
+  return `/today?${params.toString()}`;
 }
 
 function SortIcon({

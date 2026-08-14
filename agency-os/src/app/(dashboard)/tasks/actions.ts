@@ -10,6 +10,7 @@ import {
   taskChecklistItemSchema,
   taskCommentSchema,
   updateTaskDueDateSchema,
+  updateTaskQuickFieldSchema,
   updateTaskSchema,
 } from "@/lib/validation";
 import { activeTaskLimitWarning } from "@/lib/focus-mode";
@@ -298,6 +299,67 @@ export async function updateTaskDueDate(
     revalidatePath(`/projects/${updatedTask.project_id}`);
   }
   return { success: true, dueDate: updatedTask.due_date };
+}
+
+export type UpdateTaskQuickFieldResult =
+  | { success: true; value: string | null }
+  | { success: false; error: string };
+
+export async function updateTaskQuickField(
+  taskId: string,
+  field: "priority" | "assignee_id",
+  value: string,
+): Promise<UpdateTaskQuickFieldResult> {
+  const parsed = updateTaskQuickFieldSchema.safeParse({
+    id: taskId,
+    field,
+    value,
+  });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message ?? "Некорректное значение",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Нет авторизации" };
+
+  const nextValue = parsed.data.value ?? null;
+  const update =
+    parsed.data.field === "priority"
+      ? { priority: parsed.data.value }
+      : { assignee_id: nextValue };
+  const { data: updatedTask, error } = await supabase
+    .from("tasks")
+    .update(update)
+    .eq("id", parsed.data.id)
+    .select("id,project_id,priority,assignee_id")
+    .maybeSingle();
+
+  if (error) return { success: false, error: error.message };
+  if (!updatedTask) {
+    return {
+      success: false,
+      error: "Задача не изменена: проверьте права доступа",
+    };
+  }
+
+  revalidateTaskViews();
+  if (updatedTask.project_id) {
+    revalidatePath(`/projects/${updatedTask.project_id}`);
+  }
+
+  return {
+    success: true,
+    value:
+      parsed.data.field === "priority"
+        ? updatedTask.priority
+        : updatedTask.assignee_id,
+  };
 }
 
 export async function createSubtask(

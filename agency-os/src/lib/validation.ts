@@ -200,6 +200,19 @@ export const updateTaskDueDateSchema = z.object({
   due_date: optionalString,
 });
 
+export const updateTaskQuickFieldSchema = z.discriminatedUnion("field", [
+  z.object({
+    id: z.string().uuid("Некорректный идентификатор задачи"),
+    field: z.literal("priority"),
+    value: z.enum(TASK_PRIORITY_VALUES),
+  }),
+  z.object({
+    id: z.string().uuid("Некорректный идентификатор задачи"),
+    field: z.literal("assignee_id"),
+    value: optionalUuid,
+  }),
+]);
+
 export const createSubtaskSchema = z.object({
   parent_task_id: z.string().uuid("Некорректная родительская задача"),
   title: z.string().trim().min(1, "Укажите название подзадачи"),

@@ -7,6 +7,7 @@ import {
   taskAttachmentSchema,
   updateProjectQuickFieldSchema,
   updateTaskDueDateSchema,
+  updateTaskQuickFieldSchema,
   updateRecurringScheduleSchema,
   updateTaskSchema,
 } from "@/lib/validation";
@@ -129,6 +130,47 @@ describe("updateTaskDueDateSchema", () => {
     });
 
     expect(result.due_date).toBeUndefined();
+  });
+});
+
+describe("updateTaskQuickFieldSchema", () => {
+  const id = "00000000-0000-4000-8000-000000000002";
+
+  it("принимает быстрый выбор приоритета", () => {
+    expect(
+      updateTaskQuickFieldSchema.parse({
+        id,
+        field: "priority",
+        value: "urgent",
+      }),
+    ).toEqual({ id, field: "priority", value: "urgent" });
+  });
+
+  it("принимает назначение и снятие исполнителя", () => {
+    expect(
+      updateTaskQuickFieldSchema.safeParse({
+        id,
+        field: "assignee_id",
+        value: "00000000-0000-4000-8000-000000000003",
+      }).success,
+    ).toBe(true);
+    expect(
+      updateTaskQuickFieldSchema.parse({
+        id,
+        field: "assignee_id",
+        value: "",
+      }).value,
+    ).toBeUndefined();
+  });
+
+  it("не смешивает значения разных полей", () => {
+    expect(
+      updateTaskQuickFieldSchema.safeParse({
+        id,
+        field: "priority",
+        value: "00000000-0000-4000-8000-000000000003",
+      }).success,
+    ).toBe(false);
   });
 });
 

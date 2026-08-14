@@ -6,8 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Clock3 } from "lucide-react";
 
 import { updateTaskStatus } from "@/app/(dashboard)/tasks/actions";
-import { Avatar } from "@/components/avatar";
-import { PriorityBadge } from "@/components/badges";
+import { TaskQuickSelect } from "@/app/(dashboard)/tasks/task-quick-select";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
 import { BOARD_COLUMNS, sortBoardTasks } from "@/lib/board-sort";
@@ -33,6 +32,7 @@ export type BoardTask = {
   status: Enums<"task_status"> | null;
   priority: Enums<"task_priority"> | null;
   due_date: string | null;
+  completed_at: string | null;
   is_important: boolean | null;
   is_urgent: boolean | null;
   project: { id: string; name: string } | null;
@@ -224,7 +224,13 @@ export function KanbanBoard({
                       </span>
                     )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
-                      <PriorityBadge priority={priority} />
+                      <TaskQuickSelect
+                        taskId={task.id}
+                        taskTitle={task.title}
+                        field="priority"
+                        value={task.priority}
+                        compact
+                      />
                       {task.due_date && (
                         <span
                           className={cn(
@@ -242,7 +248,15 @@ export function KanbanBoard({
                         name={task.project?.name}
                         className="max-w-44"
                       />
-                      <Avatar name={task.assignee?.full_name} />
+                      <TaskQuickSelect
+                        taskId={task.id}
+                        taskTitle={task.title}
+                        field="assignee_id"
+                        value={task.assignee?.id ?? null}
+                        options={profiles}
+                        compact
+                        className="max-w-32"
+                      />
                     </div>
                     {(trackedSeconds > 0 || running) && (
                       <div

@@ -1,12 +1,18 @@
 import Link from "next/link";
 
 import { TodayTable } from "@/app/(dashboard)/today/today-table";
+import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
+import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { FilterSelect } from "@/components/filter-select";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { TaskViewSwitcher } from "@/components/task-view-switcher";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
-import { isTaskOperational } from "@/lib/project-lifecycle";
+import { sortProjectsForDisplay } from "@/lib/project-order";
+import {
+  isOperationalProject,
+  isTaskOperational,
+} from "@/lib/project-lifecycle";
 import {
   filterProfilesByTaskAccess,
   filterTasksByAudience,
@@ -15,33 +21,36 @@ import { sortTodayTasks } from "@/lib/today-sort";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-type TodaySearch = { who?: string; assignee?: string };
+type TodaySearch = { who?: string; assignee?: string; task?: string };
 
 export default async function TodayPage({
   searchParams,
 }: {
   searchParams: Promise<TodaySearch>;
 }) {
-  const { who, assignee } = await searchParams;
+  const filters = await searchParams;
+  const { who, assignee } = filters;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const uid = user?.id ?? "";
 
-  const [{ data: tasks }, { data: profiles }] = await Promise.all([
-    supabase
-      .from("tasks")
-      .select(
-        "*, project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
-      )
-      .neq("status", "done")
-      .neq("status", "cancelled"),
-    supabase
-      .from("profiles")
-      .select("id,full_name,role,is_active")
-      .order("full_name"),
-  ]);
+  const [{ data: tasks }, { data: profiles }, { data: projects }] =
+    await Promise.all([
+      supabase
+        .from("tasks")
+        .select(
+          "*, project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+        )
+        .neq("status", "done")
+        .neq("status", "cancelled"),
+      supabase
+        .from("profiles")
+        .select("id,full_name,role,is_active")
+        .order("full_name"),
+      supabase.from("projects").select("id,name,stage"),
+    ]);
 
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
   const showPersonalCalendar =
@@ -86,6 +95,25 @@ export default async function TodayPage({
         </div>
         <TaskViewSwitcher />
       </div>
+
+      <details className="group rounded-lg border border-neutral-200 bg-white p-3">
+        <summary className="inline-flex cursor-pointer list-none items-center rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 [&::-webkit-details-marker]:hidden">
+          + Новая задача
+        </summary>
+        <div className="mt-4">
+          <TaskForm
+            projects={sortProjectsForDisplay(projects ?? [])
+              .filter((project) => isOperationalProject(project.stage))
+              .map((project) => ({ id: project.id, name: project.name }))}
+            profiles={(profiles ?? [])
+              .filter((profile) => profile.is_active !== false)
+              .map((profile) => ({
+                id: profile.id,
+                full_name: profile.full_name,
+              }))}
+          />
+        </div>
+      </details>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex gap-1 border-b border-neutral-200">
@@ -133,8 +161,32 @@ export default async function TodayPage({
           </p>
         </div>
       ) : (
-        <TodayTable tasks={sorted} />
+        <TodayTable
+          tasks={sorted}
+          profiles={audienceProfiles.map((profile) => ({
+            id: profile.id,
+            name: profile.full_name,
+          }))}
+        />
+      )}
+      {filters.task && (
+        <TaskDrawer
+          taskId={filters.task}
+          closeHref={buildTodayHref(filters, { task: undefined })}
+        />
       )}
     </div>
   );
+}
+
+function buildTodayHref(
+  current: TodaySearch,
+  overrides: Partial<Record<keyof TodaySearch, string | undefined>>,
+) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({ ...current, ...overrides })) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return `/today${query ? `?${query}` : ""}`;
 }
