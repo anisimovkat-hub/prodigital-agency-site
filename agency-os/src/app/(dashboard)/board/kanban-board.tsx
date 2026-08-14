@@ -1,15 +1,29 @@
 "use client";
 
-import { useEffect, useOptimistic, useState, useTransition } from "react";
+import {
+  useEffect,
+  useOptimistic,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Clock3 } from "lucide-react";
+import { Clock3, GripVertical, Sparkles } from "lucide-react";
 
-import { updateTaskStatus } from "@/app/(dashboard)/tasks/actions";
+import {
+  reorderTasksOnBoard,
+  updateTaskStatus,
+} from "@/app/(dashboard)/tasks/actions";
 import { TaskQuickSelect } from "@/app/(dashboard)/tasks/task-quick-select";
 import { FilterSelect } from "@/components/filter-select";
 import { ProjectBadge } from "@/components/project-badge";
-import { BOARD_COLUMNS, sortBoardTasks } from "@/lib/board-sort";
+import {
+  BOARD_COLUMNS,
+  buildManualBoardOrder,
+  sortBoardTasks,
+  sortBoardTasksManually,
+} from "@/lib/board-sort";
 import { formatDate, formatTimerDuration, todayISO } from "@/lib/format";
 import { PRIORITY_ACCENT, TASK_STATUS_LABEL } from "@/lib/labels";
 import type { Enums } from "@/lib/supabase/types";
@@ -26,6 +40,10 @@ const COLUMN_DOT: Record<Enums<"task_status">, string> = {
   cancelled: "bg-red-500",
 };
 
+const BOARD_SORT_MODE_KEY = "agency-os:board-sort-mode";
+const BOARD_SORT_MODE_EVENT = "agency-os:board-sort-mode-change";
+type BoardSortMode = "smart" | "manual";
+
 export type BoardTask = {
   id: string;
   title: string;
@@ -33,6 +51,7 @@ export type BoardTask = {
   priority: Enums<"task_priority"> | null;
   due_date: string | null;
   completed_at: string | null;
+  board_position: number | null;
   is_important: boolean | null;
   is_urgent: boolean | null;
   project: { id: string; name: string } | null;
@@ -58,8 +77,37 @@ export function KanbanBoard({
   const searchParams = useSearchParams();
   const [optimisticTasks, moveOptimistic] = useOptimistic(
     tasks,
-    (state, move: { id: string; status: Enums<"task_status"> }) =>
-      state.map((t) => (t.id === move.id ? { ...t, status: move.status } : t)),
+    (
+      state,
+      move: {
+        id: string;
+        status: Enums<"task_status">;
+        orderedIds?: string[];
+      },
+    ) => {
+      const positions = new Map(
+        (move.orderedIds ?? []).map((id, index) => [id, (index + 1) * 1000]),
+      );
+      return state.map((task) => {
+        if (task.id === move.id) {
+          return {
+            ...task,
+            status: move.status,
+            board_position:
+              positions.get(task.id) ?? task.board_position,
+          };
+        }
+        const position = positions.get(task.id);
+        return position == null
+          ? task
+          : { ...task, board_position: position };
+      });
+    },
+  );
+  const sortMode = useSyncExternalStore(
+    subscribeBoardSortMode,
+    readBoardSortMode,
+    () => "smart" as BoardSortMode,
   );
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -89,16 +137,43 @@ export function KanbanBoard({
     return true;
   });
 
-  function handleDrop(e: React.DragEvent, status: Enums<"task_status">) {
+  function handleDrop(
+    e: React.DragEvent,
+    status: Enums<"task_status">,
+    beforeTaskId?: string,
+  ) {
     e.preventDefault();
     setDragOver(null);
     const id = e.dataTransfer.getData("text/task-id");
     if (!id) return;
+    const draggedTask = optimisticTasks.find((task) => task.id === id);
+    if (!draggedTask || beforeTaskId === id) return;
+
+    if (sortMode === "smart" && (draggedTask.status ?? "todo") === status) {
+      setStatusNotice(
+        "В автоматическом режиме порядок задают дедлайн и приоритет. Для свободной перестановки включите «Мой порядок».",
+      );
+      return;
+    }
+
+    const targetOrder =
+      sortMode === "manual"
+        ? buildManualBoardOrder(
+            optimisticTasks,
+            id,
+            status,
+            beforeTaskId,
+            today,
+          )
+        : undefined;
+
     startTransition(async () => {
       setStatusError(null);
       setStatusNotice(null);
-      moveOptimistic({ id, status });
-      const result = await updateTaskStatus(id, status);
+      moveOptimistic({ id, status, orderedIds: targetOrder });
+      const result = targetOrder
+        ? await reorderTasksOnBoard(targetOrder, status, id)
+        : await updateTaskStatus(id, status);
       if (!result.success) setStatusError(result.error);
       else if (result.warning) setStatusNotice(result.warning);
     });
@@ -106,7 +181,7 @@ export function KanbanBoard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         <FilterSelect
           name="project"
           label="Проект"
@@ -123,7 +198,49 @@ export function KanbanBoard({
             label: profile.name,
           }))}
         />
+        <div className="ml-auto">
+          <p className="mb-1 text-xs text-neutral-500">Порядок карточек</p>
+          <div
+            className="inline-flex rounded-lg bg-neutral-100 p-1"
+            role="group"
+            aria-label="Порядок карточек"
+          >
+            <button
+              type="button"
+              onClick={() => saveBoardSortMode("smart")}
+              aria-pressed={sortMode === "smart"}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition",
+                sortMode === "smart"
+                  ? "bg-white text-neutral-900 shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-900",
+              )}
+            >
+              <Sparkles className="size-4" aria-hidden />
+              По важности
+            </button>
+            <button
+              type="button"
+              onClick={() => saveBoardSortMode("manual")}
+              aria-pressed={sortMode === "manual"}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition",
+                sortMode === "manual"
+                  ? "bg-white text-neutral-900 shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-900",
+              )}
+            >
+              <GripVertical className="size-4" aria-hidden />
+              Мой порядок
+            </button>
+          </div>
+        </div>
       </div>
+      <p className="-mt-2 text-xs text-neutral-500">
+        {sortMode === "smart"
+          ? "Сначала задачи с дедлайном и приоритетом, затем остальные по срочности."
+          : "Перетаскивайте карточки вверх, вниз и между колонками — порядок сохранится."}
+      </p>
       {statusError && (
         <p
           role="alert"
@@ -143,24 +260,26 @@ export function KanbanBoard({
 
       <div className="flex gap-3 overflow-x-auto pb-4">
         {BOARD_COLUMNS.map((status) => {
-          const columnTasks = sortBoardTasks(
-            filteredTasks.filter(
-              (task) => (task.status ?? "todo") === status,
-            ),
-            today,
+          const tasksInColumn = filteredTasks.filter(
+            (task) => (task.status ?? "todo") === status,
           );
+          const columnTasks =
+            sortMode === "manual"
+              ? sortBoardTasksManually(tasksInColumn, today)
+              : sortBoardTasks(tasksInColumn, today);
           return (
             <div
               key={status}
               onDragOver={(e) => {
                 e.preventDefault();
-                setDragOver(status);
+                setDragOver(`column:${status}`);
               }}
               onDragLeave={() => setDragOver(null)}
               onDrop={(e) => handleDrop(e, status)}
               className={cn(
                 "flex w-64 shrink-0 flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2 transition-colors",
-                dragOver === status && "border-neutral-400 bg-neutral-100",
+                dragOver === `column:${status}` &&
+                  "border-neutral-400 bg-neutral-100",
               )}
             >
               <div className="flex items-center justify-between px-1 pt-1">
@@ -201,9 +320,23 @@ export function KanbanBoard({
                       e.dataTransfer.effectAllowed = "move";
                       e.dataTransfer.setData("text/task-id", task.id);
                     }}
+                    onDragOver={(event) => {
+                      if (sortMode !== "manual") return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setDragOver(`task:${task.id}`);
+                    }}
+                    onDrop={(event) => {
+                      if (sortMode !== "manual") return;
+                      event.stopPropagation();
+                      handleDrop(event, status, task.id);
+                    }}
+                    onDragEnd={() => setDragOver(null)}
                     className={cn(
                       "group relative cursor-grab rounded-md border border-l-4 border-neutral-200 bg-white p-2.5 shadow-sm transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing",
                       PRIORITY_ACCENT[priority],
+                      dragOver === `task:${task.id}` &&
+                        "translate-y-1 ring-2 ring-blue-300",
                     )}
                   >
                     <Link
@@ -214,9 +347,15 @@ export function KanbanBoard({
                     >
                       <span className="sr-only">Открыть редактор задачи</span>
                     </Link>
-                    <p className="text-sm font-medium text-neutral-900 group-hover:underline">
-                      {task.title}
-                    </p>
+                    <div className="flex items-start gap-1">
+                      <p className="min-w-0 flex-1 text-sm font-medium text-neutral-900 group-hover:underline">
+                        {task.title}
+                      </p>
+                      <GripVertical
+                        className="mt-0.5 size-4 shrink-0 text-neutral-300"
+                        aria-hidden
+                      />
+                    </div>
                     {focused && (
                       <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
                         <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
@@ -287,4 +426,24 @@ export function KanbanBoard({
       </div>
     </div>
   );
+}
+
+function subscribeBoardSortMode(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(BOARD_SORT_MODE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(BOARD_SORT_MODE_EVENT, callback);
+  };
+}
+
+function readBoardSortMode(): BoardSortMode {
+  return window.localStorage.getItem(BOARD_SORT_MODE_KEY) === "manual"
+    ? "manual"
+    : "smart";
+}
+
+function saveBoardSortMode(mode: BoardSortMode) {
+  window.localStorage.setItem(BOARD_SORT_MODE_KEY, mode);
+  window.dispatchEvent(new Event(BOARD_SORT_MODE_EVENT));
 }

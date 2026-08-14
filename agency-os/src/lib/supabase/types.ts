@@ -226,6 +226,7 @@ export type Database = {
           recurring_task_id: string | null;
           is_important: boolean | null;
           is_urgent: boolean | null;
+          board_position: number | null;
           created_at: string | null;
           completed_at: string | null;
         };
@@ -246,6 +247,7 @@ export type Database = {
           recurring_task_id?: string | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
+          board_position?: number | null;
           created_at?: string | null;
           completed_at?: string | null;
         };
@@ -266,6 +268,7 @@ export type Database = {
           recurring_task_id?: string | null;
           is_important?: boolean | null;
           is_urgent?: boolean | null;
+          board_position?: number | null;
           created_at?: string | null;
           completed_at?: string | null;
         };
@@ -1628,6 +1631,13 @@ export type Database = {
     Functions: {
       cleanup_completed_tasks: {
         Args: Record<string, never>;
+        Returns: number;
+      };
+      reorder_board_tasks: {
+        Args: {
+          p_task_ids: string[];
+          p_status: Database["public"]["Enums"]["task_status"];
+        };
         Returns: number;
       };
       start_task_focus: {

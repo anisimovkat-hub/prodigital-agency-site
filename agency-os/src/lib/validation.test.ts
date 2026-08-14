@@ -4,6 +4,7 @@ import {
   createRecurringTaskSchema,
   createTaskSchema,
   mediaPlanSchema,
+  reorderBoardTasksSchema,
   taskAttachmentSchema,
   updateProjectQuickFieldSchema,
   updateTaskDueDateSchema,
@@ -169,6 +170,38 @@ describe("updateTaskQuickFieldSchema", () => {
         id,
         field: "priority",
         value: "00000000-0000-4000-8000-000000000003",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("reorderBoardTasksSchema", () => {
+  const first = "00000000-0000-4000-8000-000000000002";
+  const second = "00000000-0000-4000-8000-000000000003";
+
+  it("принимает уникальный порядок карточек рабочей колонки", () => {
+    expect(
+      reorderBoardTasksSchema.safeParse({
+        task_ids: [first, second],
+        moved_task_id: second,
+        status: "in_progress",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("отклоняет дубли и служебные статусы", () => {
+    expect(
+      reorderBoardTasksSchema.safeParse({
+        task_ids: [first, first],
+        moved_task_id: first,
+        status: "todo",
+      }).success,
+    ).toBe(false);
+    expect(
+      reorderBoardTasksSchema.safeParse({
+        task_ids: [first],
+        moved_task_id: first,
+        status: "cancelled",
       }).success,
     ).toBe(false);
   });

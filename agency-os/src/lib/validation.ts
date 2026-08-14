@@ -213,6 +213,25 @@ export const updateTaskQuickFieldSchema = z.discriminatedUnion("field", [
   }),
 ]);
 
+export const reorderBoardTasksSchema = z.object({
+  task_ids: z
+    .array(z.string().uuid("Некорректный идентификатор задачи"))
+    .min(1, "Передайте хотя бы одну задачу")
+    .max(500, "Слишком много задач для одного перемещения")
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "Список задач содержит дубли",
+    }),
+  moved_task_id: z.string().uuid("Некорректный идентификатор задачи"),
+  status: z.enum([
+    "todo",
+    "in_progress",
+    "ai_wait",
+    "paused",
+    "review",
+    "done",
+  ]),
+});
+
 export const createSubtaskSchema = z.object({
   parent_task_id: z.string().uuid("Некорректная родительская задача"),
   title: z.string().trim().min(1, "Укажите название подзадачи"),

@@ -35,7 +35,7 @@ export default async function BoardPage({
       supabase
         .from("tasks")
         .select(
-          "id,project_id,title,status,priority,due_date,completed_at,is_important,is_urgent,project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
+          "id,project_id,title,status,priority,due_date,completed_at,board_position,is_important,is_urgent,project:projects(id,name,stage), assignee:profiles!tasks_assignee_id_fkey(id,full_name)",
         )
         .neq("status", "cancelled")
         .order("created_at", { ascending: false }),
@@ -76,7 +76,7 @@ export default async function BoardPage({
       <div>
         <h1 className="text-2xl font-semibold text-neutral-900">Доска</h1>
         <p className="text-sm text-neutral-500">
-          Перетаскивайте задачи между колонками, чтобы менять статус.
+          Автоматически сортируйте по дедлайну и приоритету или включите свой порядок.
         </p>
       </div>
       <KanbanBoard

@@ -6,6 +6,7 @@ import {
   createSubtaskSchema,
   createTaskSchema,
   flattenZodErrors,
+  reorderBoardTasksSchema,
   taskAttachmentSchema,
   taskChecklistItemSchema,
   taskCommentSchema,
@@ -227,6 +228,9 @@ export async function updateTask(
       is_urgent: parsed.data.is_urgent ?? false,
       completed_at:
         parsed.data.status === "done" ? new Date().toISOString() : null,
+      ...(previousTask?.status !== parsed.data.status
+        ? { board_position: null }
+        : {}),
     })
     .eq("id", parsed.data.id)
     .select(
@@ -458,6 +462,7 @@ export async function updateTaskStatus(taskId: string, status: string) {
     .update({
       status: status as never,
       completed_at: status === "done" ? new Date().toISOString() : null,
+      ...(previousTask?.status !== status ? { board_position: null } : {}),
     })
     .eq("id", taskId)
     .select("id,project_id")
@@ -478,6 +483,85 @@ export async function updateTaskStatus(taskId: string, status: string) {
   return { success: true as const, warning: activeWarning };
 }
 
+export async function reorderTasksOnBoard(
+  taskIds: string[],
+  status: string,
+  movedTaskId: string,
+) {
+  const parsed = reorderBoardTasksSchema.safeParse({
+    task_ids: taskIds,
+    status,
+    moved_task_id: movedTaskId,
+  });
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      error: parsed.error.issues[0]?.message ?? "Некорректный порядок задач",
+    };
+  }
+
+  if (!parsed.data.task_ids.includes(parsed.data.moved_task_id)) {
+    return {
+      success: false as const,
+      error: "Перемещаемая задача отсутствует в новом порядке",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false as const, error: "Нет авторизации" };
+  }
+
+  const { data: previousTask } = await supabase
+    .from("tasks")
+    .select("status,assignee_id,project_id")
+    .eq("id", parsed.data.moved_task_id)
+    .maybeSingle();
+  if (!previousTask) {
+    return {
+      success: false as const,
+      error: "Задача не найдена или недоступна",
+    };
+  }
+
+  const { count: activeCount } = previousTask.assignee_id
+    ? await supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("assignee_id", previousTask.assignee_id)
+        .eq("status", "in_progress")
+    : { count: 0 };
+  const activeWarning = activeTaskLimitWarning({
+    nextStatus: parsed.data.status,
+    activeCount: activeCount ?? 0,
+    wasActive: previousTask.status === "in_progress",
+  });
+
+  const { data: updatedCount, error } = await supabase.rpc(
+    "reorder_board_tasks",
+    {
+      p_task_ids: parsed.data.task_ids,
+      p_status: parsed.data.status,
+    },
+  );
+  if (error) return { success: false as const, error: error.message };
+  if (updatedCount !== parsed.data.task_ids.length) {
+    return {
+      success: false as const,
+      error: "Не все карточки удалось переставить",
+    };
+  }
+
+  revalidateTaskViews();
+  if (previousTask.project_id) {
+    revalidatePath(`/projects/${previousTask.project_id}`);
+  }
+  return { success: true as const, warning: activeWarning };
+}
+
 export async function toggleTaskDone(taskId: string, done: boolean) {
   const supabase = await createClient();
   const {
@@ -490,6 +574,7 @@ export async function toggleTaskDone(taskId: string, done: boolean) {
     .update({
       status: done ? "done" : "todo",
       completed_at: done ? new Date().toISOString() : null,
+      board_position: null,
     })
     .eq("id", taskId);
 
