@@ -59,6 +59,7 @@ export async function getPersonalCalendarEvents(
     calendarSources[0],
     fromDate,
     toDate,
+    PERSONAL_CALENDAR_TIME_ZONE,
   );
   const calendars = [
     primaryCalendar,

@@ -72,6 +72,19 @@ describe("parseCalendarEvents", () => {
       meetingUrl: "https://meet.google.com/abc-defg-hij",
     });
   });
+
+  it("показывает события в часовом поясе Agency OS, а не исходного календаря", () => {
+    const result = parseCalendarEvents(
+      ICS,
+      "2026-07-27",
+      "2026-08-02",
+      "Europe/Moscow",
+    );
+
+    expect(result.timeZone).toBe("Europe/Moscow");
+    expect(result.events.find((event) => event.title.includes("Созвон"))?.start)
+      .toBe("2026-07-28T07:00:00.000Z");
+  });
 });
 
 describe("mergeCalendarEvents", () => {

@@ -5,7 +5,11 @@ import ical, {
   type VEvent,
 } from "node-ical";
 
-export const PERSONAL_CALENDAR_TIME_ZONE = "Asia/Bangkok";
+// Рабочий интерфейс Agency OS ведётся по московскому времени. Сам Google
+// Calendar может хранить исходные события в другом часовом поясе (например,
+// Asia/Bangkok), поэтому часовой пояс отображения задаём отдельно от TZ
+// календарного источника.
+export const PERSONAL_CALENDAR_TIME_ZONE = "Europe/Moscow";
 
 export type CalendarEventCategory =
   | "meal"
