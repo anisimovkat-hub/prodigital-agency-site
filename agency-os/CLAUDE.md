@@ -42,6 +42,8 @@ Meta-приложению `Ads Monitoring` добавлены Instagram API with
   защищённые `GOOGLE_CALENDAR_ICAL_URL` / `GOOGLE_CALENDAR_SECONDARY_ICAL_URL` для двух
   read-only личных календарей владельца; `META_ACCESS_TOKEN`, `SUPABASE_SECRET_KEY` и
   `CRON_SECRET` используются только server-side для автоматической Meta-синхронизации
+- Supabase Auth Site URL: `https://prodigital-os.vercel.app`; прежний Vercel alias сохранён
+  в redirect allow-list для совместимости существующих ссылок
 
 ## Структура
 

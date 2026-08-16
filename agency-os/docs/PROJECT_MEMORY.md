@@ -1,6 +1,6 @@
 # Agency OS — заметка-память
 
-Обновлено: 2026-08-15
+Обновлено: 2026-08-16
 
 ## Свежее (2026-08-15, часовой пояс личных календарей)
 
@@ -345,7 +345,8 @@
 
 - Репозиторий: `anisimovkat-hub/prodigital-agency-site`, каталог `agency-os/`, ветка
   `claude/agency-ops-mvp-design-ykrrn0`.
-- Прод: https://agency-os-lilac-eight.vercel.app.
+- Прод: https://prodigital-os.vercel.app (основной); прежний
+  https://agency-os-lilac-eight.vercel.app сохранён как рабочий alias.
 - Supabase project: `ihsjgzzdihjesblkuylz`; Vercel project: `prj_OsyQpD1tegxeQuqhO8KQHZUCz64n`;
   team: `team_htNZrI5iP6zK3F0CurE1R8S3`.
 - Миграции 0001–0004 применены. Роли, RLS, одноразовые инвайты, signup-триггер и
