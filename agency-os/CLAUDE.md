@@ -8,7 +8,7 @@
 KPI с авторасчётом, заметки. Заменяет связку Notion + Trello + таблицы. Пользователи — владелец
 (админ, видит всё) и ~5 специалистов (видят только свои проекты).
 
-**Продакшн на 2026-08-15:** прикладные миграции до 0032 применены, включая план/факт,
+**Продакшн на 2026-08-16:** прикладные миграции до 0032 применены, включая план/факт,
 сохраняемый порядок канбана и
 календарный срок хранения выполненных задач. Включены рекламные
 функции 0016–0019; роли/RLS, инвайты, автоматическое удаление старых выполненных,
@@ -23,6 +23,10 @@ Meta-приложению `Ads Monitoring` добавлены Instagram API with
 `instagram_basic`, `instagram_manage_insights`, `pages_read_engagement`, `pages_show_list` и
 `business_management`. Новый токен с доступом ко всем текущим и будущим business assets хранится
 только в sensitive env Vercel для Production/Preview; реклама и органика используют одно приложение.
+Основная Meta-статистика обновляется ежедневно Vercel Cron: защищённый endpoint повторно
+загружает последние семь дней, чтобы учитывать запаздывающую атрибуцию. Пользовательские
+сигналы рекламы показывают рост CPA от 20% только вместе со снижением числа заявок; падение
+показов и технические уведомления о свежести на дашборд не выводятся.
 Пять сотрудников ранее получили временные пароли;
 пароли в Git не хранятся и при деплоях не перевыпускаются.
 
@@ -33,10 +37,11 @@ Meta-приложению `Ads Monitoring` добавлены Instagram API with
 - Supabase: Postgres + Auth через `@supabase/ssr` (проект `ihsjgzzdihjesblkuylz`, eu-central-1, free-тир)
 - Zod v4 — валидация форм в server actions
 - Vitest — юнит-тесты; ESLint 9
-- Деплой: Vercel (team `team_htNZrI5iP6zK3F0CurE1R8S3`, проект `agency-os`, prod: agency-os-lilac-eight.vercel.app)
+- Деплой: Vercel (team `team_htNZrI5iP6zK3F0CurE1R8S3`, проект `agency-os`, prod: `prodigital-os.vercel.app`; прежний alias `agency-os-lilac-eight.vercel.app` сохранён)
 - Production env в Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` и
   защищённые `GOOGLE_CALENDAR_ICAL_URL` / `GOOGLE_CALENDAR_SECONDARY_ICAL_URL` для двух
-  read-only личных календарей владельца
+  read-only личных календарей владельца; `META_ACCESS_TOKEN`, `SUPABASE_SECRET_KEY` и
+  `CRON_SECRET` используются только server-side для автоматической Meta-синхронизации
 
 ## Структура
 

@@ -21,12 +21,14 @@ describe("proxy matcher", () => {
   });
 
   it.each([
+    "/api/cron/meta-sync",
+    "/api/cron/another-job",
     "/_next/static/chunk.js",
     "/_next/image",
     "/favicon.ico",
     "/logo.png",
     "/hero.svg",
-  ])("исключает статику %s из проверки", (path) => {
+  ])("исключает cron или статику %s из пользовательской auth-проверки", (path) => {
     expect(matcherRegex.test(path)).toBe(false);
   });
 });

@@ -22,24 +22,33 @@ function metric(
 function build(
   currentRows: ProjectAdMetrics[],
   previousRows: ProjectAdMetrics[],
-  latestDate = "2026-08-12",
 ) {
   return buildAdAlerts({
     projects: [{ id: "p1", name: "Проект" }],
     current: new Map([["p1", currentRows]]),
     previous: new Map([["p1", previousRows]]),
     linkedProjectIds: new Set(["p1"]),
-    latestMetricDateByProject: latestDate
-      ? new Map([["p1", latestDate]])
-      : new Map(),
-    today: "2026-08-13",
   });
 }
 
 describe("buildAdAlerts", () => {
-  it("сигнализирует о росте CPA выше порога", () => {
-    const alerts = build([metric({ costPerResult: 15 })], [metric()]);
+  it("сигнализирует, когда CPA вырос минимум на 20% и заявок стало меньше", () => {
+    const alerts = build(
+      [
+        metric({
+          results: 8,
+          primaryGoals: [{ actionType: "lead", count: 8 }],
+          costPerResult: 12,
+        }),
+      ],
+      [metric()],
+    );
     expect(alerts.some((alert) => alert.kind === "cost-increase")).toBe(true);
+  });
+
+  it("не тревожит только из-за роста CPA, если заявок не стало меньше", () => {
+    const alerts = build([metric({ costPerResult: 15 })], [metric()]);
+    expect(alerts.some((alert) => alert.kind === "cost-increase")).toBe(false);
   });
 
   it("не сравнивает стоимость разных целей", () => {
@@ -50,12 +59,12 @@ describe("buildAdAlerts", () => {
     expect(alerts.some((alert) => alert.kind === "cost-increase")).toBe(false);
   });
 
-  it("сигнализирует о падении показов", () => {
+  it("не сигнализирует о падении показов", () => {
     const alerts = build(
       [metric({ impressions: 500 })],
       [metric({ impressions: 1000 })],
     );
-    expect(alerts.find((alert) => alert.kind === "delivery-drop")?.title).toContain("50%");
+    expect(alerts).toEqual([]);
   });
 
   it("отличает неделю расхода без результата от двух недель без результата", () => {
@@ -72,9 +81,8 @@ describe("buildAdAlerts", () => {
     expect(twoWeeks.some((alert) => alert.kind === "no-results")).toBe(true);
   });
 
-  it("показывает отсутствие и устаревание данных", () => {
-    expect(build([], [], "").some((alert) => alert.kind === "missing-data")).toBe(true);
-    expect(build([], [], "2026-08-08").some((alert) => alert.kind === "stale-data")).toBe(true);
+  it("не выводит тревоги о технической свежести данных", () => {
+    expect(build([], [])).toEqual([]);
   });
 
   it("не создаёт алерты для проекта без связанного Meta-кабинета", () => {
@@ -83,8 +91,6 @@ describe("buildAdAlerts", () => {
       current: new Map(),
       previous: new Map(),
       linkedProjectIds: new Set(),
-      latestMetricDateByProject: new Map(),
-      today: "2026-08-13",
     });
     expect(alerts).toEqual([]);
   });

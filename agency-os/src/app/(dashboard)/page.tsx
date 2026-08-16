@@ -21,7 +21,6 @@ import { dateISOInTimeZone } from "@/lib/calendar-events";
 import {
   aggregateProjectAdMetrics,
   formatAdMoney,
-  latestProjectAdMetricDates,
   linkedAdProjectIds,
   precedingDateRange,
   rollingDateRange,
@@ -143,7 +142,6 @@ export default async function DashboardPage({
     { data: adCampaigns, error: adCampaignsError },
     { data: adPeriodRows, error: adPeriodError },
     { data: previousAdPeriodRows, error: previousAdPeriodError },
-    { data: latestAdMetricRows, error: latestAdMetricError },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -171,11 +169,6 @@ export default async function DashboardPage({
       p_since: previousAdPeriod.since,
       p_until: previousAdPeriod.until,
     }),
-    supabase
-      .from("ad_campaign_metrics")
-      .select("campaign_id,date")
-      .order("date", { ascending: false })
-      .range(0, 9999),
   ]);
 
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
@@ -275,7 +268,7 @@ export default async function DashboardPage({
     adAccountsError || adCampaignsError || adPeriodError,
   );
   const adAlertDataUnavailable = Boolean(
-    adDataUnavailable || previousAdPeriodError || latestAdMetricError,
+    adDataUnavailable || previousAdPeriodError,
   );
 
   const filteredProjects = sortProjectsForDisplay(
@@ -371,13 +364,6 @@ export default async function DashboardPage({
       campaignRows,
       visibleProjectIds,
     ),
-    latestMetricDateByProject: latestProjectAdMetricDates(
-      accountRows,
-      campaignRows,
-      (latestAdMetricRows ?? []) as { campaign_id: string; date: string }[],
-      visibleProjectIds,
-    ),
-    today,
   });
 
   const attentionTones = {
