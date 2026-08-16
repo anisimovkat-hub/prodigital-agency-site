@@ -36,7 +36,7 @@ function compactAudienceError(message: string): string {
 const GENERIC_TOKENS = new Set(["ads", "account", "new", "the", "com", "lab", "asia"]);
 const INSTAGRAM_PROJECT_ALIASES: Record<string, string> = {
   accademialiricaosimo: "Озимо",
-  "katerina_pro_digital": "Личный бренд",
+  "katerina_pro_digital": "Катерина Анисимова · Личный Instagram",
   "mm.document": "M&M Documents",
   "mm.document_rus": "M&M Documents",
   "mm.document_uz": "M&M Documents",

@@ -26,7 +26,6 @@ import type {
   MarketingPayload,
   MarketingPost,
 } from "@/lib/marketing-analytics";
-import { projectLogoUrl } from "@/lib/project-logos";
 import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
@@ -625,10 +624,7 @@ export default async function AnalyticsPage({
     project: {
       id: selectedProject?.id ?? null,
       name: selectedProject?.name ?? "Все проекты",
-      logoUrl:
-        projectLogoUrl(selectedProject?.id, selectedProject?.logo_url) ??
-        selectedSocial[0]?.profile_picture_url ??
-        null,
+      logoUrl: selectedProject?.logo_url ?? selectedSocial[0]?.profile_picture_url ?? null,
     },
     period: { from, to },
     organic: {

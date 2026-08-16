@@ -350,7 +350,7 @@ function AudienceSection({
 }
 
 function ProjectMark({ payload }: { payload: MarketingPayload }) {
-  return <div className="flex items-center gap-3"><ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" /><div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
+  return <div className="flex items-center gap-3">{payload.project.id && <ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" />}<div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
 }
 
 export function MarketingDashboard({
