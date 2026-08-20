@@ -2,6 +2,11 @@
 
 Обновлено: 2026-08-20.
 
+Локальная понятная точка входа на компьютере владельца:
+`/Users/katerinaanisimova/Documents/Agency OS/PROJECT.md`. В ней нет копии кода, базы или
+секретов — только паспорт проекта и этот же стартовый промпт. Полные код и документация
+по-прежнему берутся из GitHub.
+
 ## Короткий статус
 
 Production-MVP работает на `https://prodigital-os.vercel.app` из ветки
@@ -72,6 +77,7 @@ Production-MVP работает на `https://prodigital-os.vercel.app` из в�
 
 ```text
 Продолжаем Agency OS — внутреннюю CRM/операционную систему ProDigital.
+Локальный паспорт: /Users/katerinaanisimova/Documents/Agency OS/PROJECT.md.
 Репозиторий anisimovkat-hub/prodigital-agency-site, код agency-os/, production-ветка
 claude/agency-ops-mvp-design-ykrrn0, сайт https://prodigital-os.vercel.app.
 
