@@ -50,6 +50,12 @@ export default function LoginPage() {
               {pending ? "Входим..." : "Войти"}
             </Button>
             <a
+              href="/forgot-password"
+              className="text-center text-sm text-neutral-500 hover:underline"
+            >
+              Забыли пароль?
+            </a>
+            <a
               href="/signup"
               className="text-center text-sm text-neutral-500 hover:underline"
             >
