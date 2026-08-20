@@ -8,6 +8,7 @@ import {
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
+import { YandexClientsPanel } from "@/app/(dashboard)/analytics/yandex-clients-panel";
 import {
   actionTypeLabel,
   GOAL_ACTION_TYPES,
@@ -841,30 +842,33 @@ export default async function AnalyticsPage({
         />
       }
       adsPanel={
-        <AdAnalyticsPanel
-          current={currentAdsFilters}
-          accounts={currentAdAccountRows.map((account) => ({
-            id: account.id,
-            name: account.name ?? account.external_id,
-            project_id: account.project_id,
-          }))}
-          campaigns={allCampaignRows.map((campaign) => ({
-            id: campaign.id,
-            name: campaign.name ?? "Без названия",
-            project_id: campaign.project_id,
-            account_id: campaign.ad_account_id,
-          }))}
-          goals={goalOptions}
-          points={(adTimeseries ?? []) as TimeseriesPoint[]}
-          granularity={granularity}
-          currency={detailCurrency}
-          currencies={detailCurrencies}
-          goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
-          tree={adTree}
-          audience={audience}
-          audienceActions={<AudienceSyncAction projectId={projectId} />}
-          freshnessWarning={freshnessWarning}
-        />
+        <>
+          <YandexClientsPanel />
+          <AdAnalyticsPanel
+            current={currentAdsFilters}
+            accounts={currentAdAccountRows.map((account) => ({
+              id: account.id,
+              name: account.name ?? account.external_id,
+              project_id: account.project_id,
+            }))}
+            campaigns={allCampaignRows.map((campaign) => ({
+              id: campaign.id,
+              name: campaign.name ?? "Без названия",
+              project_id: campaign.project_id,
+              account_id: campaign.ad_account_id,
+            }))}
+            goals={goalOptions}
+            points={(adTimeseries ?? []) as TimeseriesPoint[]}
+            granularity={granularity}
+            currency={detailCurrency}
+            currencies={detailCurrencies}
+            goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
+            tree={adTree}
+            audience={audience}
+            audienceActions={<AudienceSyncAction projectId={projectId} />}
+            freshnessWarning={freshnessWarning}
+          />
+        </>
       }
     />
   );

@@ -40,6 +40,12 @@ Meta-приложению `Ads Monitoring` добавлены Instagram API with
 `docs/YANDEX_AI_ANALYTICS.md`; краткая передача в новую сессию — в
 `docs/NEXT_CHAT_HANDOFF.md`.
 
+**Y1 (2026-08-20):** агентский OAuth-токен Яндекс.Директа настроен только как sensitive
+`YANDEX_DIRECT_TOKEN` для Production/Preview. В `/analytics` у owner есть отдельная
+read-only проверка `AgencyClients.get`: она показывает доступные логины, названия, валюты и
+архивный статус, но не создаёт записей, не загружает историю и не передаёт токен в браузер.
+До ручного сопоставления кабинетов с проектами не переходить к Y2/Y3.
+
 ## Стек
 
 - Next.js 16 (App Router, Turbopack), React 19, TypeScript strict
@@ -51,7 +57,8 @@ Meta-приложению `Ads Monitoring` добавлены Instagram API with
 - Production env в Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` и
   защищённые `GOOGLE_CALENDAR_ICAL_URL` / `GOOGLE_CALENDAR_SECONDARY_ICAL_URL` для двух
   read-only личных календарей владельца; `META_ACCESS_TOKEN`, `SUPABASE_SECRET_KEY` и
-  `CRON_SECRET` используются только server-side для автоматической Meta-синхронизации
+  `CRON_SECRET` и `YANDEX_DIRECT_TOKEN` используются только server-side; последний —
+  исключительно для read-only Яндекс.Директ discovery
 - Supabase Auth Site URL: `https://prodigital-os.vercel.app`; прежний Vercel alias сохранён
   в redirect allow-list для совместимости существующих ссылок
 
