@@ -28,7 +28,7 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 82px;
-  overflow-x: hidden;
+  overflow-x: clip;
   width: 100%;
 }
 body {
@@ -38,7 +38,7 @@ body {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
   width: 100%;
   max-width: 100%;
   touch-action: pan-y;
@@ -448,7 +448,10 @@ em.serif, .serif-em {
   margin-bottom: 48px; gap: 20px;
 }
 .services-header h2 { color: var(--text-cream); }
-.services-list { border-top: 1px solid var(--line-cream); }
+.services-list {
+  display: block;
+  padding-bottom: 110px;
+}
 .services-cta {
   display: flex;
   justify-content: center;
@@ -456,19 +459,24 @@ em.serif, .serif-em {
 }
 .service-row {
   display: grid; grid-template-columns: 52px 1fr 1fr; gap: 24px; align-items: start;
-  padding: 30px 24px; border-bottom: 1px solid var(--line-cream);
-  /* Stacking paper effect — каждая карточка скользит поверх предыдущей */
+  align-self: start;
+  min-height: 154px;
+  padding: 30px 24px;
+  border: 1px solid var(--line-cream);
+  border-radius: 22px;
+  /* Каждая следующая карточка фиксируется немного ниже и закрывает предыдущую. */
   position: sticky;
-  top: 70px;
-  background: var(--cream);
-  box-shadow: 0 -8px 32px rgba(0,0,0,0.06);
+  top: 82px;
+  transform: translateY(var(--stack-offset, 0px));
+  background: linear-gradient(180deg, #fffaf2 0%, var(--cream) 100%);
+  box-shadow: 0 -10px 26px rgba(0,0,0,0.06), 0 18px 46px rgba(46,31,16,0.08);
 }
-.service-row:nth-child(1) { z-index: 11; }
-.service-row:nth-child(2) { z-index: 12; }
-.service-row:nth-child(3) { z-index: 13; }
-.service-row:nth-child(4) { z-index: 14; }
-.service-row:nth-child(5) { z-index: 15; }
-.service-row:nth-child(6) { z-index: 16; }
+.service-row:nth-child(1) { --stack-offset: 0px; z-index: 11; }
+.service-row:nth-child(2) { --stack-offset: 8px; z-index: 12; }
+.service-row:nth-child(3) { --stack-offset: 16px; z-index: 13; }
+.service-row:nth-child(4) { --stack-offset: 24px; z-index: 14; }
+.service-row:nth-child(5) { --stack-offset: 32px; z-index: 15; }
+.service-row:nth-child(6) { --stack-offset: 40px; z-index: 16; }
 .service-num {
   font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 800;
   color: var(--orange); letter-spacing: 0.06em; padding-top: 5px;
@@ -1190,7 +1198,14 @@ em.serif, .serif-em {
   .field.span-2 { grid-column: span 1; }
   .contact-card { padding: 44px 28px; }
   .services-header { flex-direction: column; align-items: flex-start; }
-  .service-row { grid-template-columns: 40px 1fr; }
+  .services-list { padding-bottom: 92px; }
+  .service-row {
+    grid-template-columns: 40px 1fr;
+    top: 74px;
+    min-height: 136px;
+    padding: 24px 18px;
+    margin-bottom: -14px;
+  }
   .service-desc { display: none; }
   .ad-fit-card { grid-template-columns: 1fr; }
   .cases-hero-panel { padding: 24px; }
@@ -1322,6 +1337,14 @@ em.serif, .serif-em {
   .hero-actions .btn { width: 100%; }
   .steps-grid { grid-template-columns: 1fr; }
   .step-item { border-right: none !important; }
+  .services-section { padding-bottom: 72px; }
+  .services-list { padding-bottom: 78px; }
+  .service-row {
+    top: 68px;
+    min-height: 128px;
+    padding: 22px 14px;
+    margin-bottom: -12px;
+  }
   .contact-card { padding: 36px 20px; }
   .case-stats-row { grid-template-columns: 1fr 1fr; }
   .target-cases-page .case-detail-card,
