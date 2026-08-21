@@ -171,6 +171,7 @@ em.serif, .serif-em {
 .nav a {
   font-size: 12px; font-weight: 600; color: var(--text);
   letter-spacing: 0.08em; text-transform: uppercase; transition: color 0.2s;
+  white-space: nowrap;
 }
 .nav a:hover { color: var(--accent); }
 .nav-dropdown {
