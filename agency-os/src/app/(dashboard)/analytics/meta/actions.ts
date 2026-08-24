@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 export type SyncMetaState = { ok: boolean; message: string } | undefined;
 
 // Глубина исторической догрузки, выбирается в форме синхронизации.
-const ALLOWED_DAYS = [30, 90, 180, 365];
+const ALLOWED_DAYS = [3, 7, 14, 30, 90, 180, 365];
 const DEFAULT_DAYS = 30;
 
 function isoDaysAgo(days: number): string {

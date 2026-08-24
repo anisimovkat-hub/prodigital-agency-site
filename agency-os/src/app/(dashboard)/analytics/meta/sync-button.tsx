@@ -11,6 +11,9 @@ import { Button } from "@/components/ui/button";
 
 // Глубина догрузки истории; значения должны совпадать с ALLOWED_DAYS в actions.ts.
 const DEPTHS = [
+  { value: "3", label: "за 3 дня" },
+  { value: "7", label: "за 7 дней" },
+  { value: "14", label: "за 14 дней" },
   { value: "30", label: "за 30 дней" },
   { value: "90", label: "за 90 дней" },
   { value: "180", label: "за 180 дней" },
