@@ -8,6 +8,7 @@ import {
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
+import { ProjectAnalyticsOverview } from "@/app/(dashboard)/analytics/project-analytics-overview";
 import { YandexClientsPanel } from "@/app/(dashboard)/analytics/yandex-clients-panel";
 import {
   actionTypeLabel,
@@ -30,6 +31,8 @@ import type {
 import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
+import { lastDaysPeriod } from "@/lib/analytics-period";
+import { summarizeProjectAnalytics } from "@/lib/project-analytics-summary";
 import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
@@ -83,11 +86,6 @@ type AudienceRow = {
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function daysAgo(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
-}
 function primaryConversions(rows: ConversionRow[]): ConversionRow[] {
   const priority = new Map(GOAL_ACTION_TYPES.map((value, index) => [value, index]));
   const selected = new Map<string, ConversionRow>();
@@ -161,8 +159,9 @@ export default async function AnalyticsPage({
   }
 
   const raw = await searchParams;
-  const from = raw.from && ISO_DATE.test(raw.from) ? raw.from : daysAgo(29);
-  const to = raw.to && ISO_DATE.test(raw.to) ? raw.to : daysAgo(0);
+  const defaultPeriod = lastDaysPeriod(new Date(), 7);
+  const from = raw.from && ISO_DATE.test(raw.from) ? raw.from : defaultPeriod.from;
+  const to = raw.to && ISO_DATE.test(raw.to) ? raw.to : defaultPeriod.to;
   let projectId = raw.project && UUID.test(raw.project) ? raw.project : "";
   let socialId = raw.social ?? "";
   const section = marketingSection(raw.section, raw.view);
@@ -663,6 +662,16 @@ export default async function AnalyticsPage({
       .map((point) => ({ ...point })),
   };
 
+  const portfolioSummary = !projectId
+    ? summarizeProjectAnalytics({
+        projects: projectRows,
+        campaigns: allCampaignRows,
+        accounts: currentAdAccountRows,
+        metrics: (paidMetrics ?? []) as CampaignMetricRow[],
+        conversions: (conversions ?? []) as ConversionRow[],
+      })
+    : null;
+
   const goalCampaignIds = new Set(
     allCampaignRows
       .filter(
@@ -817,6 +826,9 @@ export default async function AnalyticsPage({
       }))}
       contentSettings={contentSettings}
       dataWarnings={dataWarnings}
+      portfolioOverview={portfolioSummary ? (
+        <ProjectAnalyticsOverview rows={portfolioSummary} from={from} to={to} />
+      ) : undefined}
       mediaPlan={
         <MediaPlanPanel
           projectId={projectId || null}

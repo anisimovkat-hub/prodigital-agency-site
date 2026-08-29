@@ -26,6 +26,7 @@ export function AnalyticsShell({
   mediaPlan,
   contentSettings,
   dataWarnings = [],
+  portfolioOverview,
 }: {
   payload: MarketingPayload;
   initialSection: MarketingSection;
@@ -36,6 +37,7 @@ export function AnalyticsShell({
   mediaPlan?: ReactNode;
   contentSettings?: ReactNode;
   dataWarnings?: string[];
+  portfolioOverview?: ReactNode;
 }) {
   const [section, setSection] = useState<MarketingSection>(initialSection);
 
@@ -49,7 +51,7 @@ export function AnalyticsShell({
           </ul>
         </div>
       )}
-      <MarketingDashboard
+      {portfolioOverview ?? <MarketingDashboard
         payload={payload}
         section={section}
         controls={<ClientReportAction projectId={params.project} />}
@@ -66,7 +68,7 @@ export function AnalyticsShell({
             onSectionChange={setSection}
           />
         }
-      />
+      />}
     </>
   );
 }
