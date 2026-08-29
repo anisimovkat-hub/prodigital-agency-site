@@ -20,6 +20,7 @@ import {
   type AnalyticsActionState,
 } from "@/app/(dashboard)/analytics/actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AnalyticsPeriodPicker } from "@/app/(dashboard)/analytics/analytics-period-picker";
 import type { MarketingSection } from "@/lib/marketing-sections";
@@ -38,6 +39,50 @@ type SocialAccountOption = {
   project_id: string | null;
   name: string;
 };
+
+export function PortfolioAnalyticsControls({
+  from,
+  to,
+  projects,
+  search,
+  onSearchChange,
+}: {
+  from: string;
+  to: string;
+  projects: { id: string; name: string }[];
+  search: string;
+  onSearchChange: (value: string) => void;
+}) {
+  const router = useRouter();
+
+  function navigateToProject(projectId: string) {
+    if (!projectId) return;
+    router.push(`/analytics?project=${encodeURIComponent(projectId)}&section=ads`);
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-3 lg:flex-row lg:items-end lg:justify-between">
+      <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[560px]">
+        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+          Перейти к проекту
+          <Select defaultValue="" onChange={(event) => navigateToProject(event.target.value)}>
+            <option value="">Выберите проект</option>
+            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+          Поиск по названию
+          <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Например, Озимо" />
+        </label>
+      </div>
+      <AnalyticsPeriodPicker
+        key={`${from}-${to}`}
+        period={{ from, to }}
+        onApply={(period) => router.push(`/analytics?from=${period.from}&to=${period.to}`)}
+      />
+    </div>
+  );
+}
 
 export function InstagramAccountAssignment({
   account,

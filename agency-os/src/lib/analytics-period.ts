@@ -63,6 +63,18 @@ export function previousMonthPeriod(today: Date): AnalyticsPeriod {
   return { from: toIsoDate(start), to: toIsoDate(end) };
 }
 
+/** Предыдущий непрерывный интервал той же длины, что и выбранный период. */
+export function previousComparablePeriod(period: AnalyticsPeriod): AnalyticsPeriod {
+  const from = new Date(`${period.from}T00:00:00.000Z`);
+  const to = new Date(`${period.to}T00:00:00.000Z`);
+  const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+  const previousTo = new Date(from);
+  previousTo.setUTCDate(previousTo.getUTCDate() - 1);
+  const previousFrom = new Date(previousTo);
+  previousFrom.setUTCDate(previousFrom.getUTCDate() - days + 1);
+  return { from: toIsoDate(previousFrom), to: toIsoDate(previousTo) };
+}
+
 export function periodPresetFor(
   period: AnalyticsPeriod,
   today: Date,

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PROJECT_HEALTH_LABEL, PROJECT_STAGE_LABEL } from "@/lib/labels";
-import { PROJECT_HEALTH_VALUES, PROJECT_STAGE_VALUES } from "@/lib/validation";
+import { PROJECT_BRAND_COLOR_VALUES, PROJECT_HEALTH_VALUES, PROJECT_STAGE_VALUES } from "@/lib/validation";
 
 type ProjectFormProps = {
   clients: { id: string; name: string }[];
@@ -93,6 +93,23 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
         <Input id="logo_url" name="logo_url" type="url" placeholder="https://…" />
         <FieldErrors errors={state?.errors?.logo_url} />
       </div>
+
+      <fieldset className="col-span-2 flex flex-col gap-2 sm:col-span-4">
+        <legend className="text-sm font-medium text-neutral-900">Цвет проекта</legend>
+        <div className="flex flex-wrap gap-2">
+          <label className="cursor-pointer">
+            <input className="peer sr-only" type="radio" name="brand_color" value="" defaultChecked />
+            <span className="flex h-7 items-center rounded-md border border-neutral-300 px-2 text-xs text-neutral-600 peer-checked:border-neutral-900 peer-checked:ring-2 peer-checked:ring-neutral-300">Авто</span>
+          </label>
+          {PROJECT_BRAND_COLOR_VALUES.map((color) => (
+            <label key={color} className="cursor-pointer">
+              <input aria-label={`Выбрать цвет ${color}`} className="peer sr-only" type="radio" name="brand_color" value={color} />
+              <span aria-label={`Выбрать цвет ${color}`} className="block size-7 rounded-full border-2 border-white shadow-sm ring-1 ring-neutral-200 peer-checked:ring-2 peer-checked:ring-neutral-950" style={{ backgroundColor: color }} />
+            </label>
+          ))}
+        </div>
+        <FieldErrors errors={state?.errors?.brand_color} />
+      </fieldset>
 
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="short_comment">Краткий комментарий</Label>

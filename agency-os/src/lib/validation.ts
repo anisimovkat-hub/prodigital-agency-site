@@ -282,6 +282,14 @@ export const PROJECT_STAGE_VALUES = [
   "paused",
   "finished",
 ] as const;
+export const PROJECT_BRAND_COLOR_VALUES = [
+  "#2563eb", "#0ea5e9", "#0891b2", "#0f766e", "#059669",
+  "#65a30d", "#d97706", "#ea580c", "#e11d48", "#7c3aed",
+] as const;
+const optionalProjectBrandColor = z.preprocess(
+  (value) => (value === "" || value === null || value === undefined ? undefined : value),
+  z.enum(PROJECT_BRAND_COLOR_VALUES).optional(),
+);
 export const updateProjectQuickFieldSchema = z.discriminatedUnion("field", [
   z.object({
     id: z.string().uuid("Некорректный проект"),
@@ -330,6 +338,7 @@ export const createProjectSchema = z.object({
   responsible_id: optionalUuid,
   short_comment: optionalString,
   logo_url: optionalUrl,
+  brand_color: optionalProjectBrandColor,
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

@@ -30,7 +30,7 @@ import type {
 import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
-import { lastDaysPeriod, parseAnalyticsPeriod } from "@/lib/analytics-period";
+import { lastDaysPeriod, parseAnalyticsPeriod, previousComparablePeriod } from "@/lib/analytics-period";
 import { summarizeProjectAnalytics } from "@/lib/project-analytics-summary";
 import { createClient } from "@/lib/supabase/server";
 
@@ -161,6 +161,7 @@ export default async function AnalyticsPage({
   const requestedPeriod = parseAnalyticsPeriod({ from: raw.from, to: raw.to });
   const from = requestedPeriod?.from ?? defaultPeriod.from;
   const to = requestedPeriod?.to ?? defaultPeriod.to;
+  const previousPeriod = previousComparablePeriod({ from, to });
   let projectId = raw.project && UUID.test(raw.project) ? raw.project : "";
   let socialId = raw.social ?? "";
   const section = marketingSection(raw.section, raw.view);
@@ -181,7 +182,7 @@ export default async function AnalyticsPage({
   ] = await Promise.all([
     supabase
       .from("projects")
-      .select("id,name,logo_url,stage")
+      .select("id,name,logo_url,stage,started_at,brand_color")
       .in("stage", ["launching", "active"]),
     supabase
       .from("social_accounts")
@@ -350,6 +351,30 @@ export default async function AnalyticsPage({
         .limit(1)
         .maybeSingle()
     : Promise.resolve({ data: null as { date: string } | null, error: null });
+  const portfolioPreviousMetricsPromise = !projectId
+    ? supabase
+        .from("ad_campaign_metrics")
+        .select("campaign_id,date,spend,impressions,clicks,reach")
+        .gte("date", previousPeriod.from)
+        .lte("date", previousPeriod.to)
+        .range(0, 19999)
+    : Promise.resolve({ data: [] as CampaignMetricRow[], error: null });
+  const portfolioPreviousConversionsPromise = !projectId
+    ? supabase
+        .from("ad_conversions")
+        .select("campaign_id,date,action_type,count,value")
+        .gte("date", previousPeriod.from)
+        .lte("date", previousPeriod.to)
+        .range(0, 19999)
+    : Promise.resolve({ data: [] as ConversionRow[], error: null });
+  const portfolioLatestMetricDatesPromise = !projectId && campaignIdList.length
+    ? supabase
+        .from("ad_campaign_metrics")
+        .select("campaign_id,date")
+        .in("campaign_id", campaignIdList)
+        .order("date", { ascending: false })
+        .range(0, 19999)
+    : Promise.resolve({ data: [] as { campaign_id: string; date: string }[], error: null });
 
   const [
     socialMetricsResult,
@@ -365,6 +390,9 @@ export default async function AnalyticsPage({
     activePlanMetricsResult,
     planMetricsFactResult,
     planConversionsFactResult,
+    portfolioPreviousMetricsResult,
+    portfolioPreviousConversionsResult,
+    portfolioLatestMetricDatesResult,
   ] = await Promise.all([
     socialMetricsPromise,
     socialPostsPromise,
@@ -387,6 +415,9 @@ export default async function AnalyticsPage({
     activePlanMetricsPromise,
     planMetricsFactPromise,
     planConversionsFactPromise,
+    portfolioPreviousMetricsPromise,
+    portfolioPreviousConversionsPromise,
+    portfolioLatestMetricDatesPromise,
   ]);
   const { data: socialMetrics } = socialMetricsResult;
   const { data: socialPosts } = socialPostsResult;
@@ -398,6 +429,9 @@ export default async function AnalyticsPage({
   const { data: audienceMetrics } = audienceMetricsResult;
   const { data: adTimeseries } = adTimeseriesResult;
   const { data: latestPaidMetric } = latestPaidMetricResult;
+  const { data: portfolioPreviousMetrics } = portfolioPreviousMetricsResult;
+  const { data: portfolioPreviousConversions } = portfolioPreviousConversionsResult;
+  const { data: portfolioLatestMetricDates } = portfolioLatestMetricDatesResult;
   dataWarnings.push(...[
     ["метрики Instagram", socialMetricsResult.error],
     ["публикации Instagram", socialPostsResult.error],
@@ -411,6 +445,8 @@ export default async function AnalyticsPage({
     ["дату последнего обновления рекламы", latestPaidMetricResult.error],
     ["метрики медиаплана", activePlanMetricsResult.error],
     ["факт медиаплана", planMetricsFactResult.error || planConversionsFactResult.error],
+    ["предыдущий период портфеля", portfolioPreviousMetricsResult.error || portfolioPreviousConversionsResult.error],
+    ["свежесть данных проектов", portfolioLatestMetricDatesResult.error],
   ].flatMap(([label, error]) => error && typeof error !== "string"
     ? [`Не удалось загрузить ${label}: ${error.message}`]
     : []));
@@ -671,6 +707,11 @@ export default async function AnalyticsPage({
         accounts: currentAdAccountRows,
         metrics: (paidMetrics ?? []) as CampaignMetricRow[],
         conversions: (conversions ?? []) as ConversionRow[],
+        previousMetrics: (portfolioPreviousMetrics ?? []) as CampaignMetricRow[],
+        previousConversions: (portfolioPreviousConversions ?? []) as ConversionRow[],
+        latestMetricDates: portfolioLatestMetricDates ?? [],
+        from,
+        to,
       })
     : null;
 
@@ -829,7 +870,7 @@ export default async function AnalyticsPage({
       contentSettings={contentSettings}
       dataWarnings={dataWarnings}
       portfolioOverview={portfolioSummary ? (
-        <ProjectAnalyticsOverview rows={portfolioSummary} from={from} to={to} />
+        <ProjectAnalyticsOverview rows={portfolioSummary} from={from} to={to} projects={projectRows} />
       ) : undefined}
       mediaPlan={
         <MediaPlanPanel

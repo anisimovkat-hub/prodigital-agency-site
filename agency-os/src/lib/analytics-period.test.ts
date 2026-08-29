@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   previousMonthPeriod,
+  previousComparablePeriod,
   previousWeekPeriod,
   lastDaysPeriod,
   parseAnalyticsPeriod,
@@ -38,6 +39,13 @@ describe("analytics periods", () => {
     expect(previousWeekPeriod(TODAY)).toEqual({ from: "2026-08-17", to: "2026-08-23" });
     expect(thisMonthPeriod(TODAY)).toEqual({ from: "2026-08-01", to: "2026-08-29" });
     expect(previousMonthPeriod(TODAY)).toEqual({ from: "2026-07-01", to: "2026-07-31" });
+  });
+
+  it("создаёт предыдущий интервал той же длины", () => {
+    expect(previousComparablePeriod({ from: "2026-08-17", to: "2026-08-23" })).toEqual({
+      from: "2026-08-10",
+      to: "2026-08-16",
+    });
   });
 
   it("принимает только корректный диапазон до 365 дней", () => {

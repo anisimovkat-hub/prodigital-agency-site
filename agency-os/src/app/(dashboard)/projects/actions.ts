@@ -33,6 +33,7 @@ export type SavedProjectFormValues = {
   responsible_id: string | null;
   short_comment: string | null;
   logo_url: string | null;
+  brand_color: string | null;
 };
 
 export type QuickProjectFieldFormState =
@@ -97,6 +98,7 @@ export async function addProject(
     responsible_id: formData.get("responsible_id"),
     short_comment: formData.get("short_comment"),
     logo_url: formData.get("logo_url"),
+    brand_color: formData.get("brand_color"),
   });
 
   if (!parsed.success) {
@@ -116,6 +118,7 @@ export async function addProject(
     responsible_id: parsed.data.responsible_id || null,
     short_comment: parsed.data.short_comment || null,
     logo_url: parsed.data.logo_url || null,
+    brand_color: parsed.data.brand_color || null,
   });
 
   if (error) {
@@ -149,6 +152,7 @@ export async function updateProject(
     responsible_id: formData.get("responsible_id"),
     short_comment: formData.get("short_comment"),
     logo_url: formData.get("logo_url"),
+    brand_color: formData.get("brand_color"),
   });
 
   if (!parsed.success) {
@@ -182,10 +186,11 @@ export async function updateProject(
       responsible_id: parsed.data.responsible_id || null,
       short_comment: parsed.data.short_comment || null,
       logo_url: parsed.data.logo_url || null,
+      brand_color: parsed.data.brand_color || null,
     })
     .eq("id", id)
     .select(
-      "id,name,client_id,health,stage,budget,monthly_fee,ownership_mode,responsible_id,short_comment,logo_url",
+      "id,name,client_id,health,stage,budget,monthly_fee,ownership_mode,responsible_id,short_comment,logo_url,brand_color",
     )
     .maybeSingle();
 

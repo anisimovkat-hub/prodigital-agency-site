@@ -111,6 +111,7 @@ export type Database = {
           short_comment: string | null;
           links: Json | null;
           ad_platforms: string | null;
+          brand_color: string | null;
           logo_url: string | null;
           is_personal: boolean;
           started_at: string | null;
@@ -130,6 +131,7 @@ export type Database = {
           short_comment?: string | null;
           links?: Json | null;
           ad_platforms?: string | null;
+          brand_color?: string | null;
           logo_url?: string | null;
           is_personal?: boolean;
           started_at?: string | null;
@@ -149,6 +151,7 @@ export type Database = {
           short_comment?: string | null;
           links?: Json | null;
           ad_platforms?: string | null;
+          brand_color?: string | null;
           logo_url?: string | null;
           is_personal?: boolean;
           started_at?: string | null;
