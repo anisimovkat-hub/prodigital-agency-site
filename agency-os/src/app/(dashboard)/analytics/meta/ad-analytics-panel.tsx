@@ -115,15 +115,16 @@ export function AdAnalyticsPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-        <div>
+      <div className="grid gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(34rem,44rem)]">
+        <div className="min-w-0">
           <h2 className="font-semibold text-neutral-950">Реклама Meta</h2>
           <p className="mt-1 text-xs text-neutral-500">Кабинеты, кампании, цели, группы и объявления в одном срезе</p>
           <p className="mt-1 text-xs font-medium text-neutral-700">Отчёт за {formatAnalyticsPeriod({ from: current.from, to: current.to })}</p>
+          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-neutral-500">Отчёт ниже показывает уже сохранённые данные за этот период. Кнопки справа только запрашивают Meta и догружают данные в базу; период отчёта от этого не меняется.</p>
         </div>
-        <div className="flex flex-col gap-2">
-          <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
-          <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+        <div className="flex min-w-0 flex-col items-end gap-2">
+          <SyncMetaButton projectId={current.project} />
+          <SyncMetaDetailsButton projectId={current.project} />
         </div>
       </div>
 

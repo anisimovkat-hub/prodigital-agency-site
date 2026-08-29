@@ -12,14 +12,30 @@ import {
   type MetaEntityDailyMetric,
 } from "@/lib/meta-ads";
 import { syncMetaAdsData } from "@/lib/meta-sync";
-import { formatAnalyticsPeriod, parseAnalyticsPeriod } from "@/lib/analytics-period";
+import {
+  formatAnalyticsPeriod,
+  lastDaysPeriod,
+  parseAnalyticsPeriod,
+  type AnalyticsPeriod,
+} from "@/lib/analytics-period";
 import { createClient } from "@/lib/supabase/server";
 
 export type SyncMetaState = { ok: boolean; message: string } | undefined;
 
+const LOAD_PERIOD_DAYS = [7, 14, 30, 90, 180, 365];
+
 function selectedProjectId(formData: FormData | undefined): string | undefined {
   const value = formData?.get("project_id");
   return typeof value === "string" && value ? value : undefined;
+}
+
+function selectedLoadPeriod(formData: FormData | undefined): AnalyticsPeriod | null {
+  const days = Number(formData?.get("days"));
+  if (LOAD_PERIOD_DAYS.includes(days)) return lastDaysPeriod(new Date(), days);
+  return parseAnalyticsPeriod({
+    from: formData?.get("from"),
+    to: formData?.get("to"),
+  });
 }
 
 // PostgREST не любит гигантские тела запроса — пишем пачками.
@@ -72,10 +88,7 @@ export async function syncMetaAds(
   formData?: FormData,
 ): Promise<SyncMetaState> {
   const supabase = await createClient();
-  const period = parseAnalyticsPeriod({
-    from: formData?.get("from"),
-    to: formData?.get("to"),
-  });
+  const period = selectedLoadPeriod(formData);
   if (!period) {
     return { ok: false, message: "Выберите корректный период не длиннее 365 дней." };
   }
@@ -153,10 +166,7 @@ export async function syncMetaAdDetails(
   formData?: FormData,
 ): Promise<SyncMetaState> {
   const supabase = await createClient();
-  const period = parseAnalyticsPeriod({
-    from: formData?.get("from"),
-    to: formData?.get("to"),
-  });
+  const period = selectedLoadPeriod(formData);
   if (!period) {
     return { ok: false, message: "Выберите корректный период не длиннее 365 дней." };
   }
