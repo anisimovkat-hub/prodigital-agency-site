@@ -46,6 +46,7 @@ describe("analytics periods", () => {
       to: "2026-08-29",
     });
     expect(parseAnalyticsPeriod({ from: "2026-08-30", to: "2026-08-29" }, TODAY)).toBeNull();
+    expect(parseAnalyticsPeriod({ from: "2026-08-29", to: "2026-08-30" }, TODAY)).toBeNull();
     expect(parseAnalyticsPeriod({ from: "2025-08-29", to: "2026-08-29" }, TODAY)).toBeNull();
   });
 });

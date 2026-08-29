@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -60,10 +60,12 @@ function formatPeriod(period: AnalyticsPeriod): string {
 function CalendarMonth({
   month,
   period,
+  today,
   onPick,
 }: {
   month: Date;
   period: AnalyticsPeriod;
+  today: string;
   onPick: (value: string) => void;
 }) {
   const firstDay = (month.getUTCDay() || 7) - 1;
@@ -79,7 +81,9 @@ function CalendarMonth({
     const value = toIsoDate(date);
     const selected = value === period.from || value === period.to;
     const between = value > period.from && value < period.to;
-    return <button key={value} type="button" onClick={() => onPick(value)} className={cn("mx-auto flex size-8 items-center justify-center rounded-md text-sm tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500", selected ? "bg-blue-600 font-semibold text-white" : between ? "rounded-none bg-blue-100 text-blue-950" : "text-neutral-700 hover:bg-neutral-100")}>{date.getUTCDate()}</button>;
+    const future = value > today;
+    const isToday = value === today;
+    return <button key={value} type="button" disabled={future} onClick={() => onPick(value)} className={cn("mx-auto flex size-8 items-center justify-center rounded-md text-sm tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500", future ? "cursor-not-allowed text-neutral-300" : selected ? "bg-blue-600 font-semibold text-white" : between ? "rounded-none bg-blue-100 text-blue-950" : isToday ? "border border-sky-300 bg-sky-50 font-semibold text-sky-700 hover:bg-sky-100" : "text-neutral-700 hover:bg-neutral-100")}>{date.getUTCDate()}</button>;
   })}</div></div>;
 }
 
@@ -88,6 +92,35 @@ export function AnalyticsPeriodPicker({ period, onApply }: { period: AnalyticsPe
   const [draft, setDraft] = useState(period);
   const [viewMonth, setViewMonth] = useState(() => monthStart(period.from));
   const [pickingEnd, setPickingEnd] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const today = toIsoDate(new Date());
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closePicker() {
+      setDraft(period);
+      setViewMonth(monthStart(period.from));
+      setPickingEnd(false);
+      setOpen(false);
+    }
+
+    function dismiss(event: PointerEvent) {
+      if (pickerRef.current?.contains(event.target as Node)) return;
+      closePicker();
+    }
+
+    function dismissWithEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") closePicker();
+    }
+
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", dismissWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", dismissWithEscape);
+    };
+  }, [open, period]);
 
   const selectedPreset = useMemo(() => {
     const now = new Date();
@@ -98,7 +131,7 @@ export function AnalyticsPeriodPicker({ period, onApply }: { period: AnalyticsPe
   }, [draft]);
 
   function apply() {
-    if (!draft.from || !draft.to || draft.from > draft.to) return;
+    if (!draft.from || !draft.to || draft.from > draft.to || draft.to > today) return;
     onApply(draft);
     setOpen(false);
   }
@@ -111,6 +144,7 @@ export function AnalyticsPeriodPicker({ period, onApply }: { period: AnalyticsPe
   }
 
   function chooseDate(value: string) {
+    if (value > today) return;
     if (!pickingEnd || value < draft.from) {
       setDraft({ from: value, to: value });
       setPickingEnd(true);
@@ -121,11 +155,11 @@ export function AnalyticsPeriodPicker({ period, onApply }: { period: AnalyticsPe
   }
 
   return (
-    <div className="relative z-20">
+    <div ref={pickerRef} className="relative z-20">
       <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="inline-flex h-10 min-w-[250px] items-center justify-between gap-3 rounded-lg border border-neutral-300 bg-white px-3 text-left text-sm font-medium text-neutral-900 shadow-sm transition hover:border-neutral-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500">
         <span className="flex min-w-0 items-center gap-2"><CalendarDays className="size-4 shrink-0 text-neutral-500" /><span className="truncate">{formatPeriod(period)}</span></span><ChevronDown className={cn("size-4 shrink-0 text-neutral-500 transition-transform", open && "rotate-180")} />
       </button>
-      {open && <div className="absolute right-0 top-12 grid w-[min(96vw,790px)] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl md:grid-cols-[210px_minmax(0,1fr)]"><div className="max-h-[430px] overflow-y-auto border-b border-neutral-200 bg-neutral-50 p-2 md:border-b-0 md:border-r">{PRESETS.map((preset) => <button key={preset.label} type="button" onClick={() => choosePreset(preset)} className={cn("block w-full rounded-md px-3 py-2 text-left text-sm transition hover:bg-white", selectedPreset === preset.label ? "bg-white font-semibold text-blue-700 shadow-sm" : "text-neutral-700")}>{preset.label}</button>)}</div><div className="p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-neutral-950">Указать период</p><p className="mt-1 text-xs text-neutral-500">Нажмите дату начала, затем дату окончания.</p></div><div className="flex gap-1"><button type="button" onClick={() => setViewMonth((month) => addMonths(month, -1))} aria-label="Предыдущий месяц" className="rounded-md p-2 text-neutral-600 hover:bg-neutral-100"><ChevronLeft className="size-4" /></button><button type="button" onClick={() => setViewMonth((month) => addMonths(month, 1))} aria-label="Следующий месяц" className="rounded-md p-2 text-neutral-600 hover:bg-neutral-100"><ChevronRight className="size-4" /></button></div></div><div className="mt-5 grid gap-6 sm:grid-cols-2"><CalendarMonth month={viewMonth} period={draft} onPick={chooseDate} /><CalendarMonth month={addMonths(viewMonth, 1)} period={draft} onPick={chooseDate} /></div><p className="mt-5 text-xs font-medium text-neutral-700">{formatPeriod(draft)}</p><div className="mt-5 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => { setDraft(period); setViewMonth(monthStart(period.from)); setPickingEnd(false); setOpen(false); }}>Отмена</Button><Button type="button" onClick={apply}>Обновить</Button></div></div></div>}
+      {open && <div className="absolute right-0 top-12 grid w-[min(96vw,790px)] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl md:grid-cols-[210px_minmax(0,1fr)]"><div className="max-h-[430px] overflow-y-auto border-b border-neutral-200 bg-neutral-50 p-2 md:border-b-0 md:border-r">{PRESETS.map((preset) => <button key={preset.label} type="button" onClick={() => choosePreset(preset)} className={cn("block w-full rounded-md px-3 py-2 text-left text-sm transition hover:bg-white", selectedPreset === preset.label ? "bg-white font-semibold text-blue-700 shadow-sm" : "text-neutral-700")}>{preset.label}</button>)}</div><div className="p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-neutral-950">Указать период</p><p className="mt-1 text-xs text-neutral-500">Нажмите дату начала, затем дату окончания.</p></div><div className="flex gap-1"><button type="button" onClick={() => setViewMonth((month) => addMonths(month, -1))} aria-label="Предыдущий месяц" className="rounded-md p-2 text-neutral-600 hover:bg-neutral-100"><ChevronLeft className="size-4" /></button><button type="button" onClick={() => setViewMonth((month) => addMonths(month, 1))} aria-label="Следующий месяц" className="rounded-md p-2 text-neutral-600 hover:bg-neutral-100"><ChevronRight className="size-4" /></button></div></div><div className="mt-5 grid gap-6 sm:grid-cols-2"><CalendarMonth month={viewMonth} period={draft} today={today} onPick={chooseDate} /><CalendarMonth month={addMonths(viewMonth, 1)} period={draft} today={today} onPick={chooseDate} /></div><p className="mt-5 text-xs font-medium text-neutral-700">{formatPeriod(draft)}</p><div className="mt-5 flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => { setDraft(period); setViewMonth(monthStart(period.from)); setPickingEnd(false); setOpen(false); }}>Отмена</Button><Button type="button" onClick={apply}>Обновить</Button></div></div></div>}
     </div>
   );
 }

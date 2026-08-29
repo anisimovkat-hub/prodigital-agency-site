@@ -10,10 +10,11 @@ import {
 } from "lucide-react";
 import {
   type DragEvent,
-  type KeyboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -176,7 +177,7 @@ export function FilterableReorderableTable<Row, Id extends string>({
     setDragOverColumn(null);
   }
 
-  function handleMoveKeyDown(event: KeyboardEvent<HTMLSpanElement>, column: Id) {
+  function handleMoveKeyDown(event: ReactKeyboardEvent<HTMLSpanElement>, column: Id) {
     if (!event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
     event.preventDefault();
     const index = columnOrder.indexOf(column);
@@ -291,8 +292,29 @@ function ColumnFilter<Row, Id extends string>({
   selected: string[];
   onToggle: (column: Id, value: string) => void;
 }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!detailsRef.current?.contains(event.target as Node)) {
+        detailsRef.current?.removeAttribute("open");
+      }
+    }
+
+    function closeWithEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") detailsRef.current?.removeAttribute("open");
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
+  }, []);
+
   return (
-    <details className="relative">
+    <details ref={detailsRef} className="relative">
       <summary
         className={cn(
           "flex cursor-pointer list-none rounded p-1 text-neutral-300 hover:text-neutral-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 [&::-webkit-details-marker]:hidden",

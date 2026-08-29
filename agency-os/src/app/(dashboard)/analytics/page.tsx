@@ -31,7 +31,7 @@ import type {
 import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
-import { lastDaysPeriod } from "@/lib/analytics-period";
+import { lastDaysPeriod, parseAnalyticsPeriod } from "@/lib/analytics-period";
 import { summarizeProjectAnalytics } from "@/lib/project-analytics-summary";
 import { createClient } from "@/lib/supabase/server";
 
@@ -83,7 +83,6 @@ type AudienceRow = {
   reach: number;
 };
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function primaryConversions(rows: ConversionRow[]): ConversionRow[] {
@@ -160,8 +159,9 @@ export default async function AnalyticsPage({
 
   const raw = await searchParams;
   const defaultPeriod = lastDaysPeriod(new Date(), 7);
-  const from = raw.from && ISO_DATE.test(raw.from) ? raw.from : defaultPeriod.from;
-  const to = raw.to && ISO_DATE.test(raw.to) ? raw.to : defaultPeriod.to;
+  const requestedPeriod = parseAnalyticsPeriod({ from: raw.from, to: raw.to });
+  const from = requestedPeriod?.from ?? defaultPeriod.from;
+  const to = requestedPeriod?.to ?? defaultPeriod.to;
   let projectId = raw.project && UUID.test(raw.project) ? raw.project : "";
   let socialId = raw.social ?? "";
   const section = marketingSection(raw.section, raw.view);

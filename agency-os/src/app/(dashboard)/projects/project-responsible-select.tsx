@@ -37,6 +37,25 @@ export function ProjectResponsibleSelect({
     if (state?.success) detailsRef.current?.removeAttribute("open");
   }, [state]);
 
+  useEffect(() => {
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!detailsRef.current?.contains(event.target as Node)) {
+        detailsRef.current?.removeAttribute("open");
+      }
+    }
+
+    function closeWithEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") detailsRef.current?.removeAttribute("open");
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeWithEscape);
+    };
+  }, []);
+
   const selectedNames = profiles
     .filter((profile) => selectedIds.includes(profile.id))
     .map((profile) => profile.full_name);

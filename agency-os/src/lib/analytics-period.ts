@@ -81,6 +81,7 @@ export function parseAnalyticsPeriod(
   const to = typeof values.to === "string" ? values.to : "";
   if (!from && !to) return lastDaysPeriod(today, 30);
   if (!isValidIsoDate(from) || !isValidIsoDate(to) || from > to) return null;
+  if (to > toIsoDate(today)) return null;
 
   const difference =
     (new Date(`${to}T00:00:00.000Z`).getTime() -
