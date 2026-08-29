@@ -294,6 +294,17 @@ export const updateProjectQuickFieldSchema = z.discriminatedUnion("field", [
     value: z.enum(PROJECT_STAGE_VALUES),
   }),
 ]);
+
+export const updateProjectResponsiblesSchema = z.object({
+  id: z.string().uuid("Некорректный проект"),
+  responsible_ids: z
+    .array(z.string().uuid("Некорректный ответственный"))
+    .max(20, "Можно выбрать не больше 20 ответственных")
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      "Ответственные не должны повторяться",
+    ),
+});
 export const PROJECT_OWNERSHIP_MODE_VALUES = [
   "self",
   "delegated",

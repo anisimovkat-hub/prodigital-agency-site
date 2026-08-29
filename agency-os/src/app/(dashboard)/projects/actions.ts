@@ -7,6 +7,7 @@ import {
   flattenZodErrors,
   kpiEntrySchema,
   updateProjectQuickFieldSchema,
+  updateProjectResponsiblesSchema,
 } from "@/lib/validation";
 import { clientStatusFromProjectStages } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
@@ -35,6 +36,11 @@ export type SavedProjectFormValues = {
 };
 
 export type QuickProjectFieldFormState =
+  | { error: string; success?: false }
+  | { error?: undefined; success: true }
+  | undefined;
+
+export type ProjectResponsiblesFormState =
   | { error: string; success?: false }
   | { error?: undefined; success: true }
   | undefined;
@@ -299,6 +305,43 @@ export async function updateProjectQuickField(
   revalidatePath("/tasks");
   revalidatePath("/today");
   revalidatePath("/week");
+  revalidatePath("/recurring");
+  revalidatePath("/");
+
+  return { success: true };
+}
+
+export async function updateProjectResponsibles(
+  _prevState: ProjectResponsiblesFormState,
+  formData: FormData,
+): Promise<ProjectResponsiblesFormState> {
+  const parsed = updateProjectResponsiblesSchema.safeParse({
+    id: formData.get("id"),
+    responsible_ids: formData.getAll("responsible_ids"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Некорректное значение" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Нет авторизации. Войдите снова." };
+
+  const { error } = await supabase.rpc("set_project_responsibles", {
+    p_project_id: parsed.data.id,
+    p_profile_ids: parsed.data.responsible_ids,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${parsed.data.id}`);
+  revalidatePath("/clients");
+  revalidatePath("/tasks");
+  revalidatePath("/today");
+  revalidatePath("/week");
+  revalidatePath("/board");
   revalidatePath("/recurring");
   revalidatePath("/");
 

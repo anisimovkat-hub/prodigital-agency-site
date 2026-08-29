@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { ProjectForm } from "@/app/(dashboard)/projects/project-form";
 import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
+import { ProjectResponsibleSelect } from "@/app/(dashboard)/projects/project-responsible-select";
 import { ProjectBadge } from "@/components/project-badge";
 import {
   Table,
@@ -33,7 +34,13 @@ export default async function ProjectsPage() {
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
 
-  const [{ data: projects }, { data: clients }, { data: profiles }, { data: timeRows }] =
+  const [
+    { data: projects },
+    { data: clients },
+    { data: profiles },
+    { data: timeRows },
+    { data: projectResponsibles },
+  ] =
     await Promise.all([
       supabase
         .from("projects")
@@ -48,7 +55,22 @@ export default async function ProjectsPage() {
         )
         .lt("started_at", now.toISOString())
         .or(`ended_at.gte.${monthStart.toISOString()},ended_at.is.null`),
+      supabase
+        .from("project_responsibles")
+        .select("project_id,sort_order,profile:profiles(id,full_name)")
+        .order("sort_order"),
     ]);
+
+  const responsiblesByProject = new Map<
+    string,
+    { id: string; full_name: string }[]
+  >();
+  for (const projectResponsible of projectResponsibles ?? []) {
+    if (!projectResponsible.profile) continue;
+    const responsibles = responsiblesByProject.get(projectResponsible.project_id) ?? [];
+    responsibles.push(projectResponsible.profile);
+    responsiblesByProject.set(projectResponsible.project_id, responsibles);
+  }
 
   const allocation = allocateTaskTime((timeRows ?? []) as TaskTimeEntry[], {
     from: monthStart,
@@ -76,7 +98,7 @@ export default async function ProjectsPage() {
           <TableHead>Клиент</TableHead>
           <TableHead>Статус</TableHead>
           <TableHead>Стадия</TableHead>
-          <TableHead>Ответственный</TableHead>
+          <TableHead>Ответственные</TableHead>
           <TableHead>Доход/мес</TableHead>
           <TableHead>Трудозатраты, мес</TableHead>
           <TableHead>Бюджет</TableHead>
@@ -117,7 +139,24 @@ export default async function ProjectsPage() {
                 value={project.stage ?? "active"}
               />
             </TableCell>
-            <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
+            <TableCell>
+              <ProjectResponsibleSelect
+                key={`${project.id}-${responsiblesByProject
+                  .get(project.id)
+                  ?.map((profile) => profile.id)
+                  .join("-") ?? "none"}`}
+                projectId={project.id}
+                projectName={project.name}
+                profiles={(profiles ?? []).map((profile) => ({
+                  id: profile.id,
+                  full_name: profile.full_name,
+                }))}
+                selectedResponsibles={
+                  responsiblesByProject.get(project.id) ??
+                  (project.responsible ? [project.responsible] : [])
+                }
+              />
+            </TableCell>
             <TableCell>{formatCurrency(project.monthly_fee)}</TableCell>
             <TableCell>{formatHours(hoursByProject.get(project.id) ?? 0)}</TableCell>
             <TableCell>{formatCurrency(project.budget)}</TableCell>

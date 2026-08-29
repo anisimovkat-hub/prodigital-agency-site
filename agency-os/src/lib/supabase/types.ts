@@ -1,4 +1,4 @@
-// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0029).
+// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0033).
 // в формате, который выдаёт `supabase gen types typescript`.
 // Когда проект будет подключён через Supabase CLI, перегенерировать командой:
 //   supabase gen types typescript --linked > src/lib/supabase/types.ts
@@ -201,6 +201,42 @@ export type Database = {
           },
           {
             foreignKeyName: "project_members_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      project_responsibles: {
+        Row: {
+          project_id: string;
+          profile_id: string;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          project_id: string;
+          profile_id: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          project_id?: string;
+          profile_id?: string;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_responsibles_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "project_responsibles_profile_id_fkey";
             columns: ["profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
@@ -1639,6 +1675,10 @@ export type Database = {
           p_status: Database["public"]["Enums"]["task_status"];
         };
         Returns: number;
+      };
+      set_project_responsibles: {
+        Args: { p_project_id: string; p_profile_ids: string[] };
+        Returns: undefined;
       };
       start_task_focus: {
         Args: { p_task_id: string };

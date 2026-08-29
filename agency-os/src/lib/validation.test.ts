@@ -7,11 +7,35 @@ import {
   reorderBoardTasksSchema,
   taskAttachmentSchema,
   updateProjectQuickFieldSchema,
+  updateProjectResponsiblesSchema,
   updateTaskDueDateSchema,
   updateTaskQuickFieldSchema,
   updateRecurringScheduleSchema,
   updateTaskSchema,
 } from "@/lib/validation";
+
+describe("updateProjectResponsiblesSchema", () => {
+  const validProjectId = "00000000-0000-4000-8000-000000000001";
+  const validProfileId = "00000000-0000-4000-8000-000000000002";
+
+  it("принимает несколько ответственных", () => {
+    expect(
+      updateProjectResponsiblesSchema.parse({
+        id: validProjectId,
+        responsible_ids: [validProfileId, "00000000-0000-4000-8000-000000000003"],
+      }).responsible_ids,
+    ).toHaveLength(2);
+  });
+
+  it("не принимает одного сотрудника дважды", () => {
+    expect(
+      updateProjectResponsiblesSchema.safeParse({
+        id: validProjectId,
+        responsible_ids: [validProfileId, validProfileId],
+      }).success,
+    ).toBe(false);
+  });
+});
 
 describe("mediaPlanSchema", () => {
   const validPlan = {
