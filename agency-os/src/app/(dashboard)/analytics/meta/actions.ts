@@ -14,24 +14,18 @@ import {
 import { syncMetaAdsData } from "@/lib/meta-sync";
 import {
   formatAnalyticsPeriod,
-  lastDaysPeriod,
   parseAnalyticsPeriod,
-  type AnalyticsPeriod,
 } from "@/lib/analytics-period";
 import { createClient } from "@/lib/supabase/server";
 
 export type SyncMetaState = { ok: boolean; message: string } | undefined;
-
-const LOAD_PERIOD_DAYS = [7, 14, 30, 90, 180, 365];
 
 function selectedProjectId(formData: FormData | undefined): string | undefined {
   const value = formData?.get("project_id");
   return typeof value === "string" && value ? value : undefined;
 }
 
-function selectedLoadPeriod(formData: FormData | undefined): AnalyticsPeriod | null {
-  const days = Number(formData?.get("days"));
-  if (LOAD_PERIOD_DAYS.includes(days)) return lastDaysPeriod(new Date(), days);
+function selectedReportPeriod(formData: FormData | undefined) {
   return parseAnalyticsPeriod({
     from: formData?.get("from"),
     to: formData?.get("to"),
@@ -88,7 +82,7 @@ export async function syncMetaAds(
   formData?: FormData,
 ): Promise<SyncMetaState> {
   const supabase = await createClient();
-  const period = selectedLoadPeriod(formData);
+  const period = selectedReportPeriod(formData);
   if (!period) {
     return { ok: false, message: "Выберите корректный период не длиннее 365 дней." };
   }
@@ -166,7 +160,7 @@ export async function syncMetaAdDetails(
   formData?: FormData,
 ): Promise<SyncMetaState> {
   const supabase = await createClient();
-  const period = selectedLoadPeriod(formData);
+  const period = selectedReportPeriod(formData);
   if (!period) {
     return { ok: false, message: "Выберите корректный период не длиннее 365 дней." };
   }

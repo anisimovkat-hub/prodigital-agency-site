@@ -8,46 +8,22 @@ import {
   type SyncMetaState,
 } from "@/app/(dashboard)/analytics/meta/actions";
 import { Button } from "@/components/ui/button";
+import { formatAnalyticsPeriod, type AnalyticsPeriod } from "@/lib/analytics-period";
 
 type SyncMetaButtonProps = {
+  period: AnalyticsPeriod;
   projectId: string;
 };
 
-const LOAD_PERIODS = [
-  { value: "7", label: "7 дней" },
-  { value: "14", label: "14 дней" },
-  { value: "30", label: "30 дней" },
-  { value: "90", label: "90 дней" },
-  { value: "180", label: "180 дней" },
-  { value: "365", label: "год" },
-];
-
-function ProjectField({ projectId }: SyncMetaButtonProps) {
+function PeriodFields({ period, projectId }: SyncMetaButtonProps) {
   return <>
+    <input type="hidden" name="from" value={period.from} />
+    <input type="hidden" name="to" value={period.to} />
     <input type="hidden" name="project_id" value={projectId} />
   </>;
 }
 
-function LoadPeriodSelect({ disabled }: { disabled: boolean }) {
-  return (
-    <label className="flex items-center gap-2 text-xs font-medium text-neutral-500">
-      Загрузить за
-      <select
-        name="days"
-        defaultValue="30"
-        disabled={disabled}
-        aria-label="Период загрузки Meta"
-        className="h-9 rounded-md border border-neutral-200 bg-white px-2 text-sm font-normal text-neutral-700"
-      >
-        {LOAD_PERIODS.map((period) => (
-          <option key={period.value} value={period.value}>{period.label}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-export function SyncMetaButton({ projectId }: SyncMetaButtonProps) {
+export function SyncMetaButton({ period, projectId }: SyncMetaButtonProps) {
   const [state, formAction, pending] = useActionState<SyncMetaState, FormData>(
     syncMetaAds,
     undefined,
@@ -55,11 +31,11 @@ export function SyncMetaButton({ projectId }: SyncMetaButtonProps) {
 
   return (
     <form action={formAction} className="flex w-full flex-wrap items-center justify-end gap-2">
-      <ProjectField projectId={projectId} />
+      <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" disabled={pending}>
-        {pending ? "Обновляю кампании…" : "Обновить кампании Meta"}
+        {pending ? "Обновляю кампании…" : "Обновить Meta за выбранный период"}
       </Button>
-      <LoadPeriodSelect disabled={pending} />
+      <span className="text-xs text-neutral-500">{formatAnalyticsPeriod(period)}</span>
       {state && (
         <span
           className={
@@ -77,7 +53,7 @@ export function SyncMetaButton({ projectId }: SyncMetaButtonProps) {
 
 // Детальная загрузка групп объявлений и объявлений (level=adset/ad). Тяжёлая,
 // поэтому отдельной кнопкой — не блокирует быстрый основной синк.
-export function SyncMetaDetailsButton({ projectId }: SyncMetaButtonProps) {
+export function SyncMetaDetailsButton({ period, projectId }: SyncMetaButtonProps) {
   const [state, formAction, pending] = useActionState<SyncMetaState, FormData>(
     syncMetaAdDetails,
     undefined,
@@ -85,11 +61,11 @@ export function SyncMetaDetailsButton({ projectId }: SyncMetaButtonProps) {
 
   return (
     <form action={formAction} className="flex w-full flex-wrap items-center justify-end gap-2">
-      <ProjectField projectId={projectId} />
+      <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" variant="outline" disabled={pending}>
-        {pending ? "Загружаю детали…" : "Загрузить группы и объявления"}
+        {pending ? "Загружаю детали…" : "Загрузить детали за этот период"}
       </Button>
-      <LoadPeriodSelect disabled={pending} />
+      <span className="text-xs text-neutral-500">{formatAnalyticsPeriod(period)}</span>
       {state && (
         <span
           className={

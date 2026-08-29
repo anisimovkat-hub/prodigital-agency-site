@@ -25,6 +25,44 @@ export function lastDaysPeriod(today: Date, days: number): AnalyticsPeriod {
   return { from: toIsoDate(from), to: toIsoDate(to) };
 }
 
+export function todayPeriod(today: Date): AnalyticsPeriod {
+  const date = toIsoDate(today);
+  return { from: date, to: date };
+}
+
+export function yesterdayPeriod(today: Date): AnalyticsPeriod {
+  return lastDaysPeriod(new Date(today.getTime() - 86_400_000), 1);
+}
+
+export function thisWeekPeriod(today: Date): AnalyticsPeriod {
+  const end = new Date(today);
+  const start = new Date(today);
+  const day = start.getUTCDay() || 7;
+  start.setUTCDate(start.getUTCDate() - day + 1);
+  return { from: toIsoDate(start), to: toIsoDate(end) };
+}
+
+export function previousWeekPeriod(today: Date): AnalyticsPeriod {
+  const current = thisWeekPeriod(today);
+  const end = new Date(`${current.from}T00:00:00.000Z`);
+  end.setUTCDate(end.getUTCDate() - 1);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 6);
+  return { from: toIsoDate(start), to: toIsoDate(end) };
+}
+
+export function thisMonthPeriod(today: Date): AnalyticsPeriod {
+  const end = new Date(today);
+  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  return { from: toIsoDate(start), to: toIsoDate(end) };
+}
+
+export function previousMonthPeriod(today: Date): AnalyticsPeriod {
+  const start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+  const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
+  return { from: toIsoDate(start), to: toIsoDate(end) };
+}
+
 export function periodPresetFor(
   period: AnalyticsPeriod,
   today: Date,

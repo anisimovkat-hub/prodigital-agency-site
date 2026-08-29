@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ChartNoAxesCombined,
   Copy,
@@ -19,13 +20,8 @@ import {
   type AnalyticsActionState,
 } from "@/app/(dashboard)/analytics/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import {
-  lastDaysPeriod,
-  periodPresetFor,
-  PERIOD_PRESETS,
-} from "@/lib/analytics-period";
+import { AnalyticsPeriodPicker } from "@/app/(dashboard)/analytics/analytics-period-picker";
 import type { MarketingSection } from "@/lib/marketing-sections";
 import { cn } from "@/lib/utils";
 
@@ -171,54 +167,45 @@ export function AnalyticsFilters({
   section: MarketingSection;
   onSectionChange: (section: MarketingSection) => void;
 }) {
-  const [project, setProject] = useState(params.project);
-  const [from, setFrom] = useState(params.from);
-  const [to, setTo] = useState(params.to);
-  const [periodPreset, setPeriodPreset] = useState(() =>
-    periodPresetFor({ from: params.from, to: params.to }, new Date())?.toString() ?? "custom",
-  );
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const project = params.project;
   const visibleSocialAccounts = useMemo(
     () => socialAccounts.filter((account) => !project || account.project_id === project),
     [project, socialAccounts],
   );
 
-  function choosePeriod(value: string) {
-    setPeriodPreset(value);
-    if (value === "custom") return;
-    const period = lastDaysPeriod(new Date(), Number(value));
-    setFrom(period.from);
-    setTo(period.to);
+  function navigate(changes: Record<string, string>) {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    router.push(`${pathname}?${next.toString()}`);
   }
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-3">
-      <form action="/analytics" method="get" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(155px,0.8fr)_minmax(145px,0.8fr)_minmax(145px,0.8fr)_minmax(220px,1.2fr)_minmax(220px,1.2fr)_auto]">
-        <input type="hidden" name="section" value={section} />
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
-          Период
-          <Select value={periodPreset} onChange={(event) => choosePeriod(event.target.value)}>
-            <option value="custom">Произвольный</option>
-            {PERIOD_PRESETS.map((days) => <option key={days} value={days}>Последние {days} дней</option>)}
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">С даты<Input type="date" name="from" value={from} max={to} onChange={(event) => { setFrom(event.target.value); setPeriodPreset("custom"); }} /></label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">По дату<Input type="date" name="to" value={to} min={from} onChange={(event) => { setTo(event.target.value); setPeriodPreset("custom"); }} /></label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[620px]">
+          <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Проект
-          <Select name="project" value={project} onChange={(event) => setProject(event.target.value)}>
+          <Select value={project} onChange={(event) => navigate({ project: event.target.value, social: "" })}>
             <option value="">Все проекты</option>
             {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </Select>
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Instagram-аккаунт
-          <Select name="social" defaultValue={params.social}>
+          <Select value={params.social} onChange={(event) => navigate({ social: event.target.value })}>
             <option value="">Все аккаунты</option>
             {visibleSocialAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </Select>
         </label>
-        <Button type="submit" className="h-10 bg-neutral-950 px-7 text-white hover:bg-neutral-800">Применить</Button>
-      </form>
+        </div>
+        <AnalyticsPeriodPicker key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} />
+      </div>
       <div className="mt-3 border-t border-neutral-100 pt-3">
         <AnalyticsTabs section={section} onSectionChange={onSectionChange} />
       </div>

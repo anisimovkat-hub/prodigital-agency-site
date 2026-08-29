@@ -123,8 +123,8 @@ export function AdAnalyticsPanel({
           <p className="mt-2 max-w-2xl text-xs leading-relaxed text-neutral-500">Отчёт ниже показывает уже сохранённые данные за этот период. Кнопки справа только запрашивают Meta и догружают данные в базу; период отчёта от этого не меняется.</p>
         </div>
         <div className="flex min-w-0 flex-col items-end gap-2">
-          <SyncMetaButton projectId={current.project} />
-          <SyncMetaDetailsButton projectId={current.project} />
+          <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+          <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
         </div>
       </div>
 
