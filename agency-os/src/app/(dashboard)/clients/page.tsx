@@ -1,18 +1,8 @@
-import Link from "next/link";
-
 import { ClientForm } from "@/app/(dashboard)/clients/client-form";
-import { ClientStatusBadge } from "@/components/badges";
-import { ProjectLogo } from "@/components/project-logo";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatCurrency } from "@/lib/format";
+  ClientsTable,
+  type ClientListRow,
+} from "@/app/(dashboard)/clients/clients-table";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ClientsPage() {
@@ -52,54 +42,22 @@ export default async function ClientsPage() {
     (client) => client.status === "churned",
   );
 
-  const clientTable = (rows: typeof currentClients) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Клиент</TableHead>
-          <TableHead>Статус</TableHead>
-          <TableHead>Бюджет</TableHead>
-          <TableHead>Активные проекты</TableHead>
-          <TableHead>Контакты</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.length === 0 && <TableEmpty colSpan={5} />}
-        {rows.map((client) => {
-          const project = representativeProjectByClient.get(client.id);
-          return (
-            <TableRow key={client.id}>
-              <TableCell className="font-medium text-neutral-900">
-                <Link
-                  href={`/clients/${client.id}`}
-                  className="inline-flex items-center gap-2 hover:underline"
-                >
-                  <ProjectLogo
-                    projectId={project?.id}
-                    name={project?.name ?? client.name}
-                    logoUrl={project?.logo_url}
-                    size="sm"
-                    decorative
-                  />
-                  {client.name}
-                </Link>
-              </TableCell>
-              <TableCell>
-                <ClientStatusBadge status={client.status ?? "active"} />
-              </TableCell>
-              <TableCell>{formatCurrency(client.budget)}</TableCell>
-              <TableCell>{activeProjectsByClient.get(client.id) ?? 0}</TableCell>
-              <TableCell>
-                {[client.phone, client.email, client.telegram]
-                  .filter(Boolean)
-                  .join(" · ") || "—"}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
-  );
+  const clientRows = (rows: typeof currentClients): ClientListRow[] =>
+    rows.map((client) => {
+      const project = representativeProjectByClient.get(client.id);
+      return {
+        id: client.id,
+        name: client.name,
+        status: client.status,
+        budget: client.budget,
+        activeProjects: activeProjectsByClient.get(client.id) ?? 0,
+        contacts:
+          [client.phone, client.email, client.telegram].filter(Boolean).join(" · ") || null,
+        representativeProject: project
+          ? { id: project.id, name: project.name, logo_url: project.logo_url }
+          : null,
+      };
+    });
 
   return (
     <div className="flex flex-col gap-4">
@@ -117,14 +75,22 @@ export default async function ClientsPage() {
         </div>
       </details>
 
-      {clientTable(currentClients)}
+      <ClientsTable
+        rows={clientRows(currentClients)}
+        storageKey="agency-os:clients-column-order"
+      />
 
       {finishedClients.length > 0 && (
         <details className="group rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-neutral-700">
             Завершённые клиенты ({finishedClients.length})
           </summary>
-          <div className="mt-4">{clientTable(finishedClients)}</div>
+          <div className="mt-4">
+            <ClientsTable
+              rows={clientRows(finishedClients)}
+              storageKey="agency-os:clients-column-order"
+            />
+          </div>
         </details>
       )}
     </div>

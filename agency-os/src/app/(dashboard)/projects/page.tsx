@@ -1,30 +1,14 @@
-import Link from "next/link";
-
 import { ProjectForm } from "@/app/(dashboard)/projects/project-form";
-import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
-import { ProjectResponsibleSelect } from "@/app/(dashboard)/projects/project-responsible-select";
-import { ProjectBadge } from "@/components/project-badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatCurrency } from "@/lib/format";
+  ProjectsTable,
+  type ProjectListRow,
+} from "@/app/(dashboard)/projects/projects-table";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { createClient } from "@/lib/supabase/server";
 import {
   allocateTaskTime,
   type TaskTimeEntry,
 } from "@/lib/time-analytics";
-
-function formatHours(hours: number): string {
-  if (hours <= 0) return "—";
-  return `${hours.toFixed(1).replace(".", ",")} ч`;
-}
 
 export default async function ProjectsPage() {
   const supabase = await createClient();
@@ -90,81 +74,25 @@ export default async function ProjectsPage() {
     (project) => project.stage === "finished",
   );
 
-  const projectTable = (rows: typeof currentProjects) => (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Проект</TableHead>
-          <TableHead>Клиент</TableHead>
-          <TableHead>Статус</TableHead>
-          <TableHead>Стадия</TableHead>
-          <TableHead>Ответственные</TableHead>
-          <TableHead>Доход/мес</TableHead>
-          <TableHead>Трудозатраты, мес</TableHead>
-          <TableHead>Бюджет</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.length === 0 && <TableEmpty colSpan={8} />}
-        {rows.map((project) => (
-          <TableRow key={project.id}>
-            <TableCell className="font-medium text-neutral-900">
-              <Link
-                href={`/projects/${project.id}`}
-                className="inline-flex max-w-60"
-              >
-                <ProjectBadge
-                  projectId={project.id}
-                  name={project.name}
-                  logoUrl={project.logo_url}
-                />
-              </Link>
-            </TableCell>
-            <TableCell>{project.client?.name ?? "—"}</TableCell>
-            <TableCell>
-              <ProjectQuickSelect
-                key={`${project.id}-health-${project.health}`}
-                projectId={project.id}
-                projectName={project.name}
-                field="health"
-                value={project.health ?? "green"}
-              />
-            </TableCell>
-            <TableCell>
-              <ProjectQuickSelect
-                key={`${project.id}-stage-${project.stage}`}
-                projectId={project.id}
-                projectName={project.name}
-                field="stage"
-                value={project.stage ?? "active"}
-              />
-            </TableCell>
-            <TableCell>
-              <ProjectResponsibleSelect
-                key={`${project.id}-${responsiblesByProject
-                  .get(project.id)
-                  ?.map((profile) => profile.id)
-                  .join("-") ?? "none"}`}
-                projectId={project.id}
-                projectName={project.name}
-                profiles={(profiles ?? []).map((profile) => ({
-                  id: profile.id,
-                  full_name: profile.full_name,
-                }))}
-                selectedResponsibles={
-                  responsiblesByProject.get(project.id) ??
-                  (project.responsible ? [project.responsible] : [])
-                }
-              />
-            </TableCell>
-            <TableCell>{formatCurrency(project.monthly_fee)}</TableCell>
-            <TableCell>{formatHours(hoursByProject.get(project.id) ?? 0)}</TableCell>
-            <TableCell>{formatCurrency(project.budget)}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
+  const projectRows = (rows: typeof currentProjects): ProjectListRow[] =>
+    rows.map((project) => ({
+      id: project.id,
+      name: project.name,
+      logo_url: project.logo_url,
+      client: project.client,
+      health: project.health,
+      stage: project.stage,
+      monthly_fee: project.monthly_fee,
+      budget: project.budget,
+      monthlyHours: hoursByProject.get(project.id) ?? 0,
+      responsibles:
+        responsiblesByProject.get(project.id) ??
+        (project.responsible ? [project.responsible] : []),
+    }));
+  const profileOptions = (profiles ?? []).map((profile) => ({
+    id: profile.id,
+    full_name: profile.full_name,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -190,14 +118,24 @@ export default async function ProjectsPage() {
         </div>
       </details>
 
-      {projectTable(currentProjects)}
+      <ProjectsTable
+        rows={projectRows(currentProjects)}
+        profiles={profileOptions}
+        storageKey="agency-os:projects-column-order"
+      />
 
       {finishedProjects.length > 0 && (
         <details className="group rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <summary className="cursor-pointer text-sm font-semibold text-neutral-700">
             Завершённые проекты ({finishedProjects.length})
           </summary>
-          <div className="mt-4">{projectTable(finishedProjects)}</div>
+          <div className="mt-4">
+            <ProjectsTable
+              rows={projectRows(finishedProjects)}
+              profiles={profileOptions}
+              storageKey="agency-os:projects-column-order"
+            />
+          </div>
         </details>
       )}
     </div>
