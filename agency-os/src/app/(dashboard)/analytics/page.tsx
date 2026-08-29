@@ -663,10 +663,20 @@ export default async function AnalyticsPage({
       .map((point) => ({ ...point })),
   };
 
+  const goalCampaignIds = new Set(
+    allCampaignRows
+      .filter(
+        (campaign) =>
+          (!projectId || campaign.project_id === projectId) &&
+          (!accountFilter || campaign.ad_account_id === accountFilter) &&
+          (!campaignFilter || campaign.id === campaignFilter),
+      )
+      .map((campaign) => campaign.id),
+  );
   const conversionLabels = new Set<string>();
-  for (const row of campaignSummary ?? []) {
-    for (const conversion of row.conversions ?? []) {
-      if (isGoalAction(conversion.action_type)) conversionLabels.add(conversion.action_type);
+  for (const conversion of allGoalConversions) {
+    if (goalCampaignIds.has(conversion.campaign_id)) {
+      conversionLabels.add(conversion.action_type);
     }
   }
   const goalOptions = [...conversionLabels]

@@ -11,6 +11,7 @@ import {
   type MetaCustomConversion,
   type MetaDailyMetric,
 } from "@/lib/meta-ads";
+import { formatAnalyticsPeriod, type AnalyticsPeriod } from "@/lib/analytics-period";
 import type { Database } from "@/lib/supabase/types";
 
 export type MetaSyncResult = { ok: boolean; message: string };
@@ -65,12 +66,6 @@ function matchProjectId(
   return null;
 }
 
-function isoDaysAgo(days: number): string {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
-
 function chunk<T>(items: T[], size: number): T[][] {
   const result: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -112,7 +107,8 @@ function skippedAccountsSuffix(failures: AccountSyncFailure[]): string {
 
 export async function syncMetaAdsData(
   supabase: AgencySupabaseClient,
-  days: number,
+  period: AnalyticsPeriod,
+  projectId?: string,
 ): Promise<MetaSyncResult> {
   try {
     const accounts = await fetchMetaAccounts();
@@ -157,10 +153,19 @@ export async function syncMetaAdsData(
       row.project_id = matchedProjectId;
     }
 
-    const since = isoDaysAgo(days);
-    const until = isoDaysAgo(0);
+    const accountRowsToSync = projectId
+      ? accountRows.filter((account) => account.project_id === projectId)
+      : accountRows;
+    if (accountRowsToSync.length === 0) {
+      return {
+        ok: false,
+        message: "У выбранного проекта нет привязанного кабинета Meta. Сначала проверьте привязку кабинета к проекту.",
+      };
+    }
+
+    const { from: since, to: until } = period;
     const accountResults = await Promise.allSettled(
-      accountRows.map(async (account) => {
+      accountRowsToSync.map(async (account) => {
         const [metrics, campaigns, campaignMetrics, customConversions] =
           await Promise.all([
             fetchMetaInsights(account.external_id, since, until),
@@ -178,7 +183,7 @@ export async function syncMetaAdsData(
       }),
     );
     const { payloads, failures } = partitionAccountResults<AccountPayload>(
-      accountRows,
+      accountRowsToSync,
       accountResults,
     );
     if (payloads.length === 0) {
@@ -326,7 +331,7 @@ export async function syncMetaAdsData(
     return {
       ok: true,
       message:
-        `Готово за ${days} дн.: кабинетов ${payloads.length} из ${accountRows.length}, ` +
+        `Готово за ${formatAnalyticsPeriod(period)}: кабинетов ${payloads.length} из ${accountRowsToSync.length}, ` +
         `дней по кабинетам ${daysWritten}, кампаний ${campaignCount}, ` +
         `дней по кампаниям ${campaignDays}, конверсий ${conversionRows}, ` +
         `своих конверсий ${customConversionCount}.` +

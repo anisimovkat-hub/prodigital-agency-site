@@ -12,23 +12,14 @@ import {
   type MetaEntityDailyMetric,
 } from "@/lib/meta-ads";
 import { syncMetaAdsData } from "@/lib/meta-sync";
+import { formatAnalyticsPeriod, parseAnalyticsPeriod } from "@/lib/analytics-period";
 import { createClient } from "@/lib/supabase/server";
 
 export type SyncMetaState = { ok: boolean; message: string } | undefined;
 
-// Глубина исторической догрузки, выбирается в форме синхронизации.
-const ALLOWED_DAYS = [3, 7, 14, 30, 90, 180, 365];
-const DEFAULT_DAYS = 30;
-
-function isoDaysAgo(days: number): string {
-  const date = new Date();
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
-
-function parseDays(formData: FormData | undefined): number {
-  const raw = Number(formData?.get("days"));
-  return ALLOWED_DAYS.includes(raw) ? raw : DEFAULT_DAYS;
+function selectedProjectId(formData: FormData | undefined): string | undefined {
+  const value = formData?.get("project_id");
+  return typeof value === "string" && value ? value : undefined;
 }
 
 // PostgREST не любит гигантские тела запроса — пишем пачками.
@@ -81,7 +72,14 @@ export async function syncMetaAds(
   formData?: FormData,
 ): Promise<SyncMetaState> {
   const supabase = await createClient();
-  const result = await syncMetaAdsData(supabase, parseDays(formData));
+  const period = parseAnalyticsPeriod({
+    from: formData?.get("from"),
+    to: formData?.get("to"),
+  });
+  if (!period) {
+    return { ok: false, message: "Выберите корректный период не длиннее 365 дней." };
+  }
+  const result = await syncMetaAdsData(supabase, period, selectedProjectId(formData));
   revalidatePath("/analytics");
   revalidatePath("/");
   return result;
@@ -155,13 +153,22 @@ export async function syncMetaAdDetails(
   formData?: FormData,
 ): Promise<SyncMetaState> {
   const supabase = await createClient();
-  const days = parseDays(formData);
+  const period = parseAnalyticsPeriod({
+    from: formData?.get("from"),
+    to: formData?.get("to"),
+  });
+  if (!period) {
+    return { ok: false, message: "Выберите корректный период не длиннее 365 дней." };
+  }
+  const projectId = selectedProjectId(formData);
 
   try {
-    const { data: accounts, error: accErr } = await supabase
+    let accountsQuery = supabase
       .from("ad_accounts")
       .select("id,external_id,name")
       .eq("platform", "meta");
+    if (projectId) accountsQuery = accountsQuery.eq("project_id", projectId);
+    const { data: accounts, error: accErr } = await accountsQuery;
     if (accErr) throw new Error(accErr.message);
     const accountRows = (accounts ?? []) as {
       id: string;
@@ -175,8 +182,7 @@ export async function syncMetaAdDetails(
       };
     }
 
-    const since = isoDaysAgo(days);
-    const until = isoDaysAgo(0);
+    const { from: since, to: until } = period;
 
     // Тянем структуру и метрики по кабинетам параллельно (кабинеты независимы).
     const accountResults = await Promise.allSettled(
@@ -332,7 +338,7 @@ export async function syncMetaAdDetails(
     return {
       ok: true,
       message:
-        `Детали за ${days} дн.: групп ${adsetCount}, объявлений ${adCount}, ` +
+        `Детали за ${formatAnalyticsPeriod(period)}: групп ${adsetCount}, объявлений ${adCount}, ` +
         `дней по группам ${adsetDays}, дней по объявлениям ${adDays}` +
         (skippedNoParent > 0
           ? `. Пропущено без родителя: ${skippedNoParent}.`

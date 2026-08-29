@@ -59,6 +59,7 @@ describe("isGoalAction", () => {
   it("цели отличаются от вовлечения", () => {
     expect(isGoalAction("lead")).toBe(true);
     expect(isGoalAction("purchase")).toBe(true);
+    expect(isGoalAction("offsite_conversion.custom")).toBe(true);
     expect(isGoalAction("offsite_conversion.custom.42")).toBe(true);
     expect(isGoalAction("link_click")).toBe(false);
     expect(isGoalAction("video_view")).toBe(false);

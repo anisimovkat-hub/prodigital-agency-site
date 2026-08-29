@@ -21,6 +21,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import {
+  lastDaysPeriod,
+  periodPresetFor,
+  PERIOD_PRESETS,
+} from "@/lib/analytics-period";
 import type { MarketingSection } from "@/lib/marketing-sections";
 import { cn } from "@/lib/utils";
 
@@ -167,17 +172,37 @@ export function AnalyticsFilters({
   onSectionChange: (section: MarketingSection) => void;
 }) {
   const [project, setProject] = useState(params.project);
+  const [from, setFrom] = useState(params.from);
+  const [to, setTo] = useState(params.to);
+  const [periodPreset, setPeriodPreset] = useState(() =>
+    periodPresetFor({ from: params.from, to: params.to }, new Date())?.toString() ?? "custom",
+  );
   const visibleSocialAccounts = useMemo(
     () => socialAccounts.filter((account) => !project || account.project_id === project),
     [project, socialAccounts],
   );
 
+  function choosePeriod(value: string) {
+    setPeriodPreset(value);
+    if (value === "custom") return;
+    const period = lastDaysPeriod(new Date(), Number(value));
+    setFrom(period.from);
+    setTo(period.to);
+  }
+
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-3">
-      <form action="/analytics" method="get" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(145px,0.8fr)_minmax(145px,0.8fr)_minmax(220px,1.2fr)_minmax(220px,1.2fr)_auto]">
+      <form action="/analytics" method="get" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(155px,0.8fr)_minmax(145px,0.8fr)_minmax(145px,0.8fr)_minmax(220px,1.2fr)_minmax(220px,1.2fr)_auto]">
         <input type="hidden" name="section" value={section} />
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">С даты<Input type="date" name="from" defaultValue={params.from} /></label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">По дату<Input type="date" name="to" defaultValue={params.to} /></label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+          Период
+          <Select value={periodPreset} onChange={(event) => choosePeriod(event.target.value)}>
+            <option value="custom">Произвольный</option>
+            {PERIOD_PRESETS.map((days) => <option key={days} value={days}>Последние {days} дней</option>)}
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">С даты<Input type="date" name="from" value={from} max={to} onChange={(event) => { setFrom(event.target.value); setPeriodPreset("custom"); }} /></label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">По дату<Input type="date" name="to" value={to} min={from} onChange={(event) => { setTo(event.target.value); setPeriodPreset("custom"); }} /></label>
         <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Проект
           <Select name="project" value={project} onChange={(event) => setProject(event.target.value)}>

@@ -105,6 +105,7 @@ export const ACTION_TYPE_LABEL: Record<string, string> = {
   initiate_checkout: "Начатые оформления",
   contact: "Обращения",
   "offsite_conversion.fb_pixel_custom": "Своя конверсия (пиксель)",
+  "offsite_conversion.custom": "Своя конверсия",
   link_click: "Клики по ссылке",
   instagram_profile_visit: "Переходы в профиль Instagram",
   profile_visit: "Переходы в профиль",
@@ -150,6 +151,7 @@ export function actionTypeLabel(
 export function isGoalAction(actionType: string): boolean {
   return (
     GOAL_PRIORITY.has(actionType) ||
+    actionType === "offsite_conversion.custom" ||
     actionType.startsWith("offsite_conversion.custom.")
   );
 }

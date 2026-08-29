@@ -1,4 +1,5 @@
 import { syncMetaAdsData } from "@/lib/meta-sync";
+import { lastDaysPeriod } from "@/lib/analytics-period";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,10 @@ export async function GET(request: Request) {
 
   try {
     // Семь дней обновляются повторно: Meta может уточнять атрибуцию задним числом.
-    const result = await syncMetaAdsData(createServiceClient(), 7);
+    const result = await syncMetaAdsData(
+      createServiceClient(),
+      lastDaysPeriod(new Date(), 7),
+    );
     return Response.json(result, { status: result.ok ? 200 : 502 });
   } catch (error) {
     console.error("Meta cron sync failed", error);

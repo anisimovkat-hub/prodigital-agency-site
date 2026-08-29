@@ -8,19 +8,25 @@ import {
   type SyncMetaState,
 } from "@/app/(dashboard)/analytics/meta/actions";
 import { Button } from "@/components/ui/button";
+import {
+  formatAnalyticsPeriod,
+  type AnalyticsPeriod,
+} from "@/lib/analytics-period";
 
-// Глубина догрузки истории; значения должны совпадать с ALLOWED_DAYS в actions.ts.
-const DEPTHS = [
-  { value: "3", label: "за 3 дня" },
-  { value: "7", label: "за 7 дней" },
-  { value: "14", label: "за 14 дней" },
-  { value: "30", label: "за 30 дней" },
-  { value: "90", label: "за 90 дней" },
-  { value: "180", label: "за 180 дней" },
-  { value: "365", label: "за год" },
-];
+type SyncMetaButtonProps = {
+  period: AnalyticsPeriod;
+  projectId: string;
+};
 
-export function SyncMetaButton() {
+function PeriodFields({ period, projectId }: SyncMetaButtonProps) {
+  return <>
+    <input type="hidden" name="from" value={period.from} />
+    <input type="hidden" name="to" value={period.to} />
+    <input type="hidden" name="project_id" value={projectId} />
+  </>;
+}
+
+export function SyncMetaButton({ period, projectId }: SyncMetaButtonProps) {
   const [state, formAction, pending] = useActionState<SyncMetaState, FormData>(
     syncMetaAds,
     undefined,
@@ -28,22 +34,11 @@ export function SyncMetaButton() {
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3">
+      <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" disabled={pending}>
-        {pending ? "Обновляю из Меты…" : "Обновить статистику Меты"}
+        {pending ? "Обновляю из Meta…" : "Обновить Meta за выбранный период"}
       </Button>
-      <select
-        name="days"
-        defaultValue="30"
-        disabled={pending}
-        aria-label="Глубина загрузки"
-        className="h-9 rounded-md border border-neutral-200 bg-white px-2 text-sm text-neutral-700"
-      >
-        {DEPTHS.map((depth) => (
-          <option key={depth.value} value={depth.value}>
-            {depth.label}
-          </option>
-        ))}
-      </select>
+      <span className="text-xs text-neutral-500">{formatAnalyticsPeriod(period)}</span>
       {state && (
         <span
           className={
@@ -61,7 +56,7 @@ export function SyncMetaButton() {
 
 // Детальная загрузка групп объявлений и объявлений (level=adset/ad). Тяжёлая,
 // поэтому отдельной кнопкой — не блокирует быстрый основной синк.
-export function SyncMetaDetailsButton() {
+export function SyncMetaDetailsButton({ period, projectId }: SyncMetaButtonProps) {
   const [state, formAction, pending] = useActionState<SyncMetaState, FormData>(
     syncMetaAdDetails,
     undefined,
@@ -69,22 +64,11 @@ export function SyncMetaDetailsButton() {
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3">
+      <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" variant="outline" disabled={pending}>
-        {pending ? "Загружаю детали…" : "Загрузить детали (группы и объявления)"}
+        {pending ? "Загружаю детали…" : "Загрузить детали за этот период"}
       </Button>
-      <select
-        name="days"
-        defaultValue="30"
-        disabled={pending}
-        aria-label="Глубина детальной загрузки"
-        className="h-9 rounded-md border border-neutral-200 bg-white px-2 text-sm text-neutral-700"
-      >
-        {DEPTHS.map((depth) => (
-          <option key={depth.value} value={depth.value}>
-            {depth.label}
-          </option>
-        ))}
-      </select>
+      <span className="text-xs text-neutral-500">{formatAnalyticsPeriod(period)}</span>
       {state && (
         <span
           className={

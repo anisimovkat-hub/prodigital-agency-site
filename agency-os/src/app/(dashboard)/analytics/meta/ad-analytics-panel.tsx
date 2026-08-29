@@ -6,6 +6,7 @@ import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad
 import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import { sumTimeseries, type Granularity, type TimeseriesPoint } from "@/lib/ad-analytics";
+import { formatAnalyticsPeriod } from "@/lib/analytics-period";
 import { formatCompact, type MarketingAudience, type MarketingAudienceItem } from "@/lib/marketing-analytics";
 import { cn } from "@/lib/utils";
 
@@ -118,10 +119,11 @@ export function AdAnalyticsPanel({
         <div>
           <h2 className="font-semibold text-neutral-950">Реклама Meta</h2>
           <p className="mt-1 text-xs text-neutral-500">Кабинеты, кампании, цели, группы и объявления в одном срезе</p>
+          <p className="mt-1 text-xs font-medium text-neutral-700">Отчёт за {formatAnalyticsPeriod({ from: current.from, to: current.to })}</p>
         </div>
         <div className="flex flex-col gap-2">
-          <SyncMetaButton />
-          <SyncMetaDetailsButton />
+          <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+          <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
         </div>
       </div>
 
@@ -133,6 +135,11 @@ export function AdAnalyticsPanel({
         goals={goals}
         current={current}
       />
+      {!goalLabel && (
+        <p className="-mt-1 text-xs leading-relaxed text-neutral-500">
+          Выберите цель, чтобы увидеть конверсии и CPA. Цели разных кампаний и пикселей не складываются автоматически, чтобы не исказить результат.
+        </p>
+      )}
 
       {freshnessWarning && (
         <div
