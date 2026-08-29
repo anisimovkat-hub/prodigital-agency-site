@@ -12,7 +12,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, formatDuration } from "@/lib/format";
-import { focusDurationSeconds } from "@/lib/focus-mode";
 import { TASK_TYPE_LABEL } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -36,12 +35,7 @@ export default async function TimePage({
   const from = period === "week" ? startOfUtcWeek(now) : startOfUtcMonth(now);
 
   const supabase = await createClient();
-  const [
-    { data: rows },
-    { data: focusRows },
-    { data: projects },
-    { data: profiles },
-  ] =
+  const [{ data: rows }, { data: projects }, { data: profiles }] =
     await Promise.all([
       supabase
         .from("task_time_entries")
@@ -51,37 +45,11 @@ export default async function TimePage({
         .lt("started_at", now.toISOString())
         .or(`ended_at.gte.${from.toISOString()},ended_at.is.null`)
         .order("started_at", { ascending: true }),
-      supabase
-        .from("focus_sessions")
-        .select(
-          "id,user_id,task_id,task_title,project_id,started_at,ended_at,stop_reason",
-        )
-        .lt("started_at", now.toISOString())
-        .or(`ended_at.gte.${from.toISOString()},ended_at.is.null`)
-        .order("started_at", { ascending: true }),
       supabase.from("projects").select("id,name").order("name"),
       supabase.from("profiles").select("id,full_name").order("full_name"),
     ]);
 
   const entries = (rows ?? []) as TaskTimeEntry[];
-  const focusSeconds = (focusRows ?? []).reduce(
-    (sum, session) =>
-      sum +
-      focusDurationSeconds(
-        new Date(Math.max(new Date(session.started_at).getTime(), from.getTime())).toISOString(),
-        session.ended_at && new Date(session.ended_at) < now
-          ? session.ended_at
-          : now.toISOString(),
-        now,
-      ),
-    0,
-  );
-  const focusTaskCount = new Set(
-    (focusRows ?? []).flatMap((session) => (session.task_id ? [session.task_id] : [])),
-  ).size;
-  const activeFocusCount = (focusRows ?? []).filter(
-    (session) => !session.ended_at,
-  ).length;
   const allocation = allocateTaskTime(entries, {
     from,
     to: now,
@@ -173,99 +141,18 @@ export default async function TimePage({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         <MetricCard
-          title="Точный человеческий фокус"
-          value={formatSeconds(focusSeconds)}
-          accent="border-l-emerald-500"
-        />
-        <MetricCard
-          title="Задач в точном фокусе"
-          value={String(focusTaskCount)}
-          accent="border-l-cyan-500"
-        />
-        <MetricCard
-          title="Фокус сейчас"
-          value={String(activeFocusCount)}
-          accent="border-l-emerald-500"
-        />
-        <MetricCard
-          title="Грубая оценка по статусу"
+          title="Учтённое время"
           value={formatSeconds(allocation.totalSeconds)}
           accent="border-l-blue-500"
         />
       </div>
 
       <p className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        Основной показатель — точный фокус из верхней панели. Старая оценка по статусу
-        «В работе» сохранена ниже для исторической совместимости; при параллельных задачах
-        её общие отрезки по-прежнему делятся поровну.
+        Время считается по задачам в статусе «В работе». Если один сотрудник ведёт несколько
+        задач параллельно, общий отрезок делится между ними поровну.
       </p>
-
-      <section className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">
-            История фокуса
-          </h2>
-          <p className="text-sm text-neutral-500">
-            Точные переключения человека между задачами за выбранный период.
-          </p>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Начало</TableHead>
-              <TableHead>Задача</TableHead>
-              <TableHead>Проект</TableHead>
-              <TableHead>Исполнитель</TableHead>
-              <TableHead>Завершение</TableHead>
-              <TableHead className="text-right">Фокус</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!focusRows?.length && (
-              <TableEmpty colSpan={6}>
-                В выбранном периоде точных фокус-сессий пока нет.
-              </TableEmpty>
-            )}
-            {[...(focusRows ?? [])].reverse().map((session) => (
-              <TableRow key={session.id}>
-                <TableCell>{formatDateTime(session.started_at)}</TableCell>
-                <TableCell className="font-medium text-neutral-900">
-                  {session.task_title}
-                </TableCell>
-                <TableCell>
-                  <ProjectBadge
-                    projectId={session.project_id}
-                    name={
-                      session.project_id
-                        ? projectNames.get(session.project_id)
-                        : null
-                    }
-                  />
-                </TableCell>
-                <TableCell>
-                  {profileNames.get(session.user_id) ?? "—"}
-                </TableCell>
-                <TableCell>
-                  {session.ended_at
-                    ? focusStopLabel(session.stop_reason)
-                    : "Сейчас в фокусе"}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatSeconds(
-                    focusDurationSeconds(
-                      session.started_at,
-                      session.ended_at,
-                      now,
-                    ),
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-neutral-900">По проектам</h2>
@@ -438,20 +325,4 @@ function startOfUtcMonth(value: Date): Date {
 
 function formatSeconds(seconds: number): string {
   return formatDuration(Math.round(seconds / 60));
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function focusStopLabel(reason: string | null) {
-  if (reason === "switched") return "Переключение";
-  if (reason === "ai_wait") return "Ожидание ИИ";
-  if (reason === "task_state_changed") return "Статус изменён";
-  return "Остановлено";
 }

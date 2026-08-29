@@ -29,7 +29,6 @@ export default async function BoardPage({
     { data: projects },
     { data: profiles },
     { data: timeEntries },
-    { data: activeFocusSessions },
   ] =
     await Promise.all([
       supabase
@@ -44,10 +43,6 @@ export default async function BoardPage({
       supabase
         .from("task_time_entries")
         .select("task_id,started_at,ended_at"),
-      supabase
-        .from("focus_sessions")
-        .select("task_id,user_id")
-        .is("ended_at", null),
     ]);
   const trackedSeconds = sumRawTaskTime(
     timeEntries ?? [],
@@ -60,15 +55,9 @@ export default async function BoardPage({
         task.status !== "done" ||
         isCompletedTaskVisible(task.completed_at, timeSnapshotAt),
     );
-  const boardTasks = (operationalTasks as Omit<
-    BoardTask,
-    "tracked_seconds" | "focus_user_id"
-  >[]).map((task) => ({
+  const boardTasks = (operationalTasks as Omit<BoardTask, "tracked_seconds">[]).map((task) => ({
     ...task,
     tracked_seconds: Math.round(trackedSeconds.get(task.id) ?? 0),
-    focus_user_id:
-      activeFocusSessions?.find((session) => session.task_id === task.id)
-        ?.user_id ?? null,
   }));
 
   return (

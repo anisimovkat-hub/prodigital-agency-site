@@ -28,7 +28,6 @@ import {
 import { Avatar } from "@/components/avatar";
 import { ChecklistItemCheckbox } from "@/components/checklist-item-checkbox";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
-import { TaskFocusControls } from "@/components/task-focus-controls";
 import { ProjectBadge } from "@/components/project-badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -78,8 +77,6 @@ type TaskEditorProps = {
   trackedSeconds: number;
   trackingActive: boolean;
   timeSnapshotAt: string;
-  focusActive: boolean;
-  focusAllowed: boolean;
 };
 
 export function TaskEditor({
@@ -95,8 +92,6 @@ export function TaskEditor({
   trackedSeconds,
   trackingActive,
   timeSnapshotAt,
-  focusActive,
-  focusAllowed,
 }: TaskEditorProps) {
   const formId = `task-editor-${task.id}`;
   const [state, formAction, pending] = useActionState<
@@ -171,13 +166,6 @@ export function TaskEditor({
               </span>
             </p>
           )}
-          <div className="mt-2">
-            <TaskFocusControls
-              taskId={task.id}
-              focused={focusActive}
-              canFocus={focusAllowed}
-            />
-          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span

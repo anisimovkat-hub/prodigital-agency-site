@@ -57,7 +57,6 @@ export type BoardTask = {
   project: { id: string; name: string } | null;
   assignee: { id: string; full_name: string } | null;
   tracked_seconds: number;
-  focus_user_id: string | null;
 };
 
 type FilterOption = { id: string; name: string };
@@ -300,7 +299,6 @@ export function KanbanBoard({
                 const priority = task.priority ?? "medium";
                 const overdue = !!task.due_date && task.due_date < today;
                 const running = task.status === "in_progress";
-                const focused = Boolean(task.focus_user_id);
                 const elapsedSinceSnapshot = running
                   ? Math.max(
                       0,
@@ -356,12 +354,6 @@ export function KanbanBoard({
                         aria-hidden
                       />
                     </div>
-                    {focused && (
-                      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                        <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-                        В фокусе
-                      </span>
-                    )}
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-neutral-500">
                       <TaskQuickSelect
                         taskId={task.id}

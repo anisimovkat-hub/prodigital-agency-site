@@ -8,11 +8,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { dateISOInTimeZone } from "@/lib/calendar-events";
 import {
   buildDailyBrief,
-  splitWorkQueue,
   type DailyBriefTask,
 } from "@/lib/daily-brief";
 import { formatDate } from "@/lib/format";
-import { findStaleActiveTaskIds } from "@/lib/focus-mode";
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { isTaskOperational } from "@/lib/project-lifecycle";
 import type { Enums } from "@/lib/supabase/types";
@@ -32,8 +30,7 @@ export default async function DailyBriefPage() {
   const generatedAt = new Date();
   const today = dateISOInTimeZone(generatedAt);
 
-  const dayAgo = new Date(generatedAt.getTime() - 24 * 60 * 60 * 1_000).toISOString();
-  const [{ data: tasks }, { data: profiles }, { data: recentFocus }] = await Promise.all([
+  const [{ data: tasks }, { data: profiles }] = await Promise.all([
     supabase
       .from("tasks")
       .select(
@@ -43,15 +40,9 @@ export default async function DailyBriefPage() {
       .neq("status", "cancelled"),
     supabase
       .from("profiles")
-      .select("id,full_name,role,is_active,current_focus_task_id")
+      .select("id,full_name,role,is_active")
       .eq("is_active", true)
       .order("full_name"),
-    supabase
-      .from("focus_sessions")
-      .select("task_id")
-      .eq("user_id", uid)
-      .gte("started_at", dayAgo)
-      .not("task_id", "is", null),
   ]);
   const currentProfile = (profiles ?? []).find((profile) => profile.id === uid);
   const isOwner = currentProfile?.role === "owner";
@@ -65,22 +56,6 @@ export default async function DailyBriefPage() {
     today,
     allowDelegation: isOwner,
   });
-  const workQueue = splitWorkQueue(
-    operationalTasks.filter((task) => task.assignee_id === uid),
-    currentProfile?.current_focus_task_id ?? null,
-  );
-  const staleTaskIds = new Set(
-    findStaleActiveTaskIds({
-      tasks: operationalTasks.filter((task) => task.assignee_id === uid),
-      recentTaskIds: (recentFocus ?? []).flatMap((session) =>
-        session.task_id ? [session.task_id] : [],
-      ),
-      currentFocusTaskId: currentProfile?.current_focus_task_id ?? null,
-    }),
-  );
-  const staleActiveTasks = operationalTasks.filter((task) =>
-    staleTaskIds.has(task.id),
-  );
   const calendar = isOwner
     ? await getPersonalCalendarEvents(today, today)
     : null;
@@ -190,54 +165,11 @@ export default async function DailyBriefPage() {
               ))}
             </ol>
           ) : (
-            <EmptyText>На сегодня нет открытых задач для фокуса.</EmptyText>
+            <EmptyText>На сегодня нет открытых задач.</EmptyText>
           )}
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <QueueCard
-          title="Сейчас делаю"
-          tone="emerald"
-          tasks={workQueue.current ? [workQueue.current] : []}
-        />
-        <QueueCard title="ИИ выполняет" tone="cyan" tasks={workQueue.ai} />
-        <QueueCard title="Следующие" tone="blue" tasks={workQueue.next.slice(0, 5)} />
-        <QueueCard
-          title="Ожидает проверки"
-          tone="violet"
-          tasks={workQueue.review}
-        />
-      </div>
-
-      <Card className="border-amber-200 bg-amber-50/40">
-        <CardContent className="p-4">
-          <h2 className="text-base font-semibold text-neutral-900">
-            Вечерняя проверка
-          </h2>
-          <p className="mt-0.5 text-xs text-neutral-500">
-            Задачи «В работе», по которым не было точного фокуса более суток
-          </p>
-          {staleActiveTasks.length ? (
-            <ul className="mt-3 grid gap-2 lg:grid-cols-3">
-              {staleActiveTasks.map((task) => (
-                <li key={task.id}>
-                  <Link
-                    href={`/tasks?task=${task.id}`}
-                    className="block rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-neutral-900 hover:border-amber-300"
-                  >
-                    {task.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="mt-3">
-              <EmptyText>Зависших активных задач не найдено.</EmptyText>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {isOwner && (
         <Card>
@@ -274,7 +206,7 @@ export default async function DailyBriefPage() {
               </ul>
             ) : (
               <EmptyText>
-                Явных кандидатов нет: задачи дня уже в фокусе или команда загружена.
+                Явных кандидатов нет: задачи дня уже распределены или команда загружена.
               </EmptyText>
             )}
           </CardContent>
@@ -284,46 +216,6 @@ export default async function DailyBriefPage() {
   );
 }
 
-function QueueCard({
-  title,
-  tone,
-  tasks,
-}: {
-  title: string;
-  tone: "emerald" | "cyan" | "blue" | "violet";
-  tasks: BriefTask[];
-}) {
-  const tones = {
-    emerald: "border-emerald-200 bg-emerald-50/50 text-emerald-800",
-    cyan: "border-cyan-200 bg-cyan-50/50 text-cyan-800",
-    blue: "border-blue-200 bg-blue-50/50 text-blue-800",
-    violet: "border-violet-200 bg-violet-50/50 text-violet-800",
-  };
-  return (
-    <Card className={tones[tone]}>
-      <CardContent className="p-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        <span className="text-xs opacity-70">{tasks.length}</span>
-        {tasks.length ? (
-          <ul className="mt-2 flex flex-col gap-1.5">
-            {tasks.map((task) => (
-              <li key={task.id}>
-                <Link
-                  href={`/tasks?task=${task.id}`}
-                  className="block rounded-md border border-white/80 bg-white/80 px-2 py-1.5 text-xs font-medium text-neutral-800 hover:bg-white"
-                >
-                  {task.title}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-2 text-xs opacity-70">Пусто</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 function TaskSection({
   title,

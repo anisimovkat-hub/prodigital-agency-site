@@ -1,4 +1,4 @@
-// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0033).
+// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0034).
 // в формате, который выдаёт `supabase gen types typescript`.
 // Когда проект будет подключён через Supabase CLI, перегенерировать командой:
 //   supabase gen types typescript --linked > src/lib/supabase/types.ts
@@ -24,7 +24,6 @@ export type Database = {
           telegram: string | null;
           email: string | null;
           is_active: boolean | null;
-          current_focus_task_id: string | null;
           created_at: string | null;
         };
         Insert: {
@@ -36,7 +35,6 @@ export type Database = {
           telegram?: string | null;
           email?: string | null;
           is_active?: boolean | null;
-          current_focus_task_id?: string | null;
           created_at?: string | null;
         };
         Update: {
@@ -48,7 +46,6 @@ export type Database = {
           telegram?: string | null;
           email?: string | null;
           is_active?: boolean | null;
-          current_focus_task_id?: string | null;
           created_at?: string | null;
         };
         Relationships: [
@@ -683,64 +680,6 @@ export type Database = {
             columns: ["user_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      focus_sessions: {
-        Row: {
-          id: string;
-          user_id: string;
-          task_id: string | null;
-          task_title: string;
-          project_id: string | null;
-          started_at: string;
-          ended_at: string | null;
-          stop_reason: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          task_id?: string | null;
-          task_title: string;
-          project_id?: string | null;
-          started_at?: string;
-          ended_at?: string | null;
-          stop_reason?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          task_id?: string | null;
-          task_title?: string;
-          project_id?: string | null;
-          started_at?: string;
-          ended_at?: string | null;
-          stop_reason?: string | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "focus_sessions_user_id_fkey";
-            columns: ["user_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "focus_sessions_task_id_fkey";
-            columns: ["task_id"];
-            isOneToOne: false;
-            referencedRelation: "tasks";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "focus_sessions_project_id_fkey";
-            columns: ["project_id"];
-            isOneToOne: false;
-            referencedRelation: "projects";
             referencedColumns: ["id"];
           },
         ];
@@ -1678,18 +1617,6 @@ export type Database = {
       };
       set_project_responsibles: {
         Args: { p_project_id: string; p_profile_ids: string[] };
-        Returns: undefined;
-      };
-      start_task_focus: {
-        Args: { p_task_id: string };
-        Returns: string;
-      };
-      stop_task_focus: {
-        Args: { p_reason?: string };
-        Returns: undefined;
-      };
-      set_task_ai_wait: {
-        Args: { p_task_id: string };
         Returns: undefined;
       };
       client_report_payload: {

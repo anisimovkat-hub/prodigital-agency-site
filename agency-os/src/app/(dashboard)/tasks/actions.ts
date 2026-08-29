@@ -14,7 +14,7 @@ import {
   updateTaskQuickFieldSchema,
   updateTaskSchema,
 } from "@/lib/validation";
-import { activeTaskLimitWarning } from "@/lib/focus-mode";
+import { activeTaskLimitWarning } from "@/lib/task-workload";
 import { createClient } from "@/lib/supabase/server";
 
 export type CreateTaskFormState =

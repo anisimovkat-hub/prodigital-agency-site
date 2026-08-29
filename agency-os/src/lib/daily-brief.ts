@@ -69,24 +69,6 @@ export function buildDailyBrief<T extends DailyBriefTask>({
   return { overdue, today: todayTasks, urgent, focus, delegationSuggestions };
 }
 
-export function splitWorkQueue<T extends DailyBriefTask>(
-  tasks: T[],
-  currentFocusTaskId: string | null,
-) {
-  return {
-    current: currentFocusTaskId
-      ? tasks.find((task) => task.id === currentFocusTaskId) ?? null
-      : null,
-    ai: tasks.filter((task) => task.status === "ai_wait"),
-    next: tasks.filter(
-      (task) =>
-        task.id !== currentFocusTaskId &&
-        task.status !== "ai_wait" &&
-        task.status !== "review",
-    ),
-    review: tasks.filter((task) => task.status === "review"),
-  };
-}
 
 function buildDelegationSuggestions<T extends DailyBriefTask>(
   openTasks: T[],

@@ -17,9 +17,6 @@ export async function TaskDrawer({
   closeHref: string;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
   const timeSnapshotAt = new Date();
 
   const [
@@ -32,7 +29,6 @@ export async function TaskDrawer({
     { data: profiles },
     { data: workstreamRows },
     { data: timeEntries },
-    { data: activeFocus },
   ] = await Promise.all([
       supabase
         .from("tasks")
@@ -70,14 +66,6 @@ export async function TaskDrawer({
         .from("task_time_entries")
         .select("task_id,started_at,ended_at")
         .eq("task_id", taskId),
-      user
-        ? supabase
-            .from("focus_sessions")
-            .select("task_id")
-            .eq("user_id", user.id)
-            .is("ended_at", null)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
     ]);
 
   if (!task) return null;
@@ -113,14 +101,6 @@ export async function TaskDrawer({
         trackedSeconds={Math.round(trackedSeconds)}
         trackingActive={task.status === "in_progress"}
         timeSnapshotAt={timeSnapshotAt.toISOString()}
-        focusActive={activeFocus?.task_id === task.id}
-        focusAllowed={
-          Boolean(user) &&
-          (task.assignee_id === user?.id ||
-            (!task.assignee_id && task.creator_id === user?.id)) &&
-          task.status !== "done" &&
-          task.status !== "cancelled"
-        }
       />
     </>
   );
