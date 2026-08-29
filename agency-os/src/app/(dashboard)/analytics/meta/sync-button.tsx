@@ -8,7 +8,7 @@ import {
   type SyncMetaState,
 } from "@/app/(dashboard)/analytics/meta/actions";
 import { Button } from "@/components/ui/button";
-import { formatAnalyticsPeriod, type AnalyticsPeriod } from "@/lib/analytics-period";
+import type { AnalyticsPeriod } from "@/lib/analytics-period";
 
 type SyncMetaButtonProps = {
   period: AnalyticsPeriod;
@@ -30,12 +30,11 @@ export function SyncMetaButton({ period, projectId }: SyncMetaButtonProps) {
   );
 
   return (
-    <form action={formAction} className="flex w-full flex-wrap items-center justify-end gap-2">
+    <form action={formAction} className="flex w-full flex-wrap items-center gap-2">
       <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" disabled={pending}>
-        {pending ? "Обновляю кампании…" : "Обновить Meta за выбранный период"}
+        {pending ? "Обновляю кампании…" : "Обновить основную статистику"}
       </Button>
-      <span className="text-xs text-neutral-500">{formatAnalyticsPeriod(period)}</span>
       {state && (
         <span
           className={
@@ -60,12 +59,11 @@ export function SyncMetaDetailsButton({ period, projectId }: SyncMetaButtonProps
   );
 
   return (
-    <form action={formAction} className="flex w-full flex-wrap items-center justify-end gap-2">
+    <form action={formAction} className="flex w-full flex-wrap items-center gap-2">
       <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" variant="outline" disabled={pending}>
-        {pending ? "Загружаю детали…" : "Загрузить детали за этот период"}
+        {pending ? "Загружаю детали…" : "Загрузить детали объявлений"}
       </Button>
-      <span className="text-xs text-neutral-500">{formatAnalyticsPeriod(period)}</span>
       {state && (
         <span
           className={

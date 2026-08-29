@@ -9,7 +9,6 @@ import {
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
 import { ProjectAnalyticsOverview } from "@/app/(dashboard)/analytics/project-analytics-overview";
-import { YandexClientsPanel } from "@/app/(dashboard)/analytics/yandex-clients-panel";
 import {
   actionTypeLabel,
   GOAL_ACTION_TYPES,
@@ -244,6 +243,9 @@ export default async function AnalyticsPage({
   );
   const currentAdAccountRows = (adAccounts ?? []).filter(
     (account) => !account.project_id || currentProjectIds.has(account.project_id),
+  );
+  const visibleAdAccountRows = currentAdAccountRows.filter(
+    (account) => !projectId || account.project_id === projectId,
   );
   const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
@@ -865,10 +867,9 @@ export default async function AnalyticsPage({
       }
       adsPanel={
         <>
-          <YandexClientsPanel />
           <AdAnalyticsPanel
             current={currentAdsFilters}
-            accounts={currentAdAccountRows.map((account) => ({
+            accounts={visibleAdAccountRows.map((account) => ({
               id: account.id,
               name: account.name ?? account.external_id,
               project_id: account.project_id,
@@ -887,7 +888,7 @@ export default async function AnalyticsPage({
             goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
             tree={adTree}
             audience={audience}
-            audienceActions={<AudienceSyncAction projectId={projectId} />}
+            audienceActions={visibleAdAccountRows.length > 0 ? <AudienceSyncAction projectId={projectId} /> : undefined}
             freshnessWarning={freshnessWarning}
           />
         </>

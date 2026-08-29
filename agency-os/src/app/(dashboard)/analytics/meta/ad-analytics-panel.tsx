@@ -6,7 +6,6 @@ import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad
 import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import { sumTimeseries, type Granularity, type TimeseriesPoint } from "@/lib/ad-analytics";
-import { formatAnalyticsPeriod } from "@/lib/analytics-period";
 import { formatCompact, type MarketingAudience, type MarketingAudienceItem } from "@/lib/marketing-analytics";
 import { cn } from "@/lib/utils";
 
@@ -112,21 +111,45 @@ export function AdAnalyticsPanel({
   const totals = sumTimeseries(points);
   const mixedCurrency = currencies.length > 1;
   const hasDetails = tree.some((campaign) => campaign.children.length > 0);
+  const hasMetaAccounts = accounts.length > 0;
+
+  if (!hasMetaAccounts && current.project) {
+    return (
+      <section className="rounded-xl border border-neutral-200 bg-white p-4">
+        <h2 className="font-semibold text-neutral-950">Реклама</h2>
+        <p className="mt-1 text-sm text-neutral-600">
+          У этого проекта пока нет привязанного кабинета Meta. Здесь не будет пустых блоков
+          других рекламных систем: они появятся только после подключения источника и загрузки данных.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(34rem,44rem)]">
-        <div className="min-w-0">
-          <h2 className="font-semibold text-neutral-950">Реклама Meta</h2>
-          <p className="mt-1 text-xs text-neutral-500">Кабинеты, кампании, цели, группы и объявления в одном срезе</p>
-          <p className="mt-1 text-xs font-medium text-neutral-700">Отчёт за {formatAnalyticsPeriod({ from: current.from, to: current.to })}</p>
-          <p className="mt-2 max-w-2xl text-xs leading-relaxed text-neutral-500">Отчёт ниже показывает уже сохранённые данные за этот период. Кнопки справа только запрашивают Meta и догружают данные в базу; период отчёта от этого не меняется.</p>
-        </div>
-        <div className="flex min-w-0 flex-col items-end gap-2">
-          <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
-          <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
-        </div>
+      <div>
+        <h2 className="font-semibold text-neutral-950">Реклама Meta</h2>
+        <p className="mt-1 text-xs text-neutral-500">Кабинеты, кампании, цели, группы и объявления</p>
       </div>
+
+      {hasMetaAccounts && (
+        <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-neutral-800 marker:text-neutral-400">
+            Обновить данные Meta
+            <span className="ml-2 text-xs font-normal text-neutral-500">при необходимости</span>
+          </summary>
+          <div className="mt-3 border-t border-neutral-100 pt-3">
+            <p className="max-w-3xl text-xs leading-relaxed text-neutral-500">
+              Отчёт использует период из календаря сверху. Данные обычно обновляются автоматически;
+              здесь можно вручную запросить Meta и догрузить основную статистику или детали объявлений.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:items-start">
+              <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+              <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+            </div>
+          </div>
+        </details>
+      )}
 
       <AdsFilters
         embedded
@@ -183,7 +206,7 @@ export function AdAnalyticsPanel({
         </div>
         {!hasDetails && tree.length > 0 && (
           <p className="mx-4 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
-            Детали ещё не загружены. Нажмите «Загрузить детали», чтобы раскрывать кампании до групп и объявлений.
+            Детали ещё не загружены. Откройте «Обновить данные Meta», чтобы догрузить группы и объявления.
           </p>
         )}
         {tree.length === 0 ? (
