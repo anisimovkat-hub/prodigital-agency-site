@@ -17,6 +17,7 @@ import {
 } from "react";
 
 import { TaskQuickSelect } from "@/app/(dashboard)/tasks/task-quick-select";
+import { TaskDueDateCell } from "@/app/(dashboard)/tasks/task-due-date-cell";
 import { TaskStatusBadge } from "@/components/badges";
 import { ProjectBadge } from "@/components/project-badge";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
@@ -28,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, isOverdue } from "@/lib/format";
 import type { Tables } from "@/lib/supabase/types";
 import {
   DEFAULT_TODAY_COLUMN_ORDER,
@@ -331,13 +331,12 @@ function TodayCell({
       );
     case "due_date":
       return (
-        <span
-          className={
-            isOverdue(task.due_date, task.status) ? "text-red-600" : undefined
-          }
-        >
-          {formatDate(task.due_date)}
-        </span>
+        <TaskDueDateCell
+          taskId={task.id}
+          taskTitle={task.title}
+          dueDate={task.due_date}
+          status={task.status}
+        />
       );
     case "status":
       return <TaskStatusBadge status={task.status ?? "todo"} />;

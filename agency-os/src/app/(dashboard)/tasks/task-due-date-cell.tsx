@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, Check, Pencil, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { updateTaskDueDate } from "@/app/(dashboard)/tasks/actions";
@@ -21,6 +22,7 @@ export function TaskDueDateCell({
   dueDate,
   status,
 }: TaskDueDateCellProps) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [savedDueDate, setSavedDueDate] = useState(dueDate);
   const [message, setMessage] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function TaskDueDateCell({
       setSavedDueDate(result.dueDate);
       setMessage("Сохранено");
       setEditing(false);
+      router.refresh();
     });
   }
 
