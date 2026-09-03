@@ -13,21 +13,29 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function displayDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-");
-  return year && month && day ? `${day}.${month}.${year}` : isoDate;
+function formatBody(value: string): string {
+  // CRM descriptions are plain text. Supporting this familiar lightweight
+  // convention lets a manager stress the important parts without exposing HTML.
+  return escapeHtml(value).replace(/\*\*([\s\S]+?)\*\*/g, "<b>$1</b>");
 }
 
-/** A deliberately short owner-approved task card for Telegram. */
-export function formatTelegramTaskMessage(input: TelegramTaskMessageInput): string {
-  const lines = [
-    escapeHtml(input.projectName?.trim() || "Без проекта"),
-    `<b>Дедлайн: ${escapeHtml(displayDate(input.dueDate))}</b>`,
-    escapeHtml(input.workstream?.trim() || "Общее"),
-    escapeHtml(input.description?.trim() || input.title.trim()),
-  ];
+function projectPrefix(projectName: string | null): string {
+  const name = projectName?.trim();
+  if (!name) return "Задача";
+  // CRM projects sometimes contain an internal stage after `//`. Employees see
+  // the client/project name first; the task title supplies the actionable part.
+  return name.split(/\s*\/\/\s*/, 1)[0]?.trim() || name;
+}
 
-  return lines.join("\n");
+/**
+ * Formats the message as a manager would write it in Telegram, rather than as
+ * a CRM field card. The task's date and workstream stay in CRM for scheduling,
+ * while the employee receives a clear heading and the full useful context.
+ */
+export function formatTelegramTaskMessage(input: TelegramTaskMessageInput): string {
+  const title = input.title.trim() || "Задача";
+  const body = input.description?.trim() || title;
+  return `<b>${escapeHtml(projectPrefix(input.projectName))} // ${escapeHtml(title)}</b>\n\n${formatBody(body)}`;
 }
 
 export function nextMoscowDate(now = new Date()): string {

@@ -94,8 +94,11 @@ async function handleOwnerMessage(message: TelegramMessage) {
 
   if (!(await isOwner(message.chat))) return;
   if (text === "/pending") {
-    await createTelegramTaskPreviews();
-    await sendTelegramMessage(chatId, "Проверила задачи на завтра. Новые черновики уже выше.");
+    const result = await createTelegramTaskPreviews(new Date(), { refreshPending: true });
+    await sendTelegramMessage(
+      chatId,
+      result.created ? "Обновила черновики — они уже выше." : "На завтра пока нет задач, готовых к отправке.",
+    );
     return;
   }
   if (text.startsWith("/")) return;

@@ -23,7 +23,10 @@ async function ownerChatId(): Promise<string | null> {
   return data?.setting_value ?? null;
 }
 
-export async function createTelegramTaskPreviews(now = new Date()) {
+export async function createTelegramTaskPreviews(
+  now = new Date(),
+  options: { refreshPending?: boolean } = {},
+) {
   const supabase = createServiceClient();
   const recipientDate = nextMoscowDate(now);
   const ownerId = await ownerChatId();
@@ -70,7 +73,7 @@ export async function createTelegramTaskPreviews(now = new Date()) {
       .eq("task_id", rawTask.id)
       .eq("source_date", recipientDate)
       .maybeSingle();
-    if (existing?.status && existing.status !== "failed") continue;
+    if (existing?.status && existing.status !== "failed" && !(options.refreshPending && existing.status === "pending_approval")) continue;
 
     const messageText = formatTelegramTaskMessage({
       projectName: rawTask.projects?.name ?? null,
@@ -96,7 +99,7 @@ export async function createTelegramTaskPreviews(now = new Date()) {
     try {
       const review = await sendTelegramMessage(
         ownerId,
-        `Проверка перед отправкой сотруднику:\n\n${messageText}`,
+        messageText,
         [[
           { text: "Отправить сотруднику", callback_data: `tg:send:${draft.data.id}` },
           { text: "Внести правки", callback_data: `tg:edit:${draft.data.id}` },
