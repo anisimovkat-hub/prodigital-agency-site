@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/meta-sync",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/telegram-task-previews",
+      "schedule": "0 6 * * *"
     }
   ]
 }

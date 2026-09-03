@@ -1,4 +1,4 @@
-// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0034).
+// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0036).
 // в формате, который выдаёт `supabase gen types typescript`.
 // Когда проект будет подключён через Supabase CLI, перегенерировать командой:
 //   supabase gen types typescript --linked > src/lib/supabase/types.ts
@@ -403,6 +403,125 @@ export type Database = {
           {
             foreignKeyName: "recurring_tasks_creator_id_fkey";
             columns: ["creator_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      telegram_bot_settings: {
+        Row: {
+          setting_key: string;
+          setting_value: string;
+          updated_at: string;
+        };
+        Insert: {
+          setting_key: string;
+          setting_value: string;
+          updated_at?: string;
+        };
+        Update: {
+          setting_key?: string;
+          setting_value?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      telegram_chat_bindings: {
+        Row: {
+          id: string;
+          chat_id: string;
+          chat_title: string | null;
+          profile_id: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          chat_id: string;
+          chat_title?: string | null;
+          profile_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          chat_id?: string;
+          chat_title?: string | null;
+          profile_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "telegram_chat_bindings_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      telegram_task_drafts: {
+        Row: {
+          id: string;
+          task_id: string;
+          source_date: string;
+          recipient_chat_id: string;
+          recipient_profile_id: string | null;
+          message_text: string;
+          status: string;
+          review_chat_id: string | null;
+          review_message_id: number | null;
+          recipient_message_id: number | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          source_date: string;
+          recipient_chat_id: string;
+          recipient_profile_id?: string | null;
+          message_text: string;
+          status?: string;
+          review_chat_id?: string | null;
+          review_message_id?: number | null;
+          recipient_message_id?: number | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          task_id?: string;
+          source_date?: string;
+          recipient_chat_id?: string;
+          recipient_profile_id?: string | null;
+          message_text?: string;
+          status?: string;
+          review_chat_id?: string | null;
+          review_message_id?: number | null;
+          recipient_message_id?: number | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "telegram_task_drafts_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "telegram_task_drafts_recipient_profile_id_fkey";
+            columns: ["recipient_profile_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -1608,6 +1727,10 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       cleanup_completed_tasks: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      generate_recurring_tasks_window: {
         Args: Record<string, never>;
         Returns: number;
       };
