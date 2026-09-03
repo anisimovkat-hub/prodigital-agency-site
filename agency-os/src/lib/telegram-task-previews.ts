@@ -10,6 +10,7 @@ type TaskRow = {
   workstream: string | null;
   assignee_id: string | null;
   projects: { name: string } | null;
+  assignee: { full_name: string } | null;
 };
 
 async function ownerChatId(): Promise<string | null> {
@@ -30,7 +31,7 @@ export async function createTelegramTaskPreviews(now = new Date()) {
 
   const { data: tasks, error: tasksError } = await supabase
     .from("tasks")
-    .select("id,title,description,due_date,workstream,assignee_id,projects(name)")
+    .select("id,title,description,due_date,workstream,assignee_id,projects(name),assignee:profiles!tasks_assignee_id_fkey(full_name)")
     .eq("due_date", recipientDate)
     .not("assignee_id", "is", null)
     .not("status", "in", "(done,cancelled,paused)");
@@ -39,12 +40,28 @@ export async function createTelegramTaskPreviews(now = new Date()) {
   let created = 0;
   for (const rawTask of (tasks ?? []) as unknown as TaskRow[]) {
     if (!rawTask.assignee_id || !rawTask.due_date) continue;
-    const { data: binding } = await supabase
+    const { data: directBinding } = await supabase
       .from("telegram_chat_bindings")
       .select("chat_id,profile_id")
       .eq("profile_id", rawTask.assignee_id)
       .eq("is_active", true)
       .maybeSingle();
+    let binding = directBinding;
+    // Existing chats may have been connected before a profile's name was made
+    // unambiguous. A single title match is safe and avoids a manual chat-ID setup.
+    if (!binding && rawTask.assignee?.full_name) {
+      const firstName = rawTask.assignee.full_name.trim().split(/\s+/)[0]?.toLocaleLowerCase("ru-RU");
+      const { data: titleCandidates } = await supabase
+        .from("telegram_chat_bindings")
+        .select("chat_id,profile_id,chat_title")
+        .eq("is_active", true);
+      const matchingTitle = (titleCandidates ?? []).filter((candidate) =>
+        firstName && candidate.chat_title?.toLocaleLowerCase("ru-RU").includes(firstName),
+      );
+      if (matchingTitle.length === 1) {
+        binding = { chat_id: matchingTitle[0].chat_id, profile_id: rawTask.assignee_id };
+      }
+    }
     if (!binding) continue;
 
     const { data: existing } = await supabase
