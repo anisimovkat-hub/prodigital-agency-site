@@ -170,6 +170,9 @@ export async function POST(request: Request) {
   const update = (await request.json()) as TelegramUpdate;
   try {
     if (update.my_chat_member) await bindGroupByName(update.my_chat_member.chat);
+    if (update.message && update.message.chat.type !== "private") {
+      await bindGroupByName(update.message.chat);
+    }
     if (update.message) await handleOwnerMessage(update.message);
     if (update.callback_query) await handleCallback(update.callback_query);
   } catch (error) {
