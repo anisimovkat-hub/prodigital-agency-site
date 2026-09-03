@@ -10,13 +10,18 @@ function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function formatBody(value: string): string {
   // CRM descriptions are plain text. Supporting this familiar lightweight
-  // convention lets a manager stress the important parts without exposing HTML.
-  return escapeHtml(value).replace(/\*\*([\s\S]+?)\*\*/g, "<b>$1</b>");
+  // convention lets a manager stress important parts and attach named links
+  // without exposing arbitrary HTML.
+  return escapeHtml(value)
+    .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\*\*([\s\S]+?)\*\*/g, "<b>$1</b>");
 }
 
 function projectPrefix(projectName: string | null): string {
@@ -27,15 +32,28 @@ function projectPrefix(projectName: string | null): string {
   return name.split(/\s*\/\/\s*/, 1)[0]?.trim() || name;
 }
 
+function shortDeadline(isoDate: string, title: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  if (!year || !month || !day) return isoDate;
+  const weekdays = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
+  const weekday = weekdays[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  const time = title.match(/(?:^|\s)(до|к)\s*(\d{1,2}(?::\d{2})?)(?=$|[\s.,;:!?])/i);
+  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")} (${weekday})${time ? ` ${time[1].toLowerCase()} ${time[2]}` : ""}`;
+}
+
 /**
  * Formats the message as a manager would write it in Telegram, rather than as
- * a CRM field card. The task's date and workstream stay in CRM for scheduling,
- * while the employee receives a clear heading and the full useful context.
+ * a CRM field card. The date is rendered as a compact deadline, while the
+ * employee receives a clear heading and the full useful context.
  */
 export function formatTelegramTaskMessage(input: TelegramTaskMessageInput): string {
   const title = input.title.trim() || "Задача";
   const body = input.description?.trim() || title;
-  return `<b>${escapeHtml(projectPrefix(input.projectName))} // ${escapeHtml(title)}</b>\n\n${formatBody(body)}`;
+  return [
+    `<b>${escapeHtml(projectPrefix(input.projectName))} // ${escapeHtml(title)}</b>`,
+    `<b>${shortDeadline(input.dueDate, title)}</b>`,
+    formatBody(body),
+  ].join("\n\n");
 }
 
 export function nextMoscowDate(now = new Date()): string {

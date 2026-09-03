@@ -9,8 +9,8 @@ describe("formatTelegramTaskMessage", () => {
       dueDate: "2026-09-04",
       workstream: "Отчётность",
       title: "отчёт в понедельник до 12:00",
-      description: "В ПН нужно подготовить **отчёт** <в таблице>.",
-    })).toBe("<b>Капельницы // отчёт в понедельник до 12:00</b>\n\nВ ПН нужно подготовить <b>отчёт</b> &lt;в таблице&gt;.");
+      description: "Нужно подготовить **отчёт** <в таблице>.\n\n[Открыть таблицу](https://docs.google.com/report?tab=1)",
+    })).toBe("<b>Капельницы // отчёт в понедельник до 12:00</b>\n\n<b>04.09 (ПТ) до 12:00</b>\n\nНужно подготовить <b>отчёт</b> &lt;в таблице&gt;.\n\n<a href=\"https://docs.google.com/report?tab=1\">Открыть таблицу</a>");
   });
 
   it("uses the Moscow calendar date rather than UTC", () => {
