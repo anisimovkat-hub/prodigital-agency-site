@@ -101,8 +101,8 @@ export async function createTelegramTaskPreviews(
         ownerId,
         messageText,
         [[
-          { text: "Отправить сотруднику", callback_data: `tg:send:${draft.data.id}` },
-          { text: "Внести правки", callback_data: `tg:edit:${draft.data.id}` },
+          { text: "✅ Отправить сотруднику", callback_data: `tg:send:${draft.data.id}` },
+          { text: "✏️ Внести правки", callback_data: `tg:edit:${draft.data.id}` },
         ]],
       );
       await supabase

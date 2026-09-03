@@ -41,8 +41,8 @@ async function isOwner(chat: TelegramChat) {
 
 function ownerButtons(draftId: string) {
   return [[
-    { text: "Отправить сотруднику", callback_data: `tg:send:${draftId}` },
-    { text: "Внести правки", callback_data: `tg:edit:${draftId}` },
+    { text: "✅ Отправить сотруднику", callback_data: `tg:send:${draftId}` },
+    { text: "✏️ Внести правки", callback_data: `tg:edit:${draftId}` },
   ]];
 }
 
