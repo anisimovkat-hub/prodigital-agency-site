@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { answerCallbackQuery, sendTelegramMessage } from "@/lib/telegram";
-import { createTelegramTaskPreviews } from "@/lib/telegram-task-previews";
+import { createTelegramTaskPreviews, resendOpenTelegramTaskPreviews } from "@/lib/telegram-task-previews";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -95,9 +95,11 @@ async function handleOwnerMessage(message: TelegramMessage) {
   if (!(await isOwner(message.chat))) return;
   if (text === "/pending") {
     const result = await createTelegramTaskPreviews(new Date(), { refreshPending: true });
+    const resent = await resendOpenTelegramTaskPreviews();
+    const total = result.created + resent;
     await sendTelegramMessage(
       chatId,
-      result.created ? "Обновила черновики — они уже выше." : "На завтра пока нет задач, готовых к отправке.",
+      total ? "Обновила черновики — они уже выше." : "Нет задач, готовых к отправке.",
     );
     return;
   }

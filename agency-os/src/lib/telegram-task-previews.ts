@@ -23,6 +23,13 @@ async function ownerChatId(): Promise<string | null> {
   return data?.setting_value ?? null;
 }
 
+function draftButtons(draftId: string) {
+  return [[
+    { text: "✅ Отправить сотруднику", callback_data: `tg:send:${draftId}` },
+    { text: "✏️ Внести правки", callback_data: `tg:edit:${draftId}` },
+  ]];
+}
+
 export async function createTelegramTaskPreviews(
   now = new Date(),
   options: { refreshPending?: boolean } = {},
@@ -100,10 +107,7 @@ export async function createTelegramTaskPreviews(
       const review = await sendTelegramMessage(
         ownerId,
         messageText,
-        [[
-          { text: "✅ Отправить сотруднику", callback_data: `tg:send:${draft.data.id}` },
-          { text: "✏️ Внести правки", callback_data: `tg:edit:${draft.data.id}` },
-        ]],
+        draftButtons(draft.data.id),
       );
       await supabase
         .from("telegram_task_drafts")
@@ -119,4 +123,55 @@ export async function createTelegramTaskPreviews(
     }
   }
   return { created, skipped: null };
+}
+
+/** Re-sends unapproved older drafts when the owner explicitly asks for them. */
+export async function resendOpenTelegramTaskPreviews(now = new Date()) {
+  const supabase = createServiceClient();
+  const ownerId = await ownerChatId();
+  if (!ownerId) return 0;
+
+  const { data: drafts, error: draftsError } = await supabase
+    .from("telegram_task_drafts")
+    .select("id,task_id,source_date")
+    .eq("review_chat_id", ownerId)
+    .in("status", ["pending_approval", "failed"])
+    .neq("source_date", nextMoscowDate(now));
+  if (draftsError) throw draftsError;
+
+  let resent = 0;
+  for (const draft of drafts ?? []) {
+    const { data: rawTask, error: taskError } = await supabase
+      .from("tasks")
+      .select("id,title,description,due_date,workstream,assignee_id,projects(name),assignee:profiles!tasks_assignee_id_fkey(full_name)")
+      .eq("id", draft.task_id)
+      .not("status", "in", "(done,cancelled,paused)")
+      .maybeSingle();
+    if (taskError) throw taskError;
+    const task = rawTask as unknown as TaskRow | null;
+    if (!task?.due_date) continue;
+
+    const messageText = formatTelegramTaskMessage({
+      projectName: task.projects?.name ?? null,
+      dueDate: task.due_date,
+      workstream: task.workstream,
+      title: task.title,
+      description: task.description,
+    });
+    const review = await sendTelegramMessage(ownerId, messageText, draftButtons(draft.id));
+    const { error: updateError } = await supabase
+      .from("telegram_task_drafts")
+      .update({
+        message_text: messageText,
+        status: "pending_approval",
+        last_error: null,
+        review_chat_id: ownerId,
+        review_message_id: review.message_id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", draft.id);
+    if (updateError) throw updateError;
+    resent += 1;
+  }
+  return resent;
 }
