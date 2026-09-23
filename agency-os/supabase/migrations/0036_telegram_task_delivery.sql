@@ -59,8 +59,9 @@ BEGIN
 END;
 $$;
 
--- Привилегированную функцию вызывает только планировщик базы.
-REVOKE ALL ON FUNCTION public.generate_recurring_tasks_window() FROM PUBLIC;
+-- Привилегированную функцию вызывает только планировщик базы. Supabase может
+-- выдавать anon/authenticated явные EXECUTE-гранты при создании функции.
+REVOKE ALL ON FUNCTION public.generate_recurring_tasks_window() FROM PUBLIC, anon, authenticated;
 
 SELECT cron.unschedule(jobid)
 FROM cron.job
