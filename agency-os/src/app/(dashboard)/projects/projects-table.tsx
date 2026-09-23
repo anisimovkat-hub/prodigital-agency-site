@@ -130,13 +130,15 @@ type ProjectColumnId =
 export function ProjectsTable({
   rows,
   profiles,
+  showIncome,
   storageKey,
 }: {
   rows: ProjectListRow[];
   profiles: Profile[];
+  showIncome: boolean;
   storageKey: string;
 }) {
-  const columns = COLUMNS.map((column) =>
+  const columns = COLUMNS.filter((column) => showIncome || column.id !== "monthly_fee").map((column) =>
     column.id === "responsibles"
       ? {
           ...column,

@@ -1,4 +1,4 @@
-// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0036).
+// Ведётся вручную по всем файлам `supabase/migrations/*` (актуально до 0038).
 // в формате, который выдаёт `supabase gen types typescript`.
 // Когда проект будет подключён через Supabase CLI, перегенерировать командой:
 //   supabase gen types typescript --linked > src/lib/supabase/types.ts
@@ -97,6 +97,32 @@ export type Database = {
         };
         Relationships: [];
       };
+      project_finances: {
+        Row: {
+          project_id: string;
+          monthly_fee: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          project_id: string;
+          monthly_fee?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          project_id?: string;
+          monthly_fee?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_finances_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: true;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       projects: {
         Row: {
           id: string;
@@ -105,7 +131,6 @@ export type Database = {
           health: Database["public"]["Enums"]["project_health"] | null;
           stage: Database["public"]["Enums"]["project_stage"] | null;
           budget: number | null;
-          monthly_fee: number | null;
           ownership_mode: string | null;
           responsible_id: string | null;
           short_comment: string | null;
@@ -125,7 +150,6 @@ export type Database = {
           health?: Database["public"]["Enums"]["project_health"] | null;
           stage?: Database["public"]["Enums"]["project_stage"] | null;
           budget?: number | null;
-          monthly_fee?: number | null;
           ownership_mode?: string | null;
           responsible_id?: string | null;
           short_comment?: string | null;
@@ -145,7 +169,6 @@ export type Database = {
           health?: Database["public"]["Enums"]["project_health"] | null;
           stage?: Database["public"]["Enums"]["project_stage"] | null;
           budget?: number | null;
-          monthly_fee?: number | null;
           ownership_mode?: string | null;
           responsible_id?: string | null;
           short_comment?: string | null;

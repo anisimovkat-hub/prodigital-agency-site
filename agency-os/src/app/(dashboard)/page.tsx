@@ -37,7 +37,7 @@ import {
 import { getPersonalCalendarEvents } from "@/lib/google-calendar";
 import { actionTypeLabel } from "@/lib/ad-analytics";
 import { PROJECT_HEALTH_LABEL } from "@/lib/labels";
-import { isTaskOperational } from "@/lib/project-lifecycle";
+import { isOperationalProject, isTaskOperational } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { isActiveTaskStatus } from "@/lib/task-status";
@@ -251,7 +251,11 @@ export default async function DashboardPage({
 
   const accountRows = (adAccounts ?? []) as DashboardAdAccount[];
   const campaignRows = (adCampaigns ?? []) as DashboardAdCampaign[];
-  const visibleProjectIds = new Set((projects ?? []).map((project) => project.id));
+  const visibleProjectIds = new Set(
+    (projects ?? [])
+      .filter((project) => isOperationalProject(project.stage))
+      .map((project) => project.id),
+  );
   const projectAdMetrics = aggregateProjectAdMetrics(
     accountRows,
     campaignRows,
@@ -273,6 +277,7 @@ export default async function DashboardPage({
 
   const filteredProjects = sortProjectsForDisplay(
     (projects ?? []).filter((project) => {
+      if (!isOperationalProject(project.stage)) return false;
       if (health && project.health !== health) return false;
       if (client && project.client_id !== client) return false;
       return true;

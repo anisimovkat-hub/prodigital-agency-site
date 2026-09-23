@@ -107,22 +107,31 @@ export async function addProject(
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from("projects").insert({
+  const { data: createdProject, error } = await supabase.from("projects").insert({
     name: parsed.data.name,
     client_id: parsed.data.client_id,
     health: parsed.data.health,
     stage: parsed.data.stage,
     budget: parsed.data.budget ?? null,
-    monthly_fee: parsed.data.monthly_fee ?? null,
     ownership_mode: parsed.data.ownership_mode ?? null,
     responsible_id: parsed.data.responsible_id || null,
     short_comment: parsed.data.short_comment || null,
     logo_url: parsed.data.logo_url || null,
     brand_color: parsed.data.brand_color || null,
-  });
+  }).select("id").maybeSingle();
 
-  if (error) {
-    return { errors: { name: [error.message] } };
+  if (error || !createdProject) {
+    return { errors: { name: [error?.message ?? "Не удалось создать проект"] } };
+  }
+  if (parsed.data.monthly_fee != null) {
+    const { error: financeError } = await supabase.from("project_finances").upsert({
+      project_id: createdProject.id,
+      monthly_fee: parsed.data.monthly_fee,
+      updated_at: new Date().toISOString(),
+    });
+    if (financeError) {
+      return { errors: { _root: [`Проект создан, но доход не сохранён: ${financeError.message}`] } };
+    }
   }
 
   revalidatePath("/projects");
@@ -166,6 +175,12 @@ export async function updateProject(
   if (!user) {
     return { errors: { _root: ["Нет авторизации. Войдите снова."] } };
   }
+  const { data: actor } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isOwner = actor?.role === "owner";
 
   const { data: previousProject } = await supabase
     .from("projects")
@@ -181,7 +196,6 @@ export async function updateProject(
       health: parsed.data.health,
       stage: parsed.data.stage,
       budget: parsed.data.budget ?? null,
-      monthly_fee: parsed.data.monthly_fee ?? null,
       ownership_mode: parsed.data.ownership_mode ?? null,
       responsible_id: parsed.data.responsible_id || null,
       short_comment: parsed.data.short_comment || null,
@@ -190,7 +204,7 @@ export async function updateProject(
     })
     .eq("id", id)
     .select(
-      "id,name,client_id,health,stage,budget,monthly_fee,ownership_mode,responsible_id,short_comment,logo_url,brand_color",
+      "id,name,client_id,health,stage,budget,ownership_mode,responsible_id,short_comment,logo_url,brand_color",
     )
     .maybeSingle();
 
@@ -203,6 +217,17 @@ export async function updateProject(
         _root: ["Проект не изменён: проверьте права доступа и повторите попытку"],
       },
     };
+  }
+
+  if (isOwner) {
+    const { error: financeError } = await supabase.from("project_finances").upsert({
+      project_id: id,
+      monthly_fee: parsed.data.monthly_fee ?? null,
+      updated_at: new Date().toISOString(),
+    });
+    if (financeError) {
+      return { errors: { _root: [`Проект сохранён, но доход не обновлён: ${financeError.message}`] } };
+    }
   }
 
   const pauseError = await pauseProjectWork(
@@ -238,7 +263,13 @@ export async function updateProject(
   revalidatePath("/recurring");
   revalidatePath("/");
 
-  return { success: true, project: updatedProject };
+  return {
+    success: true,
+    project: {
+      ...updatedProject,
+      monthly_fee: isOwner ? (parsed.data.monthly_fee ?? null) : null,
+    },
+  };
 }
 
 export async function updateProjectQuickField(

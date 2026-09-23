@@ -55,6 +55,7 @@ export default async function ProjectDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const now = new Date();
 
   const monthStart = new Date(now);
@@ -71,6 +72,7 @@ export default async function ProjectDetailPage({
     { data: profiles },
     { data: clients },
     { data: timeRows },
+    { data: projectFinance },
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -96,7 +98,7 @@ export default async function ProjectDetailPage({
       .select("*, author:profiles(full_name)")
       .eq("project_id", id)
       .order("created_at", { ascending: false }),
-    supabase.from("profiles").select("id,full_name").order("full_name"),
+    supabase.from("profiles").select("id,full_name,role").order("full_name"),
     supabase.from("clients").select("id,name").order("name"),
     supabase
       .from("task_time_entries")
@@ -106,9 +108,14 @@ export default async function ProjectDetailPage({
       .eq("project_id", id)
       .lt("started_at", now.toISOString())
       .or(`ended_at.gte.${monthStartISO},ended_at.is.null`),
+    supabase.from("project_finances").select("monthly_fee").eq("project_id", id).maybeSingle(),
   ]);
 
   if (!project) notFound();
+  const isOwner = (profiles ?? []).some(
+    (profile) => profile.id === user?.id && profile.role === "owner",
+  );
+  const monthlyFee = isOwner ? (projectFinance?.monthly_fee ?? null) : null;
 
   const monthAllocation = allocateTaskTime(
     (timeRows ?? []) as TaskTimeEntry[],
@@ -121,8 +128,8 @@ export default async function ProjectDetailPage({
   const monthHours =
     (monthAllocation.byProjectSeconds.get(id) ?? 0) / 3_600;
   const perHour =
-    project.monthly_fee && monthHours > 0
-      ? project.monthly_fee / monthHours
+    monthlyFee && monthHours > 0
+      ? monthlyFee / monthHours
       : null;
 
   const links = (project.links ?? {}) as Record<string, string | undefined>;
@@ -136,6 +143,8 @@ export default async function ProjectDetailPage({
         editor={
           <ProjectEditForm
             project={project}
+            monthlyFee={monthlyFee}
+            isOwner={isOwner}
             clients={(clients ?? []).map((c) => ({ id: c.id, name: c.name }))}
             profiles={(profiles ?? []).map((p) => ({
               id: p.id,
@@ -197,11 +206,11 @@ export default async function ProjectDetailPage({
                   project.ownership_mode
                 : "—"}
             </Row>
-            <Row label="Доход/мес">{formatCurrency(project.monthly_fee)}</Row>
+            {isOwner && <Row label="Доход/мес">{formatCurrency(monthlyFee)}</Row>}
             <Row label="Трудозатраты (мес)">
               {monthHours > 0 ? `${monthHours.toFixed(1)} ч` : "—"}
             </Row>
-            <Row label="₽/час">{perHour ? formatCurrency(perHour) : "—"}</Row>
+            {isOwner && <Row label="₽/час">{perHour ? formatCurrency(perHour) : "—"}</Row>}
             <Row label="Бюджет">{formatCurrency(project.budget)}</Row>
             <Row label="Старт">{formatDate(project.started_at)}</Row>
             {project.short_comment && (

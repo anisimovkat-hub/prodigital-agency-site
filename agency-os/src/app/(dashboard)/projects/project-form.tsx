@@ -88,6 +88,12 @@ export function ProjectForm({ clients, profiles }: ProjectFormProps) {
         <FieldErrors errors={state?.errors?.budget} />
       </div>
 
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="monthly_fee">Доход/мес, ₽ (только владелец)</Label>
+        <Input id="monthly_fee" name="monthly_fee" type="number" step="0.01" min={0} />
+        <FieldErrors errors={state?.errors?.monthly_fee} />
+      </div>
+
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="logo_url">Логотип (ссылка на изображение)</Label>
         <Input id="logo_url" name="logo_url" type="url" placeholder="https://…" />

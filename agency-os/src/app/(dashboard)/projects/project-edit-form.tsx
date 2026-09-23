@@ -26,12 +26,16 @@ import {
 
 type ProjectEditFormProps = {
   project: Tables<"projects">;
+  monthlyFee: number | null;
+  isOwner: boolean;
   clients: { id: string; name: string }[];
   profiles: { id: string; full_name: string }[];
 };
 
 export function ProjectEditForm({
   project,
+  monthlyFee,
+  isOwner,
   clients,
   profiles,
 }: ProjectEditFormProps) {
@@ -50,7 +54,7 @@ export function ProjectEditForm({
     savedProject.stage,
     savedProject.budget,
     savedProject.ownership_mode,
-    savedProject.monthly_fee,
+    state?.success ? state.project?.monthly_fee : monthlyFee,
     savedProject.short_comment,
     savedProject.logo_url,
     savedProject.brand_color,
@@ -168,7 +172,7 @@ export function ProjectEditForm({
         </Select>
       </div>
 
-      <div className="flex flex-col gap-1">
+      {isOwner && <div className="flex flex-col gap-1">
         <Label htmlFor="edit-monthly-fee">Доход/мес, ₽</Label>
         <Input
           id="edit-monthly-fee"
@@ -176,9 +180,9 @@ export function ProjectEditForm({
           type="number"
           step="0.01"
           min={0}
-          defaultValue={savedProject.monthly_fee ?? ""}
+          defaultValue={state?.success ? (state.project?.monthly_fee ?? "") : (monthlyFee ?? "")}
         />
-      </div>
+      </div>}
 
       <div className="col-span-2 flex flex-col gap-1 sm:col-span-4">
         <Label htmlFor="edit-logo">Логотип (ссылка на изображение)</Label>

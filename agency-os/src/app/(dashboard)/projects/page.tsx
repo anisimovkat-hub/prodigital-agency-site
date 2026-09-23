@@ -12,6 +12,7 @@ import {
 
 export default async function ProjectsPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const now = new Date();
 
   const monthStart = new Date(now);
@@ -24,6 +25,7 @@ export default async function ProjectsPage() {
     { data: profiles },
     { data: timeRows },
     { data: projectResponsibles },
+    { data: projectFinances },
   ] =
     await Promise.all([
       supabase
@@ -31,7 +33,7 @@ export default async function ProjectsPage() {
         .select("*, client:clients(id,name), responsible:profiles!projects_responsible_id_fkey(id,full_name)")
         .order("created_at", { ascending: false }),
       supabase.from("clients").select("id,name").order("name"),
-      supabase.from("profiles").select("id,full_name").order("full_name"),
+      supabase.from("profiles").select("id,full_name,role").order("full_name"),
       supabase
         .from("task_time_entries")
         .select(
@@ -43,7 +45,15 @@ export default async function ProjectsPage() {
         .from("project_responsibles")
         .select("project_id,sort_order,profile:profiles(id,full_name)")
         .order("sort_order"),
+      supabase.from("project_finances").select("project_id,monthly_fee"),
     ]);
+
+  const isOwner = (profiles ?? []).some(
+    (profile) => profile.id === user?.id && profile.role === "owner",
+  );
+  const monthlyFeeByProject = new Map(
+    (projectFinances ?? []).map((finance) => [finance.project_id, finance.monthly_fee]),
+  );
 
   const responsiblesByProject = new Map<
     string,
@@ -82,7 +92,7 @@ export default async function ProjectsPage() {
       client: project.client,
       health: project.health,
       stage: project.stage,
-      monthly_fee: project.monthly_fee,
+      monthly_fee: isOwner ? (monthlyFeeByProject.get(project.id) ?? null) : null,
       budget: project.budget,
       monthlyHours: hoursByProject.get(project.id) ?? 0,
       responsibles:
@@ -103,7 +113,7 @@ export default async function ProjectsPage() {
         </p>
       </div>
 
-      <details className="group rounded-lg border border-neutral-200 bg-white p-4">
+      {isOwner && <details className="group rounded-lg border border-neutral-200 bg-white p-4">
         <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
           + Новый проект
         </summary>
@@ -116,11 +126,12 @@ export default async function ProjectsPage() {
             }))}
           />
         </div>
-      </details>
+      </details>}
 
       <ProjectsTable
         rows={projectRows(currentProjects)}
         profiles={profileOptions}
+        showIncome={isOwner}
         storageKey="agency-os:projects-column-order"
       />
 
@@ -133,6 +144,7 @@ export default async function ProjectsPage() {
             <ProjectsTable
               rows={projectRows(finishedProjects)}
               profiles={profileOptions}
+              showIncome={isOwner}
               storageKey="agency-os:projects-column-order"
             />
           </div>
