@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { USER_ROLE_LABEL } from "@/lib/labels";
 import { activeProjectIdsByEmployee } from "@/lib/employee-projects";
+import { isTaskOperational } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, todayISO } from "@/lib/format";
 import { isActiveTaskStatus } from "@/lib/task-status";
@@ -31,7 +32,7 @@ export default async function EmployeesPage() {
     { data: invites },
   ] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
-      supabase.from("tasks").select("assignee_id,status,due_date"),
+      supabase.from("tasks").select("assignee_id,status,due_date,project_id,project:projects(stage)"),
       supabase
         .from("project_members")
         .select("profile_id, project_id, project:projects(stage)"),
@@ -56,7 +57,7 @@ export default async function EmployeesPage() {
     { open: number; today: number; overdue: number }
   >();
   for (const task of tasks ?? []) {
-    if (!task.assignee_id) continue;
+    if (!task.assignee_id || !isTaskOperational(task)) continue;
     const stats = loadByEmployee.get(task.assignee_id) ?? {
       open: 0,
       today: 0,
