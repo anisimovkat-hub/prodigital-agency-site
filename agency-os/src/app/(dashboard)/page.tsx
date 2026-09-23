@@ -176,10 +176,15 @@ export default async function DashboardPage({
   const calendar = showPersonalCalendar
     ? await getPersonalCalendarEvents(today, today)
     : null;
-  const activeProjectsCount = (projects ?? []).filter(
-    (project) =>
-      project.stage === "active" || project.stage === "launching",
-  ).length;
+  const operationalProjects = (projects ?? []).filter((project) =>
+    isOperationalProject(project.stage),
+  );
+  const activeProjectsCount = operationalProjects.length;
+  const activeClientIds = new Set(
+    operationalProjects
+      .map((project) => project.client_id)
+      .filter((clientId): clientId is string => Boolean(clientId)),
+  );
   const operationalTasks = ((tasks ?? []) as unknown as DashTask[]).filter(
     isTaskOperational,
   );
@@ -190,9 +195,7 @@ export default async function DashboardPage({
     (task) =>
       isActiveTaskStatus(task.status) && task.due_date && task.due_date < today,
   ).length;
-  const activeClientsCount = (clients ?? []).filter(
-    (item) => item.status === "active",
-  ).length;
+  const activeClientsCount = activeClientIds.size;
 
   const summaries = [
     {
@@ -251,11 +254,7 @@ export default async function DashboardPage({
 
   const accountRows = (adAccounts ?? []) as DashboardAdAccount[];
   const campaignRows = (adCampaigns ?? []) as DashboardAdCampaign[];
-  const visibleProjectIds = new Set(
-    (projects ?? [])
-      .filter((project) => isOperationalProject(project.stage))
-      .map((project) => project.id),
-  );
+  const visibleProjectIds = new Set(operationalProjects.map((project) => project.id));
   const projectAdMetrics = aggregateProjectAdMetrics(
     accountRows,
     campaignRows,
@@ -276,8 +275,7 @@ export default async function DashboardPage({
   );
 
   const filteredProjects = sortProjectsForDisplay(
-    (projects ?? []).filter((project) => {
-      if (!isOperationalProject(project.stage)) return false;
+    operationalProjects.filter((project) => {
       if (health && project.health !== health) return false;
       if (client && project.client_id !== client) return false;
       return true;
@@ -288,7 +286,7 @@ export default async function DashboardPage({
     Object.keys(PROJECT_HEALTH_LABEL) as Enums<"project_health">[]
   ).map((value) => ({ value, label: PROJECT_HEALTH_LABEL[value] }));
 
-  const clientOptions = (clients ?? []).map((c) => ({
+  const clientOptions = (clients ?? []).filter((c) => activeClientIds.has(c.id)).map((c) => ({
     value: c.id,
     label: c.name,
   }));
@@ -349,10 +347,7 @@ export default async function DashboardPage({
   for (const t of allTasks) {
     if (isOpen(t) && t.project_id) projectsWithOpenTask.add(t.project_id);
   }
-  const activeProjects = (projects ?? []).filter(
-    (project) =>
-      project.stage === "active" || project.stage === "launching",
-  );
+  const activeProjects = operationalProjects;
   const redProjects = activeProjects.filter((p) => p.health === "red");
   const quietProjects = activeProjects.filter(
     (p) => !projectsWithOpenTask.has(p.id),
