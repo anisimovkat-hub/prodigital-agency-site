@@ -59,6 +59,9 @@ BEGIN
 END;
 $$;
 
+-- Привилегированную функцию вызывает только планировщик базы.
+REVOKE ALL ON FUNCTION public.generate_recurring_tasks_window() FROM PUBLIC;
+
 SELECT cron.unschedule(jobid)
 FROM cron.job
 WHERE jobname = 'generate-recurring-tasks';

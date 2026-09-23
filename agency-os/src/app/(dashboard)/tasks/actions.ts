@@ -569,16 +569,18 @@ export async function toggleTaskDone(taskId: string, done: boolean) {
   } = await supabase.auth.getUser();
   if (!user) return { success: false };
 
-  const { error } = await supabase
+  const { data: updatedTask, error } = await supabase
     .from("tasks")
     .update({
       status: done ? "done" : "todo",
       completed_at: done ? new Date().toISOString() : null,
       board_position: null,
     })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .select("id")
+    .maybeSingle();
 
-  if (error) return { success: false };
+  if (error || !updatedTask) return { success: false };
 
   revalidateTaskViews();
 
