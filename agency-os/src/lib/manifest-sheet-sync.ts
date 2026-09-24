@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { fetchManifestSheet, MANIFEST_PROJECT_ID, parseTelegramDistribution, parseVkDays, type SheetMetric } from "@/lib/manifest-sheet";
+import { fetchManifestSheet, fetchTonRubRate, MANIFEST_PROJECT_ID, parseTelegramDistribution, parseVkDays, type SheetMetric } from "@/lib/manifest-sheet";
 import type { Database } from "@/lib/supabase/types";
 
 type Client = SupabaseClient<Database>;
@@ -12,11 +12,12 @@ export async function syncManifestSheet(client: Client): Promise<{ ok: true; vkD
   if (projectError) throw new Error(projectError.message);
   if (!project) throw new Error("Проект «Манифест / Прин» не найден в Agency OS");
 
-  const [vkRows, telegramRows] = await Promise.all([
+  const [vkRows, telegramRows, tonRubRate] = await Promise.all([
     fetchManifestSheet(603515662),
     fetchManifestSheet(94321028),
+    fetchTonRubRate(),
   ]);
-  const metrics = [...parseVkDays(vkRows), ...parseTelegramDistribution(telegramRows)];
+  const metrics = [...parseVkDays(vkRows), ...parseTelegramDistribution(telegramRows, tonRubRate)];
   if (metrics.length === 0) throw new Error("В таблице нет дневных рекламных данных");
   const unique = new Map<string, SheetMetric>();
   for (const metric of metrics) {
