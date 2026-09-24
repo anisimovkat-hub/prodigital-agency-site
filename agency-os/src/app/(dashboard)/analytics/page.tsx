@@ -8,6 +8,7 @@ import {
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
+import { ManifestSyncButton } from "@/app/(dashboard)/analytics/manifest-sync-button";
 import { ProjectAnalyticsOverview } from "@/app/(dashboard)/analytics/project-analytics-overview";
 import {
   actionTypeLabel,
@@ -28,6 +29,7 @@ import type {
   MarketingPost,
 } from "@/lib/marketing-analytics";
 import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
+import { MANIFEST_PROJECT_ID } from "@/lib/manifest-sheet";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
 import { lastDaysPeriod, parseAnalyticsPeriod, previousComparablePeriod } from "@/lib/analytics-period";
@@ -190,7 +192,7 @@ export default async function AnalyticsPage({
       .eq("platform", "instagram")
       .order("name"),
     supabase.from("ad_campaigns").select("id,name,objective,status,project_id,ad_account_id"),
-    supabase.from("ad_accounts").select("id,name,external_id,project_id,currency").eq("platform", "meta"),
+    supabase.from("ad_accounts").select("id,name,external_id,project_id,currency,platform"),
     supabase.from("ad_sets").select("id,name,status,campaign_id"),
     supabase.from("ads").select("id,name,status,adset_id"),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
@@ -908,6 +910,7 @@ export default async function AnalyticsPage({
       }
       adsPanel={
         <>
+          {projectId === MANIFEST_PROJECT_ID && <ManifestSyncButton />}
           <AdAnalyticsPanel
             current={currentAdsFilters}
             accounts={visibleAdAccountRows.map((account) => ({
@@ -929,7 +932,7 @@ export default async function AnalyticsPage({
             goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
             tree={adTree}
             audience={audience}
-            audienceActions={visibleAdAccountRows.length > 0 ? <AudienceSyncAction projectId={projectId} /> : undefined}
+            audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
             freshnessWarning={freshnessWarning}
           />
         </>

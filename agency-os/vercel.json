@@ -6,6 +6,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/manifest-sheet-sync",
+      "schedule": "30 3 * * *"
+    },
+    {
       "path": "/api/cron/telegram-task-previews",
       "schedule": "0 6 * * *"
     }

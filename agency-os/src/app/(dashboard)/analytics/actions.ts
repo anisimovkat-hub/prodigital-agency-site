@@ -8,6 +8,8 @@ import {
   fetchInstagramMedia,
 } from "@/lib/meta-instagram";
 import { fetchMetaAudienceInsights } from "@/lib/meta-ads";
+import { syncManifestSheet } from "@/lib/manifest-sheet-sync";
+import { createServiceClient } from "@/lib/supabase/service";
 import {
   compactInstagramErrors,
   instagramPermissionHint,
@@ -103,6 +105,20 @@ async function requireOwner() {
     .maybeSingle();
   if (profile?.role !== "owner") throw new Error("Недостаточно прав.");
   return supabase;
+}
+
+export async function syncManifestAnalytics(
+  _prevState: AnalyticsActionState,
+): Promise<AnalyticsActionState> {
+  void _prevState;
+  try {
+    await requireOwner();
+    const result = await syncManifestSheet(createServiceClient());
+    revalidatePath("/analytics");
+    return { ok: true, message: `Обновлено: ВК — ${result.vkDays} строк, Telegram — ${result.telegramDays} строк.` };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Не удалось загрузить таблицу." };
+  }
 }
 
 export async function syncInstagramAnalytics(
