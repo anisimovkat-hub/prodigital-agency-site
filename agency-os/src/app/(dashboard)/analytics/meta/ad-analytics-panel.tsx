@@ -92,6 +92,7 @@ export function AdAnalyticsPanel({
   tree,
   audience,
   audienceActions,
+  hasMetaAccount,
   freshnessWarning,
 }: {
   current: AdsFilterValues;
@@ -106,20 +107,20 @@ export function AdAnalyticsPanel({
   tree: AdTreeRow[];
   audience: MarketingAudience;
   audienceActions?: ReactNode;
+  hasMetaAccount: boolean;
   freshnessWarning?: string | null;
 }) {
   const totals = sumTimeseries(points);
   const mixedCurrency = currencies.length > 1;
   const hasDetails = tree.some((campaign) => campaign.children.length > 0);
-  const hasMetaAccounts = accounts.length > 0;
+  const hasAccounts = accounts.length > 0;
 
-  if (!hasMetaAccounts && current.project) {
+  if (!hasAccounts && current.project) {
     return (
       <section className="rounded-xl border border-neutral-200 bg-white p-4">
         <h2 className="font-semibold text-neutral-950">Реклама</h2>
         <p className="mt-1 text-sm text-neutral-600">
-          У этого проекта пока нет привязанного кабинета Meta. Здесь не будет пустых блоков
-          других рекламных систем: они появятся только после подключения источника и загрузки данных.
+          У этого проекта пока нет загруженной рекламной статистики.
         </p>
       </section>
     );
@@ -128,11 +129,11 @@ export function AdAnalyticsPanel({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="font-semibold text-neutral-950">Реклама Meta</h2>
-        <p className="mt-1 text-xs text-neutral-500">Кабинеты, кампании, цели, группы и объявления</p>
+        <h2 className="font-semibold text-neutral-950">Реклама</h2>
+        <p className="mt-1 text-xs text-neutral-500">Кабинеты, кампании и цели по доступным источникам</p>
       </div>
 
-      {hasMetaAccounts && (
+      {hasMetaAccount && (
         <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
           <summary className="cursor-pointer text-sm font-medium text-neutral-800 marker:text-neutral-400">
             Обновить данные Meta
@@ -192,19 +193,19 @@ export function AdAnalyticsPanel({
 
       {audienceActions}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AdTimeseriesChart points={points} granularity={granularity} currency={currency} goalLabel={goalLabel} compact />
-        <AudienceMiniCard title="Возраст" rows={audience.age} color="bg-violet-500" icon={UsersRound} />
-        <AudienceMiniCard title="Пол" rows={audience.gender} color="bg-fuchsia-500" icon={UsersRound} />
-        <AudienceMiniCard title="Страны" rows={audience.country} color="bg-emerald-500" icon={MapPin} />
+      <section className={cn("grid gap-3", hasMetaAccount ? "sm:grid-cols-2 xl:grid-cols-4" : "grid-cols-1")}>
+        <AdTimeseriesChart points={points} granularity={granularity} currency={currency} goalLabel={goalLabel} compact={hasMetaAccount} />
+        {hasMetaAccount && <AudienceMiniCard title="Возраст" rows={audience.age} color="bg-violet-500" icon={UsersRound} />}
+        {hasMetaAccount && <AudienceMiniCard title="Пол" rows={audience.gender} color="bg-fuchsia-500" icon={UsersRound} />}
+        {hasMetaAccount && <AudienceMiniCard title="Страны" rows={audience.country} color="bg-emerald-500" icon={MapPin} />}
       </section>
 
       <section className="flex flex-col gap-2 overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <div className="border-b border-neutral-200 px-4 py-3">
           <h2 className="font-semibold text-neutral-900">Кампании → группы → объявления</h2>
-          <p className="mt-1 text-xs text-neutral-500">Разворачивайте строки, чтобы перейти от кампании к группе и конкретному объявлению.</p>
+          <p className="mt-1 text-xs text-neutral-500">Группы и объявления доступны для источников, которые передают эту детализацию.</p>
         </div>
-        {!hasDetails && tree.length > 0 && (
+        {!hasDetails && hasMetaAccount && tree.length > 0 && (
           <p className="mx-4 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
             Детали ещё не загружены. Откройте «Обновить данные Meta», чтобы догрузить группы и объявления.
           </p>

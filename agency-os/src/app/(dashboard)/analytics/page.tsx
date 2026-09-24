@@ -932,6 +932,7 @@ export default async function AnalyticsPage({
             goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
             tree={adTree}
             audience={audience}
+            hasMetaAccount={visibleAdAccountRows.some((account) => account.platform === "meta")}
             audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
             freshnessWarning={freshnessWarning}
           />
