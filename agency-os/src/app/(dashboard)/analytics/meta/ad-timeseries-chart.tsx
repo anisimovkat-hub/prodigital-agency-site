@@ -43,7 +43,7 @@ export function AdTimeseriesChart({
 
   const maxSpend = Math.max(1, ...points.map((p) => p.spend));
   const maxConv = Math.max(1, ...points.map((p) => p.conversions));
-  const chartHeight = compact ? H : 80;
+  const chartHeight = compact ? H : 56;
   const topPadding = compact ? PAD_T : 3;
   const bottomPadding = compact ? PAD_B : 3;
   const innerHeight = chartHeight - topPadding - bottomPadding;
@@ -85,7 +85,7 @@ export function AdTimeseriesChart({
       <svg
         viewBox={`0 0 ${W} ${chartHeight}`}
         preserveAspectRatio={compact ? "xMidYMid meet" : "none"}
-        className={compact ? "mt-auto h-auto w-full" : "h-20 w-full"}
+        className={compact ? "mt-auto h-auto w-full" : "h-14 w-full"}
         role="img"
         aria-label="График расхода и конверсий по времени"
       >
