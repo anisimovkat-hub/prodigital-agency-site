@@ -15,8 +15,6 @@ const PAD_R = 8;
 const PAD_T = 16;
 const PAD_B = 30;
 const INNER_W = W - PAD_L - PAD_R;
-const INNER_H = H - PAD_T - PAD_B;
-const BASE_Y = PAD_T + INNER_H;
 
 function fmt(value: number): string {
   return value.toLocaleString("ru-RU", { maximumFractionDigits: 0 });
@@ -45,14 +43,19 @@ export function AdTimeseriesChart({
 
   const maxSpend = Math.max(1, ...points.map((p) => p.spend));
   const maxConv = Math.max(1, ...points.map((p) => p.conversions));
+  const chartHeight = compact ? H : 80;
+  const topPadding = compact ? PAD_T : 3;
+  const bottomPadding = compact ? PAD_B : 3;
+  const innerHeight = chartHeight - topPadding - bottomPadding;
+  const baseY = topPadding + innerHeight;
   const n = points.length;
   const step = INNER_W / n;
   const barW = Math.min(48, step * 0.62);
   const cur = currency ?? "";
 
   const x = (i: number) => PAD_L + (i + 0.5) * step;
-  const spendY = (v: number) => PAD_T + INNER_H * (1 - v / maxSpend);
-  const convY = (v: number) => PAD_T + INNER_H * (1 - v / maxConv);
+  const spendY = (v: number) => topPadding + innerHeight * (1 - v / maxSpend);
+  const convY = (v: number) => topPadding + innerHeight * (1 - v / maxConv);
 
   const hasConversions = goalLabel !== null && maxConv > 1;
   const linePath = points
@@ -63,7 +66,9 @@ export function AdTimeseriesChart({
   const labelEvery = Math.max(1, Math.ceil(n / 14));
 
   return (
-    <div className="flex h-full min-h-44 flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-4">
+    <div className={compact
+      ? "flex h-full min-h-44 flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-4"
+      : "flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white px-4 py-3"}>
       <div className="flex flex-wrap items-center gap-4 text-xs">
         <span className="flex items-center gap-1.5 text-neutral-600">
           <span className="inline-block h-3 w-3 rounded-sm bg-blue-500" />
@@ -78,13 +83,14 @@ export function AdTimeseriesChart({
       </div>
 
       <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className={compact ? "mt-auto h-auto w-full" : "h-auto w-full"}
+        viewBox={`0 0 ${W} ${chartHeight}`}
+        preserveAspectRatio={compact ? "xMidYMid meet" : "none"}
+        className={compact ? "mt-auto h-auto w-full" : "h-20 w-full"}
         role="img"
         aria-label="График расхода и конверсий по времени"
       >
         {/* базовая линия */}
-        <line x1={PAD_L} y1={BASE_Y} x2={W - PAD_R} y2={BASE_Y} stroke="#e5e5e5" strokeWidth={1} />
+        <line x1={PAD_L} y1={baseY} x2={W - PAD_R} y2={baseY} stroke="#e5e5e5" strokeWidth={1} />
 
         {/* столбцы расхода */}
         {points.map((p, i) => {
@@ -96,7 +102,7 @@ export function AdTimeseriesChart({
               x={x(i) - barW / 2}
               y={y}
               width={barW}
-              height={Math.max(0, BASE_Y - y)}
+              height={Math.max(0, baseY - y)}
               rx={2}
               fill="#3b82f6"
               opacity={0.85}
@@ -131,12 +137,12 @@ export function AdTimeseriesChart({
         )}
 
         {/* подписи оси X */}
-        {points.map((p, i) =>
+        {compact && points.map((p, i) =>
           i % labelEvery === 0 ? (
             <text
               key={`lbl-${p.bucket}`}
               x={x(i)}
-              y={H - 8}
+              y={chartHeight - 8}
               textAnchor="middle"
               fontSize={20}
               fill="#737373"
@@ -146,6 +152,13 @@ export function AdTimeseriesChart({
           ) : null,
         )}
       </svg>
+      {!compact && (
+        <div className="flex justify-between text-[11px] text-neutral-500" aria-hidden="true">
+          <span>{formatBucketLabel(points[0].bucket, granularity)}</span>
+          {points.length > 2 && <span>{formatBucketLabel(points[Math.floor((points.length - 1) / 2)].bucket, granularity)}</span>}
+          {points.length > 1 && <span>{formatBucketLabel(points[points.length - 1].bucket, granularity)}</span>}
+        </div>
+      )}
     </div>
   );
 }
