@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MobileTaskCard } from "@/components/mobile-task-card";
 import { TaskDrawer } from "@/app/(dashboard)/tasks/task-drawer";
 import { TaskDueDateCell } from "@/app/(dashboard)/tasks/task-due-date-cell";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
@@ -151,7 +152,7 @@ export default async function TasksPage({
         <TaskViewSwitcher />
       </div>
 
-      <div className="flex w-fit rounded-lg border border-neutral-200 bg-neutral-50 p-1">
+      <div className="flex max-w-full w-fit flex-wrap rounded-lg border border-neutral-200 bg-neutral-50 p-1">
         <Link
           href={buildHref(filters, {
             view: undefined,
@@ -274,6 +275,11 @@ export default async function TasksPage({
         </details>
       )}
 
+      <div className="mobile-task-list">
+        {filtered.length === 0 && <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-500">{isCompletedView ? "Выполненных задач за последние 3 дня нет." : "Активных задач пока нет."}</p>}
+        {filtered.map((task) => <MobileTaskCard key={task.id} task={task} href={buildHref(filters, { task: task.id })} profiles={audienceProfiles.map((profile) => ({ id: profile.id, name: profile.full_name }))} duration={trackedSeconds.has(task.id) ? formatDuration(Math.round((trackedSeconds.get(task.id) ?? 0) / 60)) : undefined} />)}
+      </div>
+      <div className="desktop-task-list">
       <Table>
         <TableHeader>
           <TableRow>
@@ -379,6 +385,7 @@ export default async function TasksPage({
           ))}
         </TableBody>
       </Table>
+      </div>
 
       {filters.task && <TaskDrawer taskId={filters.task} closeHref={closeHref} />}
     </div>

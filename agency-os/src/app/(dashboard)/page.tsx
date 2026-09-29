@@ -427,7 +427,7 @@ export default async function DashboardPage({
         </Link>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="dashboard-summary grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaries.map((summary) => (
           <Link
             key={summary.label}

@@ -17,3 +17,53 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* The owner's browser workspace switches to cards only on narrow screens. */
+.mobile-task-list { display: none; }
+
+@media (max-width: 767px) {
+  .owner-mobile .dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .owner-mobile .dashboard-main [class*="grid"] > * { min-width: 0; }
+  .owner-mobile .analytics-period-popover {
+    position: fixed; inset: 4.5rem 1rem auto; width: auto;
+    max-height: calc(100dvh - 10rem - env(safe-area-inset-bottom)); overflow-y: auto;
+  }
+  .owner-mobile .dashboard-main {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+  .owner-mobile .mobile-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .owner-mobile .mobile-sidebar {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .owner-mobile .mobile-task-list { display: grid; gap: 0.75rem; }
+  .owner-mobile .desktop-task-list { display: none; }
+  .owner-mobile .task-editor {
+    max-width: none;
+    height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    overscroll-behavior: contain;
+  }
+  .owner-mobile .task-editor > header { flex-wrap: wrap; padding: 0.75rem 1rem; }
+  .owner-mobile .task-editor > header > div:first-child { flex: 1 1 8rem; }
+  .owner-mobile .task-editor > header > div:last-child { flex-wrap: wrap; }
+  .owner-mobile input:not([type="checkbox"]):not([type="radio"]),
+  .owner-mobile select,
+  .owner-mobile textarea,
+  [data-slot="input"], [data-slot="textarea"] {
+    font-size: 16px;
+  }
+  .owner-mobile input:not([type="checkbox"]):not([type="radio"]),
+  .owner-mobile select,
+  .owner-mobile button,
+  .owner-mobile summary { min-height: 44px; }
+  .owner-mobile .task-editor a[aria-label="Закрыть редактор"] { min-height: 44px; min-width: 44px; }
+  .owner-mobile [data-slot="table-container"] { overscroll-behavior-x: contain; }
+}

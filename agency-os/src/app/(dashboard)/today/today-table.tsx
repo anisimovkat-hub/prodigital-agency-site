@@ -16,6 +16,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { MobileTaskCard } from "@/components/mobile-task-card";
 import { TaskQuickSelect } from "@/app/(dashboard)/tasks/task-quick-select";
 import { TaskDueDateCell } from "@/app/(dashboard)/tasks/task-due-date-cell";
 import { TaskStatusBadge } from "@/components/badges";
@@ -200,6 +201,10 @@ export function TodayTable({
 
   return (
     <div className="flex flex-col gap-2">
+      <div className="mobile-task-list">
+        {sortedRows.map(({ task }) => <MobileTaskCard key={task.id} task={task} href={taskHref(searchParams, task.id)} profiles={profiles} />)}
+      </div>
+      <div className="desktop-task-list">
       <p className="text-xs text-neutral-500">
         Нажмите на название столбца для сортировки. Потяните за{" "}
         <GripVertical className="inline size-3.5 align-[-3px]" aria-hidden />
@@ -276,6 +281,7 @@ export function TodayTable({
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

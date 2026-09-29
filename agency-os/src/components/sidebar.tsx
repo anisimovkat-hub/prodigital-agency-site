@@ -1,6 +1,6 @@
 "use client";
 
-import { type MouseEvent, useState } from "react";
+import { type MouseEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -39,10 +39,36 @@ const NAV_ITEMS = [
   { href: "/analytics", label: "Аналитика", icon: ChartNoAxesCombined },
 ];
 
-export function Sidebar() {
+export function Sidebar({ mobileEnabled = false }: { mobileEnabled?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menuPanel = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const trigger = menuButton.current;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    menuPanel.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Tab") return;
+      const items = Array.from(menuPanel.current?.querySelectorAll<HTMLElement>("a, button") ?? []);
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      trigger?.focus();
+    };
+  }, [open]);
 
   function handleNavClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
     setOpen(false);
@@ -62,13 +88,16 @@ export function Sidebar() {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 md:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3 md:hidden">
         <span className="text-base font-semibold text-neutral-900">
           Agency OS
         </span>
         <button
           type="button"
+          ref={menuButton}
           aria-label="Открыть меню"
+          aria-expanded={open}
+          aria-controls="main-menu"
           onClick={() => setOpen(true)}
           className="rounded-md p-2 text-neutral-600 hover:bg-neutral-100"
         >
@@ -86,9 +115,11 @@ export function Sidebar() {
       )}
 
       <aside
+        ref={menuPanel}
+        id="main-menu"
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 -translate-x-full flex-col border-r border-neutral-200 bg-white transition-transform md:static md:z-auto md:w-60 md:translate-x-0",
-          open && "translate-x-0",
+          "mobile-sidebar invisible fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 -translate-x-full flex-col border-r border-neutral-200 bg-white transition-transform md:visible md:static md:z-auto md:w-60 md:translate-x-0",
+          open && "visible translate-x-0",
         )}
       >
         <div className="flex items-center justify-between px-5 py-5">
@@ -104,7 +135,7 @@ export function Sidebar() {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <nav className="flex flex-1 flex-col gap-0.5 px-3">
+        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive =
               href === "/"
@@ -142,6 +173,15 @@ export function Sidebar() {
           </button>
         </form>
       </aside>
+      {mobileEnabled && (
+        <nav aria-label="Быстрые переходы" className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-neutral-200 bg-white md:hidden">
+          {NAV_ITEMS.filter(({ href }) => ["/", "/tasks", "/projects", "/personal"].includes(href)).map(({ href, label, icon: Icon }) => {
+            const active = href === "/" ? pathname === "/" : href === "/tasks" ? ["/tasks", "/today", "/week"].some((prefix) => pathname.startsWith(prefix)) : pathname.startsWith(href);
+            return <Link key={href} href={href} aria-current={active ? "page" : undefined} onClick={(event) => handleNavClick(event, href)} className={cn("flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-medium", active ? "text-blue-700" : "text-neutral-500")}><Icon className="size-5" aria-hidden />{href === "/" ? "Главная" : label}</Link>;
+          })}
+          <button type="button" onClick={() => setOpen(true)} aria-label="Открыть все разделы" className="flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium text-neutral-500"><Menu className="size-5" aria-hidden />Ещё</button>
+        </nav>
+      )}
     </>
   );
 }

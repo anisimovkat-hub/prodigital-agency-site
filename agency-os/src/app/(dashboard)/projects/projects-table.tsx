@@ -157,6 +157,19 @@ export function ProjectsTable({
 
   return (
     <FilterableReorderableTable
+      mobileRow={(project) => (
+        <article className="min-w-0 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+          <Link href={`/projects/${project.id}`} className="block break-words py-2 text-base font-semibold text-neutral-900">{project.name}</Link>
+          <p className="mt-1 text-sm text-neutral-500">{project.client?.name ?? "Без клиента"}</p>
+          <div className="mt-3 flex flex-wrap gap-2"><ProjectQuickSelect projectId={project.id} projectName={project.name} field="health" value={project.health ?? "green"} /><ProjectQuickSelect projectId={project.id} projectName={project.name} field="stage" value={project.stage ?? "active"} /></div>
+          <div className="mt-3"><p className="mb-1 text-xs text-neutral-500">Ответственные</p><ProjectResponsibleSelect key={`${project.id}-${project.responsibles.map((profile) => profile.id).join("-")}`} projectId={project.id} projectName={project.name} profiles={profiles} selectedResponsibles={project.responsibles} /></div>
+          <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-neutral-100 pt-3 text-sm">
+            {showIncome && <div><dt className="text-xs text-neutral-500">Доход/мес</dt><dd className="mt-1 font-medium">{formatCurrency(project.monthly_fee)}</dd></div>}
+            <div><dt className="text-xs text-neutral-500">Трудозатраты</dt><dd className="mt-1 font-medium">{formatHours(project.monthlyHours)}</dd></div>
+            <div><dt className="text-xs text-neutral-500">Бюджет</dt><dd className="mt-1 font-medium">{formatCurrency(project.budget)}</dd></div>
+          </dl>
+        </article>
+      )}
       columns={columns}
       rows={rows}
       rowKey={(project) => project.id}

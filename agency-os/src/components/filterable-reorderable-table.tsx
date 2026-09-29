@@ -51,6 +51,7 @@ type FilterableReorderableTableProps<Row, Id extends string> = {
   storageKey: string;
   emptyText?: string;
   minWidthClassName?: string;
+  mobileRow?: (row: Row) => ReactNode;
 };
 
 export function FilterableReorderableTable<Row, Id extends string>({
@@ -60,9 +61,11 @@ export function FilterableReorderableTable<Row, Id extends string>({
   storageKey,
   emptyText = "По выбранным фильтрам ничего не найдено.",
   minWidthClassName,
+  mobileRow,
 }: FilterableReorderableTableProps<Row, Id>) {
   const defaultOrder = useMemo(() => columns.map((column) => column.id), [columns]);
   const [columnOrder, setColumnOrder] = useState<Id[]>(defaultOrder);
+  const [mobileSearch, setMobileSearch] = useState("");
   const [sort, setSort] = useState<SortState<Id> | null>(null);
   const [filters, setFilters] = useState<Partial<Record<Id, string[]>>>({});
   const [draggedColumn, setDraggedColumn] = useState<Id | null>(null);
@@ -119,6 +122,7 @@ export function FilterableReorderableTable<Row, Id extends string>({
     () => sortRows(filteredRows, sort, columnsById),
     [columnsById, filteredRows, sort],
   );
+  const mobileRows = visibleRows.filter((row) => !mobileSearch.trim() || columns.some((column) => String(column.filterValue?.(row) ?? column.sortValue(row) ?? "").toLocaleLowerCase("ru").includes(mobileSearch.trim().toLocaleLowerCase("ru"))));
   const activeFilterCount = Object.values(
     filters as Partial<Record<string, string[]>>,
   ).filter((values) => values?.length).length;
@@ -187,6 +191,12 @@ export function FilterableReorderableTable<Row, Id extends string>({
 
   return (
     <div className="flex flex-col gap-2">
+      {mobileRow && <div className="mobile-task-list">
+        <input type="search" aria-label="Поиск проектов" placeholder="Найти проект или клиента" value={mobileSearch} onChange={(event) => setMobileSearch(event.target.value)} className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm" />
+        {mobileRows.length === 0 && <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-500">{emptyText}</p>}
+        {mobileRows.map((row) => <div key={rowKey(row)}>{mobileRow(row)}</div>)}
+      </div>}
+      <div className={mobileRow ? "desktop-task-list" : undefined}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
         <p>
           Нажмите на название столбца для сортировки. Отфильтруйте по значку
@@ -277,6 +287,7 @@ export function FilterableReorderableTable<Row, Id extends string>({
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

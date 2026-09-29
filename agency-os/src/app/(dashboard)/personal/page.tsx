@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MobileTaskCard } from "@/components/mobile-task-card";
 import { PersonalTaskForm } from "@/app/(dashboard)/personal/personal-form";
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
@@ -117,6 +118,11 @@ export default async function PersonalPage() {
         </div>
       </details>
 
+      <div className="mobile-task-list">
+        {tasks.length === 0 && <p className="rounded-lg border border-neutral-200 bg-white p-4 text-sm text-neutral-500">Личных задач пока нет.</p>}
+        {tasks.map((task) => <MobileTaskCard key={task.id} task={task} href={`/tasks?task=${task.id}`} />)}
+      </div>
+      <div className="desktop-task-list">
       <Table>
         <TableHeader>
           <TableRow>
@@ -178,6 +184,7 @@ export default async function PersonalPage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

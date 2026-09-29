@@ -137,7 +137,7 @@ export function TaskEditor({
   }, [trackingActive]);
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-y-auto border-l border-neutral-200 bg-white shadow-2xl">
+    <aside className="task-editor fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-y-auto border-l border-neutral-200 bg-white shadow-2xl">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-neutral-200 bg-white/95 px-5 py-3 backdrop-blur">
         <div className="min-w-0">
           <p className="text-xs font-medium text-neutral-500">
