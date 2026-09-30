@@ -28,7 +28,7 @@ export function formatCampaignCompletionMessage(completion: Pick<ScheduledComple
   "client_label" | "application_number" | "campaign_name" | "scheduled_for"
 >): string {
   return [
-    `<b>${escapeHtml(completion.client_label)} / заявка ${completion.application_number} / ${escapeHtml(completion.campaign_name)}</b>`,
+    `<b>${escapeHtml(completion.client_label)} / заявка${completion.application_number} / ${escapeHtml(completion.campaign_name)}</b>`,
     `<b>Завершение РК — ${shortDate(completion.scheduled_for)}</b>`,
     "Нужно прислать номера всех РК.",
     "Нужно прислать общую статистику по этой РК после отключения.",
