@@ -551,6 +551,59 @@ export type Database = {
           },
         ];
       };
+      telegram_scheduled_messages: {
+        Row: {
+          id: string;
+          recipient_profile_id: string;
+          client_label: string;
+          application_number: number;
+          campaign_name: string;
+          scheduled_for: string;
+          status: string;
+          sent_at: string | null;
+          sent_message_id: number | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          recipient_profile_id: string;
+          client_label: string;
+          application_number: number;
+          campaign_name: string;
+          scheduled_for: string;
+          status?: string;
+          sent_at?: string | null;
+          sent_message_id?: number | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          recipient_profile_id?: string;
+          client_label?: string;
+          application_number?: number;
+          campaign_name?: string;
+          scheduled_for?: string;
+          status?: string;
+          sent_at?: string | null;
+          sent_message_id?: number | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "telegram_scheduled_messages_recipient_profile_id_fkey";
+            columns: ["recipient_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_checklist_items: {
         Row: {
           id: string;

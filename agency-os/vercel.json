@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/telegram-task-previews",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/telegram-scheduled-messages",
+      "schedule": "0 5 * * *"
     }
   ]
 }

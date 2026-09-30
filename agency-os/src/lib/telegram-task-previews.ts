@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/service";
 import { formatTelegramTaskMessage, nextMoscowDate } from "@/lib/telegram-task-message";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { resolveTelegramRecipientChatId } from "@/lib/telegram-recipient";
 
 type TaskRow = {
   id: string;
@@ -50,29 +51,8 @@ export async function createTelegramTaskPreviews(
   let created = 0;
   for (const rawTask of (tasks ?? []) as unknown as TaskRow[]) {
     if (!rawTask.assignee_id || !rawTask.due_date) continue;
-    const { data: directBinding } = await supabase
-      .from("telegram_chat_bindings")
-      .select("chat_id,profile_id")
-      .eq("profile_id", rawTask.assignee_id)
-      .eq("is_active", true)
-      .maybeSingle();
-    let binding = directBinding;
-    // Existing chats may have been connected before a profile's name was made
-    // unambiguous. A single title match is safe and avoids a manual chat-ID setup.
-    if (!binding && rawTask.assignee?.full_name) {
-      const firstName = rawTask.assignee.full_name.trim().split(/\s+/)[0]?.toLocaleLowerCase("ru-RU");
-      const { data: titleCandidates } = await supabase
-        .from("telegram_chat_bindings")
-        .select("chat_id,profile_id,chat_title")
-        .eq("is_active", true);
-      const matchingTitle = (titleCandidates ?? []).filter((candidate) =>
-        firstName && candidate.chat_title?.toLocaleLowerCase("ru-RU").includes(firstName),
-      );
-      if (matchingTitle.length === 1) {
-        binding = { chat_id: matchingTitle[0].chat_id, profile_id: rawTask.assignee_id };
-      }
-    }
-    if (!binding) continue;
+    const recipientChatId = await resolveTelegramRecipientChatId(rawTask.assignee_id, rawTask.assignee?.full_name);
+    if (!recipientChatId) continue;
 
     const { data: existing } = await supabase
       .from("telegram_task_drafts")
@@ -92,13 +72,13 @@ export async function createTelegramTaskPreviews(
     const draft = existing
       ? await supabase
           .from("telegram_task_drafts")
-          .update({ message_text: messageText, recipient_chat_id: binding.chat_id, status: "pending_approval", last_error: null })
+          .update({ message_text: messageText, recipient_chat_id: recipientChatId, status: "pending_approval", last_error: null })
           .eq("id", existing.id)
           .select("id")
           .single()
       : await supabase
           .from("telegram_task_drafts")
-          .insert({ task_id: rawTask.id, source_date: recipientDate, recipient_chat_id: binding.chat_id, recipient_profile_id: binding.profile_id, message_text: messageText })
+          .insert({ task_id: rawTask.id, source_date: recipientDate, recipient_chat_id: recipientChatId, recipient_profile_id: rawTask.assignee_id, message_text: messageText })
           .select("id")
           .single();
     if (draft.error || !draft.data) throw draft.error ?? new Error("Could not create Telegram draft.");
