@@ -25,7 +25,7 @@ CREATE POLICY "admin manages telegram scheduled messages"
   ON public.telegram_scheduled_messages
   FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
 
--- These are direct messages to Екатерина Швецова's bound work chat at 08:00
+-- These are direct messages to Екатерина's bound work chat at 08:00
 -- Europe/Moscow on the date each mos.ru application is switched off.
 DO $$
 DECLARE
@@ -33,13 +33,13 @@ DECLARE
 BEGIN
   SELECT id INTO ekaterina_id
   FROM public.profiles
-  WHERE full_name ILIKE '%екатерина%швецова%'
+  WHERE lower(trim(full_name)) = 'екатерина'
     AND is_active = true
   ORDER BY full_name
   LIMIT 1;
 
   IF ekaterina_id IS NULL THEN
-    RAISE EXCEPTION 'Active profile Екатерина Швецова was not found';
+    RAISE EXCEPTION 'Active profile Екатерина was not found';
   END IF;
 
   INSERT INTO public.telegram_scheduled_messages
