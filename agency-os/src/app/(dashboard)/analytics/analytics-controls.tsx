@@ -233,7 +233,7 @@ export function AnalyticsFilters({
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-3">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[620px]">
+        <div className={cn("grid gap-3", section === "ads" ? "sm:min-w-[300px]" : "sm:grid-cols-2 xl:min-w-[620px]")}>
           <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Проект
           <Select value={project} onChange={(event) => navigate({ project: event.target.value, social: "" })}>
@@ -241,13 +241,13 @@ export function AnalyticsFilters({
             {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </Select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
+        {section !== "ads" && <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Instagram-аккаунт
           <Select value={params.social} onChange={(event) => navigate({ social: event.target.value })}>
             <option value="">Все аккаунты</option>
             {visibleSocialAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </Select>
-        </label>
+        </label>}
         </div>
         <AnalyticsPeriodPicker key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} />
       </div>

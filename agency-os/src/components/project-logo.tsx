@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import { projectBadgeColors } from "@/lib/project-colors";
 import { projectLogoUrl } from "@/lib/project-logos";
 import { cn } from "@/lib/utils";
@@ -39,8 +43,9 @@ export function ProjectLogo({
 }) {
   const resolvedLogoUrl = projectLogoUrl(projectId, logoUrl);
   const fallbackId = projectId ?? name ?? "personal";
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
-  if (resolvedLogoUrl) {
+  if (resolvedLogoUrl && resolvedLogoUrl !== failedUrl) {
     return (
       <span
         className={cn(
@@ -54,6 +59,7 @@ export function ProjectLogo({
           src={resolvedLogoUrl}
           alt={decorative ? "" : `Логотип проекта ${name ?? ""}`.trim()}
           className="size-full object-contain"
+          onError={() => setFailedUrl(resolvedLogoUrl)}
         />
       </span>
     );
