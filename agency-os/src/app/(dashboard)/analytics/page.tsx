@@ -162,7 +162,7 @@ export default async function AnalyticsPage({
 
   const raw = await searchParams;
   const defaultPeriod = lastDaysPeriod(new Date(), 7);
-  const requestedPeriod = parseAnalyticsPeriod({ from: raw.from, to: raw.to });
+  const requestedPeriod = raw.from || raw.to ? parseAnalyticsPeriod({ from: raw.from, to: raw.to }) : null;
   const from = requestedPeriod?.from ?? defaultPeriod.from;
   const to = requestedPeriod?.to ?? defaultPeriod.to;
   const previousPeriod = previousComparablePeriod({ from, to });
@@ -891,6 +891,7 @@ export default async function AnalyticsPage({
 
   return (
     <AnalyticsShell
+      key={`${projectId}:${section}`}
       payload={payload}
       initialSection={section}
       params={params}

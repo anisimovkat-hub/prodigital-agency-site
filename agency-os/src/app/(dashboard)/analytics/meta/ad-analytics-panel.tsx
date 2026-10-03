@@ -159,16 +159,7 @@ export function AdAnalyticsPanel({
 
   return (
     <div className="space-y-5">
-      {hasMetaAccount && <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
-        <summary className="cursor-pointer text-sm font-medium text-neutral-700">Обновить данные Meta вручную</summary>
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-neutral-100 pt-3">
-          <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
-          <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
-        </div>
-      </details>}
-
       <AdsFilters embedded projects={[]} accounts={accounts} campaigns={campaigns} goals={goals} current={{ ...current, goal: goal ?? "" }} />
-      {!goal && <p className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">Выберите одну целевую конверсию в фильтре «Цель». Разные цели не складываются — до выбора цена и число результатов не рассчитываются.</p>}
       {freshnessWarning && <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{freshnessWarning}</p>}
       {currencies.length > 1 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Выбраны кабинеты в разных валютах ({currencies.join(", ")}). Общие расход и цена цели скрыты; выберите кабинет.</p>}
 
@@ -235,6 +226,13 @@ export function AdAnalyticsPanel({
       </section>}
 
       {tree.length > 0 && <details className="rounded-2xl border border-neutral-200 bg-white"><summary className="cursor-pointer px-5 py-4 text-sm font-medium text-neutral-700">Детализация: кампании → группы → объявления · исходные цели кампаний</summary><div className="overflow-x-auto border-t border-neutral-100"><AdTreeTable rows={tree} /></div></details>}
+      {hasMetaAccount && <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+        <summary className="cursor-pointer text-sm font-medium text-neutral-700">Обновить данные Meta вручную</summary>
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-neutral-100 pt-3">
+          <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+          <SyncMetaDetailsButton period={{ from: current.from, to: current.to }} projectId={current.project} />
+        </div>
+      </details>}
     </div>
   );
 }
