@@ -1,4 +1,5 @@
 import { syncMetaAdsData } from "@/lib/meta-sync";
+import { syncMetaAudienceData } from "@/lib/meta-audience-sync";
 import { lastDaysPeriod } from "@/lib/analytics-period";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -18,11 +19,19 @@ export async function GET(request: Request) {
 
   try {
     // Семь дней обновляются повторно: Meta может уточнять атрибуцию задним числом.
-    const result = await syncMetaAdsData(
-      createServiceClient(),
-      lastDaysPeriod(new Date(), 7),
-    );
-    return Response.json(result, { status: result.ok ? 200 : 502 });
+    const supabase = createServiceClient();
+    const period = lastDaysPeriod(new Date(), 7);
+    const result = await syncMetaAdsData(supabase, period);
+    if (!result.ok) return Response.json(result, { status: 502 });
+    // Audience is an independent read-only slice: a partial Meta failure must
+    // not invalidate the successful campaign sync.
+    try {
+      const audience = await syncMetaAudienceData(supabase, period);
+      return Response.json({ ...result, audience });
+    } catch (error) {
+      console.error("Meta audience cron sync failed", error instanceof Error ? error.message : "unknown error");
+      return Response.json({ ...result, audience: { ok: false } });
+    }
   } catch (error) {
     console.error("Meta cron sync failed", error);
     return Response.json(

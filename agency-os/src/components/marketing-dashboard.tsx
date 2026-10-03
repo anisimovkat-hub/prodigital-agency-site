@@ -394,7 +394,6 @@ export function MarketingDashboard({
       )}
       {section === "ads" && (
         <>
-          {mediaPlan}
           {adsPanel ?? (
           <>
               <MetricBand payload={payload} type="paid" />

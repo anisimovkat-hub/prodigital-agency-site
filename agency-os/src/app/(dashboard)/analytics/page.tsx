@@ -82,6 +82,8 @@ type AudienceRow = {
   value: string;
   impressions: number;
   reach: number;
+  spend: number | null;
+  conversion_actions: unknown;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -324,11 +326,6 @@ export default async function AnalyticsPage({
     .select("campaign_id,date,action_type,count,value")
     .gte("date", from)
     .lte("date", to);
-  const audienceQuery = supabase
-    .from("ad_audience_metrics")
-    .select("campaign_id,breakdown,value,impressions,reach")
-    .gte("date", from)
-    .lte("date", to);
   const paidMetricsPromise = projectId
     ? campaignIdList.length
       ? paidMetricsQuery.in("campaign_id", campaignIdList).range(0, 9999)
@@ -339,36 +336,65 @@ export default async function AnalyticsPage({
       ? conversionsQuery.in("campaign_id", campaignIdList).range(0, 19999)
       : Promise.resolve({ data: [] as ConversionRow[], error: null })
     : conversionsQuery.range(0, 19999);
-  const audiencePromise = projectId
-    ? campaignIdList.length
-      ? audienceQuery.in("campaign_id", campaignIdList).range(0, 19999)
-      : Promise.resolve({ data: [] as AudienceRow[], error: null })
-    : audienceQuery.range(0, 19999);
-  const latestPaidMetricPromise = campaignIdList.length
+  const audiencePromise = (async () => {
+    if (!projectId || !campaignIdList.length) return { data: [] as AudienceRow[], error: null };
+    const rows: AudienceRow[] = [];
+    for (let offset = 0; offset < 50_000; offset += 1000) {
+      const query = supabase.from("ad_audience_metrics")
+        .select("campaign_id,breakdown,value,impressions,reach,spend,conversion_actions")
+        .gte("date", from).lte("date", to)
+        .order("date").order("campaign_id").order("breakdown").order("value");
+      const result = await query.in("campaign_id", campaignIdList).range(offset, offset + 999);
+      if (result.error) return { data: [] as AudienceRow[], error: result.error };
+      rows.push(...(result.data ?? []));
+      if ((result.data?.length ?? 0) < 1000) return { data: rows, error: null };
+    }
+    return { data: [] as AudienceRow[], error: { message: "Срез аудитории слишком велик для полного отчёта." } };
+  })();
+  const freshnessCampaignIds = campaignRows
+    .filter((campaign) => (!accountFilter || campaign.ad_account_id === accountFilter) && (!campaignFilter || campaign.id === campaignFilter))
+    .map((campaign) => campaign.id);
+  const latestPaidMetricPromise = freshnessCampaignIds.length
     ? supabase
         .from("ad_campaign_metrics")
         .select("date")
-        .in("campaign_id", campaignIdList)
+        .in("campaign_id", freshnessCampaignIds)
         .order("date", { ascending: false })
         .limit(1)
         .maybeSingle()
     : Promise.resolve({ data: null as { date: string } | null, error: null });
-  const portfolioPreviousMetricsPromise = !projectId
+  const portfolioPreviousMetricsPromise = projectId && campaignIdList.length
     ? supabase
+        .from("ad_campaign_metrics")
+        .select("campaign_id,date,spend,impressions,clicks,reach")
+        .in("campaign_id", campaignIdList)
+        .gte("date", previousPeriod.from)
+        .lte("date", previousPeriod.to)
+        .range(0, 19999)
+    : !projectId
+      ? supabase
         .from("ad_campaign_metrics")
         .select("campaign_id,date,spend,impressions,clicks,reach")
         .gte("date", previousPeriod.from)
         .lte("date", previousPeriod.to)
         .range(0, 19999)
-    : Promise.resolve({ data: [] as CampaignMetricRow[], error: null });
-  const portfolioPreviousConversionsPromise = !projectId
+      : Promise.resolve({ data: [] as CampaignMetricRow[], error: null });
+  const portfolioPreviousConversionsPromise = projectId && campaignIdList.length
     ? supabase
+        .from("ad_conversions")
+        .select("campaign_id,date,action_type,count,value")
+        .in("campaign_id", campaignIdList)
+        .gte("date", previousPeriod.from)
+        .lte("date", previousPeriod.to)
+        .range(0, 19999)
+    : !projectId
+      ? supabase
         .from("ad_conversions")
         .select("campaign_id,date,action_type,count,value")
         .gte("date", previousPeriod.from)
         .lte("date", previousPeriod.to)
         .range(0, 19999)
-    : Promise.resolve({ data: [] as ConversionRow[], error: null });
+      : Promise.resolve({ data: [] as ConversionRow[], error: null });
   const portfolioLatestMetricDatesPromise = !projectId && campaignIdList.length
     ? supabase
         .from("ad_campaign_metrics")
@@ -447,7 +473,7 @@ export default async function AnalyticsPage({
     ["дату последнего обновления рекламы", latestPaidMetricResult.error],
     ["метрики медиаплана", activePlanMetricsResult.error],
     ["факт медиаплана", planMetricsFactResult.error || planConversionsFactResult.error],
-    ["предыдущий период портфеля", portfolioPreviousMetricsResult.error || portfolioPreviousConversionsResult.error],
+    ["предыдущий период", portfolioPreviousMetricsResult.error || portfolioPreviousConversionsResult.error],
     ["свежесть данных проектов", portfolioLatestMetricDatesResult.error],
   ].flatMap(([label, error]) => error && typeof error !== "string"
     ? [`Не удалось загрузить ${label}: ${error.message}`]
@@ -733,6 +759,11 @@ export default async function AnalyticsPage({
       conversionLabels.add(conversion.action_type);
     }
   }
+  for (const conversion of (portfolioPreviousConversions ?? []) as ConversionRow[]) {
+    if (goalCampaignIds.has(conversion.campaign_id) && isGoalAction(conversion.action_type)) {
+      conversionLabels.add(conversion.action_type);
+    }
+  }
   const goalOptions = [...conversionLabels]
     .map((value) => ({ value, label: actionTypeLabel(value, customNames) }))
     .sort((a, b) => a.label.localeCompare(b.label, "ru"));
@@ -917,6 +948,8 @@ export default async function AnalyticsPage({
               id: account.id,
               name: account.name ?? account.external_id,
               project_id: account.project_id,
+              platform: account.platform,
+              currency: account.currency,
             }))}
             campaigns={allCampaignRows.map((campaign) => ({
               id: campaign.id,
@@ -932,9 +965,14 @@ export default async function AnalyticsPage({
             goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
             tree={adTree}
             audience={audience}
+            audiencePerformanceRows={((audienceMetrics ?? []) as AudienceRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id))}
             hasMetaAccount={visibleAdAccountRows.some((account) => account.platform === "meta")}
             audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
             freshnessWarning={freshnessWarning}
+            metrics={paidRows}
+            conversions={allGoalConversions}
+            previousMetrics={(portfolioPreviousMetrics ?? []) as CampaignMetricRow[]}
+            previousConversions={(portfolioPreviousConversions ?? []) as ConversionRow[]}
           />
         </>
       }

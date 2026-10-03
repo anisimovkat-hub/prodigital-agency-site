@@ -346,6 +346,8 @@ export async function syncMetaAudienceAnalytics(
               impressions: metric.impressions,
               reach: metric.reach,
               clicks: metric.clicks,
+              spend: metric.spend,
+              conversion_actions: metric.conversions,
             }]
           : [];
       });

@@ -88,7 +88,7 @@ export function AdsFilters({
   const hasActiveFilters =
     !!current.account ||
     !!current.campaign ||
-    !!current.goal ||
+    !!searchParams.get("goal") ||
     !!searchParams.get("gran");
 
   const visibleAccounts = accounts.filter(
@@ -98,6 +98,43 @@ export function AdsFilters({
     (c) =>
       (!current.project || c.project_id === current.project) &&
       (!current.account || c.account_id === current.account),
+  );
+
+  if (embedded) return (
+    <div className="rounded-2xl border border-neutral-200 bg-white p-4" aria-busy={isPending}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1"><span className="text-xs font-medium text-neutral-500">Целевая конверсия</span>
+          <Select value={current.goal} onChange={(e) => apply({ goal: e.target.value })}>
+            <option value="">Выберите цель</option>
+            {goals.map((goal) => <option key={goal.value} value={goal.value}>{goal.label}</option>)}
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1"><span className="text-xs font-medium text-neutral-500">Рекламный кабинет</span>
+          <Select value={current.account} onChange={(e) => onAccountChange(e.target.value)}>
+            <option value="">Все подключённые кабинеты</option>
+            {visibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </Select>
+        </label>
+      </div>
+      <details className="mt-3 text-xs text-neutral-500">
+        <summary className="cursor-pointer select-none">Дополнительные фильтры</summary>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1"><span>По времени</span>
+            <Select value={current.gran} onChange={(e) => apply({ gran: e.target.value })}>
+              {GRANULARITIES.map((granularity) => <option key={granularity.value} value={granularity.value}>{granularity.label}</option>)}
+            </Select>
+          </label>
+          <label className="flex flex-col gap-1"><span>Кампания</span>
+            <Select value={current.campaign} onChange={(e) => apply({ campaign: e.target.value })}>
+              <option value="">Все кампании</option>
+              {visibleCampaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+            </Select>
+          </label>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={resetFilters} disabled={!hasActiveFilters}>Сбросить фильтры</Button>
+      </details>
+      {isPending && <span className="mt-2 block text-xs text-neutral-400">Обновляю…</span>}
+    </div>
   );
 
   return (

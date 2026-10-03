@@ -25,7 +25,7 @@ describe("fetchMetaAudienceInsights", () => {
     fetchMock.mockImplementation(async (input: string) => {
       const url = new URL(input);
       const breakdown = url.searchParams.get("breakdowns")!;
-      expect(url.searchParams.get("fields")).toBe("campaign_id,impressions,reach,clicks");
+      expect(url.searchParams.get("fields")).toBe("campaign_id,impressions,reach,clicks,spend,actions");
       return response({
         data: [{
           campaign_id: "campaign-1",
@@ -33,6 +33,8 @@ describe("fetchMetaAudienceInsights", () => {
           impressions: "100",
           reach: "80",
           clicks: "5",
+          spend: "20.50",
+          actions: [{ action_type: "lead", value: "2" }],
           [breakdown]: breakdown === "country" ? "IT" : "value",
         }],
       });
@@ -42,6 +44,7 @@ describe("fetchMetaAudienceInsights", () => {
 
     expect(result.metrics).toHaveLength(5);
     expect(result.failures).toEqual([]);
+    expect(result.metrics[0]).toMatchObject({ spend: 20.5, conversions: [{ actionType: "lead", count: 2 }] });
     expect(result.metrics.map((metric) => metric.breakdown)).toEqual([
       "age",
       "gender",
@@ -77,5 +80,17 @@ describe("fetchMetaAudienceInsights", () => {
       breakdown: "gender",
       error: "Meta API: Недостаточно данных",
     }]);
+  });
+
+  it("не подменяет неизвестную цену цели нулём, когда Meta отклоняет поле actions", async () => {
+    fetchMock.mockImplementation(async (input: string) => {
+      const url = new URL(input);
+      const breakdown = url.searchParams.get("breakdowns")!;
+      if (url.searchParams.get("fields")?.includes("actions")) return response({ error: { message: "Unsupported field" } }, false);
+      return response({ data: [{ campaign_id: "campaign-1", date_start: "2026-08-10", impressions: "100", reach: "80", clicks: "5", [breakdown]: "value" }] });
+    });
+    const result = await fetchMetaAudienceInsights("act_1", "2026-08-01", "2026-08-11");
+    expect(result.failures).toEqual([]);
+    expect(result.metrics[0]).toMatchObject({ spend: null, conversions: null });
   });
 });

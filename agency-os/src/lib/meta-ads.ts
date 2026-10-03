@@ -80,6 +80,8 @@ export type MetaAudienceMetric = {
   impressions: number;
   reach: number;
   clicks: number;
+  spend: number | null;
+  conversions: MetaConversion[] | null;
 };
 export type MetaAudienceFailure = {
   breakdown: MetaAudienceBreakdown;
@@ -398,7 +400,7 @@ export async function fetchMetaAudienceInsights(
         // Поле breakdown Meta добавляет в ответ через параметр breakdowns.
         // Если продублировать age/gender/country/... в fields, Insights API
         // отклоняет запрос как запрос несуществующей метрики.
-        fields: "campaign_id,impressions,reach,clicks",
+        fields: "campaign_id,impressions,reach,clicks,spend,actions",
         level: "campaign",
         breakdowns: breakdown,
         time_increment: "1",
@@ -406,9 +408,17 @@ export async function fetchMetaAudienceInsights(
         limit: "500",
         access_token: token(),
       });
-      const rows = await fetchAllPages<MetaAudienceInsightRow>(
-        `${BASE}/${externalId}/insights?${params.toString()}`,
-      );
+      let rows: MetaAudienceInsightRow[];
+      let hasGoalFields = true;
+      try {
+        rows = await fetchAllPages<MetaAudienceInsightRow>(`${BASE}/${externalId}/insights?${params.toString()}`);
+      } catch {
+        // Meta may reject actions for particular breakdown/attribution setups.
+        // Keep the reach data, but never display an invented zero CPA.
+        hasGoalFields = false;
+        params.set("fields", "campaign_id,impressions,reach,clicks");
+        rows = await fetchAllPages<MetaAudienceInsightRow>(`${BASE}/${externalId}/insights?${params.toString()}`);
+      }
       return rows
         .filter((row) => row.campaign_id && row.date_start && row[breakdown])
         .map((row): MetaAudienceMetric => ({
@@ -419,6 +429,8 @@ export async function fetchMetaAudienceInsights(
           impressions: Number(row.impressions ?? 0),
           reach: Number(row.reach ?? 0),
           clicks: Number(row.clicks ?? 0),
+          spend: hasGoalFields && row.spend !== undefined ? Number(row.spend) : null,
+          conversions: hasGoalFields && Array.isArray(row.actions) ? toConversions(row.actions, undefined) : null,
         }));
     }),
   );
