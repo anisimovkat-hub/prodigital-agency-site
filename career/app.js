@@ -1,93 +1,401 @@
-(function(){
+(function () {
   'use strict';
-  const {tracks,questions,evaluate,labels}=window.CareerModel;
-  const paths=window.CareerPaths;
-  const app=document.getElementById('app');
-  const answers=Array(questions.length).fill(null);
-  let step=-1;
-  const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const list=items=>'<ul>'+items.map(item=>'<li>'+esc(item)+'</li>').join('')+'</ul>';
-  const url=(base,query)=>base+encodeURIComponent(query);
-  const hh=role=>url('https://hh.ru/search/vacancy?work_format=REMOTE&text=',role);
-  const youtube=query=>url('https://www.youtube.com/results?search_query=',query);
-  function focusHeading(){const h=app.querySelector('h1,h2');if(h){h.tabIndex=-1;h.focus({preventScroll:true})}window.scrollTo(0,0)}
-  function intro(){
-    step=-1;
-    app.innerHTML=`<div class="eyebrow">Профориентация для удалённой работы</div>
-      <h1>Какая удаленная работа <em>подойдет именно вам?</em></h1>
-      <p class="lead">Пройдите тест и узнайте, какие сферы и профессии стоит попробовать. Получите план: что изучить, как проверить интерес к работе до покупки обучения и где искать первые вакансии или проекты.</p>
-      <div class="chips"><span class="chip">${questions.length} вопросов</span><span class="chip">4 минуты</span><span class="chip">Готовый план действий</span></div>
-      <div class="actions"><button class="primary" id="start">Пройти тест</button></div>
-      <div class="overview proof-grid">
-        <div class="card"><span class="card-kicker">Нет опыта?</span><h3>Начните с того, что вам уже близко</h3><p>Не нужно заранее знать названия профессий или уметь работать онлайн. Вопросы помогают увидеть ваши интересы, привычный способ работы и навыки, которые можно перенести из другой сферы.</p></div>
-        <div class="card cream"><span class="card-kicker">Не хотите купить обучение наугад?</span><h3>Сначала попробуйте работу в деле</h3><p>После теста получите список профессий и маленькое задание по каждому направлению. Узнаете, что изучить, что искать на YouTube и как проверить требования в вакансиях до выбора курса.</p></div>
+  const M = window.CareerModel;
+  const {questions, stages, types, levels, sphereById} = M;
+  const app = document.getElementById('app');
+  const KEY = 'career-quiz-v2';
+  const TELEGRAM = 'https://t.me/ka_anisimova';
+  // Адрес сервера для сохранения ответов. Пока пусто — ответы хранятся только
+  // в браузере человека. Если указать адрес, после каждого этапа туда уйдёт
+  // анонимная запись {id, stage, answers, types, top, at} методом POST.
+  const SYNC_URL = '';
+  const FORECAST_FROM = 3;
+
+  let state = load() || {answers: {}, pos: 0, snapshot: null};
+  let view = 'intro';
+  let prevOrder = null;
+  let lastPrev = null;
+  let forecastOpen = false;
+
+  const esc = v => String(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  const stageQuestions = n => questions.filter(q => q.stage === n);
+  const firstIndexOf = n => questions.findIndex(q => q.stage === n);
+  const answered = q => q.kind === 'multi' ? Array.isArray(state.answers[q.id]) && state.answers[q.id].length > 0 : typeof state.answers[q.id] === 'number';
+  const stageDone = n => stageQuestions(n).every(answered);
+  const typeName = letters => letters.map(k => types[k].name).join(' + ');
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* хранилище недоступно */ } }
+  function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); return s && s.answers ? s : null; } catch (e) { return null; } }
+  function respondentId() {
+    if (!state.id) { state.id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); save(); }
+    return state.id;
+  }
+  function sync(stage, r) {
+    if (!SYNC_URL) return;
+    const body = JSON.stringify({id: respondentId(), stage, answers: state.answers, types: r.types, top: r.top.map(t => t.id), at: new Date().toISOString()});
+    try { fetch(SYNC_URL, {method: 'POST', headers: {'Content-Type': 'application/json'}, body, keepalive: true}).catch(() => {}); } catch (e) { /* сеть недоступна */ }
+  }
+  function reset() { state = {answers: {}, pos: 0, snapshot: null}; prevOrder = null; lastPrev = null; save(); }
+
+  function focusTop() {
+    const h = app.querySelector('h1,h2');
+    if (h) { h.tabIndex = -1; h.focus({preventScroll: true}); }
+    window.scrollTo(0, 0);
+  }
+
+  // ---------- Вступление ----------
+  function intro() {
+    view = 'intro';
+    const started = Object.keys(state.answers).length > 0;
+    const resumeLabel = stageDone(3) ? 'Открыть мой план' : 'Продолжить с места остановки';
+    app.innerHTML = `<section class="intro">
+      <div class="eyebrow">Профориентация для удалённой работы</div>
+      <h1>Какая удалённая работа <em>подойдёт именно вам?</em></h1>
+      <p class="lead">Ответьте на простые вопросы из жизни и узнайте, какие профессии вам по характеру. Покажем, что можно начать уже сейчас, а чему стоит поучиться.</p>
+      <div class="actions">
+        ${started ? `<button class="primary" id="resume">${resumeLabel}</button><button id="start">Начать заново</button>` : '<button class="primary" id="start">Пройти тест</button>'}
       </div>
-      <p class="note">Тест помогает выбрать направления для проверки. Он не измеряет способности, не ставит психологический диагноз и не гарантирует работу или доход.</p>`;
-    document.getElementById('start').onclick=()=>{step=0;renderQuestion();focusHeading()};
+      <ol class="stage-list">
+        ${stages.map(s => `<li><span class="stage-num">${s.n}</span><div><strong>${esc(s.name)}</strong><span>${stageQuestions(s.n).length} вопросов · ${esc(s.unlock)}</span></div></li>`).join('')}
+      </ol>
+      <p class="small muted">Первый результат через 2 минуты. Дальше — по желанию.</p>
+      <div class="intro-cards">
+        <div class="card"><span class="card-kicker">Нет опыта или давно не работали?</span><p>Профессиональный опыт не нужен. Вопросы о привычных ситуациях: семья, друзья, покупки.</p></div>
+        <div class="card"><span class="card-kicker">Всего 2–3 часа в день?</span><p>Покажем варианты, где можно начать без обучения, и профессии, в которые можно вырасти.</p></div>
+        <div class="card"><span class="card-kicker">Не хотите покупать курс наугад?</span><p>Для каждой сферы есть маленькое пробное задание, которое можно сделать бесплатно.</p></div>
+      </div>
+      <p class="note">Тест помогает выбрать направления для проверки. Он не измеряет способности, не ставит психологический диагноз и не гарантирует работу или доход.</p>
+    </section>`;
+    document.getElementById('start').onclick = () => { reset(); go(0); };
+    const resume = document.getElementById('resume');
+    if (resume) resume.onclick = () => {
+      if (stageDone(3)) return showStage(3);
+      const next = questions.findIndex(q => !answered(q));
+      const n = questions[next].stage;
+      if (next === firstIndexOf(n) && n > 1) return showStage(n - 1);
+      go(next);
+    };
   }
-  function stage(q){return q.kind==='interest'?'Что вам ближе':q.kind==='style'?'Ваш рабочий ритм':'Опыт и следующий шаг'}
-  function renderQuestion(){
-    const q=questions[step],multi=q.kind==='skills';
-    const checked=multi?(answers[step]||[]):answers[step];
-    const options=q.options.map((label,i)=>`<label class="option"><input type="${multi?'checkbox':'radio'}" name="answer" value="${multi?esc(q.values[i]):i}" ${multi?(checked.includes(q.values[i])?'checked':''):(checked===i?'checked':'')}><span>${esc(label)}</span></label>`).join('');
-    app.innerHTML=`<section class="question"><div class="step-top"><span>Вопрос ${step+1} из ${questions.length}</span><span>${stage(q)}</span></div>
-      <progress value="${step}" max="${questions.length}" aria-label="Прогресс теста"></progress>
-      <h2 id="question-title">${esc(q.title)}</h2>
-      ${multi?'<p class="question-hint" id="question-hint">Выберите один или несколько вариантов.</p>':'<p class="question-hint" id="question-hint">Выбирайте по тому, как вам ближе действовать сейчас. Профессиональный опыт не нужен.</p>'}
-      <fieldset aria-labelledby="question-title" aria-describedby="question-hint"><div class="options">${options}</div></fieldset>
-      <div class="actions"><button id="back">← Назад</button><button class="primary" id="next" ${(multi?!checked.length:checked===null)?'disabled':''}>${step===questions.length-1?'Узнать результат':'Дальше →'}</button></div>
-      <p class="small muted">Можно вернуться и изменить ответ. Данные остаются только в этой вкладке.</p></section>`;
-    app.querySelectorAll('input[name="answer"]').forEach(input=>input.onchange=()=>{
-      if(multi){
-        const chosen=[...app.querySelectorAll('input[name="answer"]:checked')].map(el=>el.value);
-        if(input.value==='none'&&input.checked)app.querySelectorAll('input[name="answer"]').forEach(el=>{if(el.value!=='none')el.checked=false});
-        else if(input.value!=='none'&&input.checked){const none=app.querySelector('input[value="none"]');if(none)none.checked=false}
-        answers[step]=[...app.querySelectorAll('input[name="answer"]:checked')].map(el=>el.value);
-      }else answers[step]=Number(input.value);
-      document.getElementById('next').disabled=multi?!answers[step].length:answers[step]===null;
+
+  // ---------- Вопрос ----------
+  function go(pos) { state.pos = pos; save(); renderQuestion(); focusTop(); }
+
+  function renderQuestion() {
+    view = 'question';
+    const q = questions[state.pos];
+    const inStage = stageQuestions(q.stage);
+    const k = inStage.indexOf(q);
+    const stage = stages[q.stage - 1];
+    const multi = q.kind === 'multi';
+    const value = state.answers[q.id];
+    const chosen = multi ? (value || []) : value;
+    const options = q.options.map((o, i) => {
+      const on = multi ? chosen.includes(o.value) : chosen === i;
+      return `<button type="button" class="option${multi ? ' multi' : ''}" data-i="${i}" aria-pressed="${on}"><span class="mark" aria-hidden="true"></span><span>${esc(o.label)}</span></button>`;
+    }).join('');
+    const hint = q.hint || (q.kind === 'interest' ? 'Выберите самый близкий вариант. Если ничего не про вас — последний.' : '');
+    app.innerHTML = `<div class="quiz">
+      <section class="question" aria-labelledby="q-title">
+        <div class="step-top"><span>Этап ${q.stage} из 3 · ${esc(stage.name)}</span><span>${k + 1} из ${inStage.length}</span></div>
+        <div class="progress" role="progressbar" aria-label="Прогресс этапа" aria-valuemin="0" aria-valuemax="${inStage.length}" aria-valuenow="${k}"><span style="width:${Math.round(k / inStage.length * 100)}%"></span></div>
+        <div id="forecast-slot"></div>
+        <h2 id="q-title">${esc(q.title)}</h2>
+        ${hint ? `<p class="question-hint">${esc(hint)}</p>` : ''}
+        <div class="options" role="group" aria-labelledby="q-title">${options}</div>
+        <p class="status" id="status" role="status"></p>
+        <div class="actions nav">
+          <button type="button" id="back">← Назад</button>
+          ${multi ? `<button type="button" class="primary" id="next">${k === inStage.length - 1 ? 'Узнать результат' : 'Дальше →'}</button>` : ''}
+        </div>
+      </section>
+      <aside class="forecast-side" id="forecast-side" aria-live="polite"></aside>
+    </div>`;
+    renderForecast(true);
+    app.querySelectorAll('.option').forEach(btn => btn.onclick = () => choose(q, Number(btn.dataset.i), btn));
+    document.getElementById('back').onclick = back;
+    const next = document.getElementById('next');
+    if (next) next.onclick = () => {
+      if (!answered(q)) { document.getElementById('status').textContent = 'Выберите хотя бы один вариант.'; return; }
+      advance();
+    };
+  }
+
+  function choose(q, i, btn) {
+    if (q.kind === 'multi') {
+      const opt = q.options[i];
+      let list = (state.answers[q.id] || []).slice();
+      if (list.includes(opt.value)) list = list.filter(v => v !== opt.value);
+      else if (opt.exclusive) list = [opt.value];
+      else {
+        list = list.filter(v => !(q.options.find(o => o.value === v) || {}).exclusive);
+        if (list.length >= q.max) { document.getElementById('status').textContent = `Можно выбрать не больше ${q.max}. Снимите один из вариантов.`; return; }
+        list.push(opt.value);
+      }
+      state.answers[q.id] = list;
+      document.getElementById('status').textContent = '';
+      app.querySelectorAll('.option').forEach((b, j) => b.setAttribute('aria-pressed', list.includes(q.options[j].value)));
+      save();
+      renderForecast();
+      if (opt.exclusive && list.length) { app.querySelectorAll('.option').forEach(b => { b.disabled = true; }); setTimeout(advance, 260); }
+      return;
+    }
+    state.answers[q.id] = i;
+    save();
+    app.querySelectorAll('.option').forEach(b => b.setAttribute('aria-pressed', b === btn));
+    renderForecast();
+    app.querySelectorAll('.option').forEach(b => { b.disabled = true; });
+    setTimeout(advance, 260);
+  }
+
+  function advance() {
+    const q = questions[state.pos];
+    const last = stageQuestions(q.stage).slice(-1)[0] === q;
+    if (last) return showStage(q.stage);
+    go(state.pos + 1);
+  }
+
+  function back() {
+    if (state.pos === 0) return intro(), focusTop();
+    const q = questions[state.pos];
+    if (state.pos === firstIndexOf(q.stage)) return showStage(q.stage - 1);
+    go(state.pos - 1);
+  }
+
+  // ---------- Живой прогноз ----------
+  function forecastHtml(r, compact, prev) {
+    if (r.count < FORECAST_FROM) {
+      const left = FORECAST_FROM - r.count;
+      return `<div class="forecast waiting"><div class="fc-head"><strong>Ваш прогноз</strong></div><p>Появится через ${left} ${left === 1 ? 'ответ' : 'ответа'}.</p></div>`;
+    }
+    const scores = r.ranked.map(x => x.score);
+    const max = Math.max(...scores), min = Math.min(...scores);
+    const open = forecastOpen || !compact;
+    const rows = r.ranked.slice(0, open ? 5 : 3).map((x, i) => {
+      const w = max > min ? 18 + 78 * (x.score - min) / (max - min) : 50;
+      const up = prev && prev.indexOf(x.id) > i ? '<span class="up" title="поднялась">↑</span>' : '';
+      return `<li><span class="fc-name">${esc(sphereById[x.id].name)}${up}</span><span class="fc-bar"><span style="width:${Math.round(w)}%"></span></span></li>`;
+    }).join('');
+    const head = compact
+      ? `<button type="button" class="fc-head" aria-expanded="${forecastOpen}"><strong>Ваш прогноз</strong><span class="fc-more">${forecastOpen ? 'свернуть ▴' : 'подробнее ▾'}</span></button>`
+      : '<div class="fc-head"><strong>Ваш прогноз</strong></div>';
+    const typeLine = open ? `<p class="fc-type">${r.types.length ? `Похоже, вы <strong>${esc(typeName(r.types))}</strong>. ` : ''}Прогноз меняется с каждым ответом.</p>` : '';
+    return `<div class="forecast">${head}<ol class="fc-list">${rows}</ol>${typeLine}</div>`;
+  }
+
+  function renderForecast(keepArrows) {
+    const slot = document.getElementById('forecast-slot');
+    const side = document.getElementById('forecast-side');
+    if (!slot || !side) return;
+    const r = M.evaluate(state.answers);
+    const prev = keepArrows ? lastPrev : prevOrder;
+    slot.innerHTML = forecastHtml(r, true, prev);
+    side.innerHTML = forecastHtml(r, false, prev);
+    const t = slot.querySelector('button.fc-head');
+    if (t) t.onclick = () => { forecastOpen = !forecastOpen; renderForecast(true); };
+    if (!keepArrows && r.count >= FORECAST_FROM) { lastPrev = prevOrder; prevOrder = r.ranked.map(x => x.id); }
+  }
+
+  // ---------- Результаты этапов ----------
+  const searchQuery = r => '«' + r.q.charAt(0).toLowerCase() + r.q.slice(1) + ' удалённо»';
+
+  function typeLine(r) {
+    if (!r.types.length) return 'Ваши интересы пока не выделились, поэтому мы опирались на опыт и рабочий ритм.';
+    return `Ваш тип — ${typeName(r.types)}. Вы ${types[r.types[0]].about}, а ещё ${types[r.types[1]].about}.`;
+  }
+
+  function whyShort(item, r) {
+    const s = sphereById[item.id];
+    const parts = [];
+    const strong = r.types.filter(k => s.ria[k] >= .55).map(k => types[k].name.toLowerCase());
+    if (strong.length) parts.push(`подходит типу «${strong.join('» и «')}»`);
+    if (item.jobHit) parts.push('пригодится прошлый опыт');
+    if (item.praiseHits) parts.push('совпадает с тем, за что вас хвалят');
+    if (item.style !== null && item.style >= .75) parts.push('подходит ваш рабочий ритм');
+    const text = parts.length ? parts.join(', ') : 'ближе к вашим ответам, чем большинство сфер';
+    return text[0].toUpperCase() + text.slice(1) + '.';
+  }
+
+  function summary(r, top, title) {
+    const best = top[0].score || 1;
+    return `<div class="card summary">
+      <h2>${esc(title)}</h2>
+      <ol class="sum-list">${top.map((t, i) => `<li>
+        <span class="sum-n">${i + 1}</span>
+        <div class="sum-body">
+          <a class="sum-name" href="#s-${t.id}">${esc(sphereById[t.id].name)}</a>${t.change ? ' <span class="pill pill-new">новое</span>' : ''}
+          <span class="sum-bar" aria-hidden="true"><span style="width:${Math.round(Math.max(.25, t.score / best) * 100)}%"></span></span>
+          <span class="sum-why">${esc(whyShort(t, r))}</span>
+        </div></li>`).join('')}</ol>
+    </div>`;
+  }
+
+  function roleDetails(r) {
+    const flags = (r.notes || []).length ? `<span class="flag">${esc(r.notes.join('; '))}</span>` : '';
+    return `<details class="role"><summary>${esc(r.name)}</summary>
+      <p>${esc(r.what)}</p>
+      <p class="learn">Как начать: ${esc(r.learn)}</p>
+      <p class="learn">Запрос для поиска вакансий: ${esc(searchQuery(r))}</p>${flags}
+    </details>`;
+  }
+
+  function ladder(sphereId, detailed) {
+    const list = M.rolesFor(sphereId, state.answers);
+    const groups = ['now', 'short', 'base', 'course', 'long'].map(lv => [lv, list.filter(r => r.level === lv)]).filter(([, l]) => l.length);
+    return `<div class="ladder">${groups.map(([lv, l]) => {
+      const later = l.every(x => x.later) ? ' <span class="later">на будущее</span>' : '';
+      const head = `<span aria-hidden="true">${levels[lv].icon}</span> <strong>${esc(levels[lv].short)}</strong>${later}`;
+      return detailed
+        ? `<div class="rung"><div class="rung-head">${head}</div>${l.map(roleDetails).join('')}</div>`
+        : `<p class="rung-line">${head}: ${l.map(x => esc(x.name)).join(', ')}</p>`;
+    }).join('')}</div>`;
+  }
+
+  function sphereCard(item, mode) {
+    const s = sphereById[item.id];
+    return `<article class="card sphere-card" id="s-${s.id}">
+      <div class="sphere-top">${item.change ? '<span class="pill pill-new">новое</span>' : ''}${s.mk ? '<span class="pill">маркетинг</span>' : ''}</div>
+      <h3>${esc(s.name)}</h3>
+      <p class="essence">${esc(s.essence)}</p>
+      ${ladder(item.id, mode !== 'preview')}
+      ${mode === 'full' ? `<details class="try"><summary>Попробовать бесплатно до покупки курса</summary><p>${esc(s.try)}</p><p class="learn">Что поискать на YouTube: «${esc(s.youtube)}»</p><p class="learn">Важно знать заранее: ${esc(s.reality)}</p></details>` : ''}
+    </article>`;
+  }
+
+  function marketingBlock(r) {
+    const role = M.roleById[M.marketingByType[r.types[0] || 'E']];
+    return `<div class="card mk-card">
+      <span class="card-kicker">Маркетинговая версия вашего типа</span>
+      <h3>${esc(role.name)}</h3>
+      <p>${esc(role.what)}</p>
+      <p class="learn">Как начать: ${esc(role.learn)}</p>
+    </div>`;
+  }
+
+  function continueCard(n, where) {
+    const next = stages[n];
+    const count = stageQuestions(next.n).length;
+    if (where === 'top') return `<div class="card next-banner">
+      <p>Ответьте ещё на ${count} вопросов, чтобы получить более точный прогноз, или посмотрите предварительные результаты ниже.</p>
+      <button class="primary continue">Продолжить тестирование →</button>
+    </div>`;
+    return `<div class="card unlock">
+      <span class="card-kicker">Этап ${next.n} из 3 · ещё ${count} вопросов, около 2 минут</span>
+      <h3>${esc(next.name)}</h3>
+      <p>${n === 1 ? 'Уточним, какие профессии внутри этих сфер подходят вам по характеру, а какие лучше не рассматривать.' : 'Учтём ваше время, готовность учиться, компьютер и английский. Соберём план: что начать сейчас, во что вырасти и как искать работу.'}</p>
+      <button class="primary continue">Продолжить тестирование →</button>
+    </div>`;
+  }
+
+  function withChanges(r) {
+    const before = state.snapshot || [];
+    return r.top.map(t => ({...t, change: before.length && !before.includes(t.id) ? 'новое' : ''}));
+  }
+
+  function showStage(n) {
+    if (n === 3) return showPlan();
+    view = 'stage';
+    const r = M.evaluate(state.answers);
+    const top = n === 2 ? withChanges(r) : r.top;
+    if (n === 1) { state.snapshot = r.top.map(t => t.id); save(); }
+    sync(n, r);
+    app.innerHTML = `<section class="results">
+      ${continueCard(n, 'top')}
+      <div class="eyebrow">Этап ${n} из 3 пройден${n === 2 ? ' · прогноз уточнён' : ''}</div>
+      <h1>Предварительные результаты тестирования</h1>
+      <p class="lead">${esc(typeLine(r))}</p>
+      ${n === 2 && r.styleAnswers.calls === 0 ? '<p class="profile-line">Вы сказали, что звонить незнакомым людям некомфортно, поэтому профессии со звонками мы убрали.</p>' : ''}
+      ${summary(r, top, 'Вам больше всего подходят')}
+      <h2 class="section-title">Подробнее о каждой сфере</h2>
+      <p class="small muted">${n === 1 ? 'Ступени показывают, с чего можно начать без обучения и во что вырасти.' : 'Нажмите на профессию, чтобы узнать, что в ней делают и как начать.'}</p>
+      <div class="sphere-grid">${top.map(t => sphereCard(t, n === 1 ? 'preview' : 'roles')).join('')}</div>
+      ${r.top.some(t => sphereById[t.id].mk) ? '' : marketingBlock(r)}
+      ${continueCard(n, 'bottom')}
+      <div class="actions"><button id="edit">← Изменить ответы</button><button id="stop">Начать заново</button></div>
+    </section>`;
+    app.querySelectorAll('.continue').forEach(b => b.onclick = () => {
+      const next = questions.findIndex(q => q.stage === n + 1 && !answered(q));
+      go(next >= 0 ? next : firstIndexOf(n + 1));
     });
-    document.getElementById('back').onclick=()=>{if(step===0)intro();else{step--;renderQuestion()}focusHeading()};
-    document.getElementById('next').onclick=()=>{if(answers[step]===null||(multi&&!answers[step].length))return;if(step<questions.length-1){step++;renderQuestion()}else renderResult(evaluate(answers));focusHeading()};
+    document.getElementById('edit').onclick = () => go(firstIndexOf(n));
+    document.getElementById('stop').onclick = () => { reset(); intro(); focusTop(); };
+    focusTop();
   }
-  function skillHint(result,track){
-    const overlap=(window.CareerModel.profiles[track.id].skills||[]).filter(key=>result.skills.includes(key));
-    if(!result.skills.length)return 'Отсутствие опыта не исключает эту сферу: начните с учебной пробы и проверьте, хотите ли повторять такие задачи.';
-    if(overlap.length)return 'Из вашего опыта может пригодиться: '+overlap.map(key=>({text:'тексты',visual:'визуальные материалы',numbers:'таблицы и расчёты',people:'общение с людьми',organization:'организация задач',web:'сайты или код',languages:'иностранный язык'})[key]).join(', ')+'.';
-    return 'Прямого опыта в этой сфере вы пока не отметили. Это повод начать с маленькой учебной задачи, а не исключать направление.';
+
+  function howToSearch() {
+    const format = M.answerValue(state.answers, 'format');
+    const discipline = M.answerValue(state.answers, 'discipline');
+    const team = '<li><strong>Работа в команде.</strong> Ищите на сайтах вакансий с фильтром «удалённая работа», в Telegram-каналах и чатах с удалёнными вакансиями. К названию профессии добавляйте слова «удалённо», «без опыта», «стажёр», «помощник».</li>';
+    const free = '<li><strong>Свои клиенты.</strong> Начните со знакомых предпринимателей и рекомендаций, потом — биржи фриланса и профильные чаты. Сначала берите небольшую задачу за фиксированную цену.</li>';
+    let items = format === 'team' ? team : format === 'freelance' ? free : team + free;
+    if (discipline === 'low' && format !== 'team') items += '<li>Вы честно сказали, что без внешних сроков будете откладывать. Для старта надёжнее работа в команде с понятным графиком.</li>';
+    return `<ul class="search-list">${items}</ul>`;
   }
-  function pathCard(item,result){
-    const track=tracks[item.index],path=paths[track.id];
-    const reasons=item.reasons.length?'Ваш интерес к '+item.reasons.join(' и ')+' совпал с частью задач этой сферы.':'В ваших ответах заметен интерес к задачам этой сферы; проверьте его на практике.';
-    return `<article class="card career-card" id="sphere-${track.id}"><div class="tag">Направление для проверки</div><h3>${esc(track.sphere)}</h3><p>${esc(track.essence)}</p>
-      <p class="fit-note">${esc(reasons)} ${esc(skillHint(result,track))}</p>
-      <h4>Какие профессии посмотреть</h4><ul class="roles">${track.roles.map(role=>`<li><strong>${esc(role[0])}</strong><br><span>${esc(role[1])}</span></li>`).join('')}</ul>
-      <div class="result-section"><h4>1. Погрузитесь в сферу до покупки курса</h4><p>На YouTube ищите: <a href="${youtube(path.youtube)}" target="_blank" rel="noopener noreferrer">«${esc(path.youtube)}» ↗</a></p><p class="small muted">Поиск показывает разные видео; оцените автора и дату материала самостоятельно.</p><p><strong>Что почитать:</strong></p>${list(track.read)}<p><strong>Что изучить сначала:</strong></p>${list(track.study)}</div>
-      <div class="result-section"><h4>2. Попробуйте работу на маленькой задаче</h4><p>${esc(track.try)}</p><p><strong>Что сохранить как учебный пример:</strong> ${esc(path.portfolio)}</p></div>
-      <div class="result-section"><h4>3. Проверьте путь к работе</h4><p><strong>Вакансии:</strong> ${esc(path.jobs)}</p><p><strong>Первые проекты:</strong> ${esc(path.clients)}</p><a class="vacancy-link" href="${hh(track.roles[0][0])}" target="_blank" rel="noopener noreferrer">Открыть поиск вакансий ↗</a><p class="small muted">В поиске включён фильтр удалённой работы. Проверьте его и условия каждой вакансии.</p></div>
-      <p class="small muted"><strong>Что важно знать заранее:</strong> ${esc(track.reality)}</p></article>`;
+
+  function roleCard(r) {
+    return `<li class="role-card">
+      <span class="lvl">${levels[r.level].icon} ${esc(levels[r.level].name)}</span>
+      <strong>${esc(r.name)}</strong>
+      <span>${esc(r.what)}</span>
+      <span class="learn">Как начать: ${esc(r.learn)}</span>
+      <span class="learn">Запрос для поиска: ${esc(searchQuery(r))}</span>
+      ${(r.notes || []).length ? `<span class="flag">${esc(r.notes.join('; '))}</span>` : ''}
+    </li>`;
   }
-  function introResult(result){
-    if(result.uncertain)return {title:'Сначала сравните несколько направлений',lead:'Ответы пока не выделили достаточно ясного сочетания интересов. Это не ошибка: попробуйте две маленькие задачи из разных сфер и посмотрите, какую захочется продолжить.'};
-    return {title:'Ваши направления для первой пробы',lead:'Это сферы, с которых разумно начать знакомство по вашим ответам. Они не закрывают остальные пути: сначала сравните реальные задачи и вакансии, затем выбирайте обучение.'};
+
+  function showPlan() {
+    view = 'plan';
+    const p = M.plan(state.answers);
+    const r = p.result;
+    const top = withChanges(r);
+    sync(3, r);
+    const hours = M.answerValue(state.answers, 'hours');
+    const learn = M.answerValue(state.answers, 'learn');
+    const computer = M.answerValue(state.answers, 'computer');
+    const situation = M.answerValue(state.answers, 'situation');
+    const learnText = {now: 'хотите начать сразу', short: 'учиться до месяца', course: 'учиться 1–5 месяцев', long: 'готовы к долгому обучению'}[learn];
+    const hoursText = {low: '2–3 часа в день', mid: '3–5 часов в день', full: 'полный день'}[hours];
+    const bridges = p.bridges.filter(b => !p.quick.some(q => q.id === b.id) && !p.growth.some(g => g.id === b.id));
+    const lead = {
+      fresh: 'Опыт не нужен: начните с того, что можно делать сразу, а параллельно присмотритесь к профессии на вырост.',
+      diploma: 'Ваш диплом и прежний опыт — преимущество. Сначала посмотрите, как применить их удалённо.',
+      switch: 'Вы меняете сферу, и прошлый опыт ускорит переход.',
+      online: 'У вас уже есть опыт онлайн-работы, поэтому начинаем с профессий, в которые стоит вырасти.'
+    }[situation] || '';
+    const quickHtml = `<div class="card cream plan-card"><h2>Начать сейчас</h2><p class="small">Без дорогого обучения: первые деньги и понимание, нравится ли сфера.</p>
+      <ul class="role-cards">${p.quick.map(roleCard).join('') || '<li>По вашим условиям быстрых вариантов нет — посмотрите профессии на вырост.</li>'}</ul></div>`;
+    const growthHtml = p.growth.length ? `<div class="card plan-card"><h2>Профессия на вырост</h2><p class="small">${learn === 'now' || learn === 'short' ? 'Можно учиться параллельно с простой работой: доход здесь выше.' : 'Вы готовы учиться, поэтому можно сразу целиться в профессию.'}</p>
+      <ul class="role-cards">${p.growth.map(roleCard).join('')}</ul></div>` : '';
+    const bridgeHtml = bridges.length ? `<div class="card plan-card"><h2>${situation === 'diploma' ? 'Ваша профессия → удалённо' : 'Ваш опыт → удалённо'}</h2><p class="small">Опираются на то, чем вы уже занимались, поэтому войти обычно быстрее.</p>
+      <ul class="role-cards">${bridges.slice(0, 3).map(roleCard).join('')}</ul></div>` : '';
+    const order = situation === 'online' ? [growthHtml, quickHtml, bridgeHtml]
+      : situation === 'diploma' || situation === 'switch' ? [bridgeHtml, quickHtml, growthHtml]
+      : [quickHtml, growthHtml, bridgeHtml];
+    app.innerHTML = `<section class="results">
+      <div class="eyebrow">Тест пройден</div>
+      <h1>Ваши результаты и план</h1>
+      <p class="lead">${esc(typeLine(r))} ${esc(lead)}</p>
+      <div class="chips"><span class="chip">${esc(hoursText)}</span><span class="chip">${esc(learnText)}</span>${computer === 'phone' ? '<span class="chip">начинаем с телефона</span>' : ''}</div>
+      ${summary(r, top, 'Вам больше всего подходят')}
+      ${order.join('')}
+      ${[...p.quick, ...p.growth, ...bridges.slice(0, 3)].some(x => x.id === M.marketingByType[r.types[0] || 'E']) ? '' : marketingBlock(r)}
+      <div class="card plan-card"><h2>Как искать работу</h2>${howToSearch()}
+        <ol class="steps"><li>Выберите 1–2 профессии из плана.</li><li>Сделайте бесплатное пробное задание (оно в карточке сферы ниже).</li><li>Найдите по запросу 5 свежих вакансий и выпишите, что в них повторяется.</li><li>Если задача понравилась — учитесь тому, чего не хватает по вакансиям.</li></ol>
+      </div>
+      <h2 class="section-title">Подробнее о каждой сфере</h2>
+      <div class="sphere-grid">${top.map(t => sphereCard(t, 'full')).join('')}</div>
+      <div class="card consult"><h3>Хотите разобрать результат?</h3><p>Напишите Катерине в Telegram, какие профессии вам выпали, и задайте вопросы.</p><a class="button primary" href="${TELEGRAM}" target="_blank" rel="noopener noreferrer">Написать в Telegram</a></div>
+      <details class="method"><summary>На чём основан тест?</summary>
+        <p>Вопросы об интересах построены на модели Холланда (RIASEC) — шесть типов интересов, на которых основан официальный O*NET Interest Profiler Министерства труда США. Вы выбирали один вариант из нескольких, и каждый тип предлагался одинаковое число раз. Профили большинства сфер сравниваются с данными о похожих профессиях из базы O*NET 31.0 (лицензия CC BY 4.0), остальные оценены автором. Учитываются также рабочий ритм, прошлый опыт и то, за что вас хвалят.</p>
+        <p>Русские вопросы, веса и подбор профессий составлены для этого сайта и не проходили психометрическую проверку. Это ориентир для первой пробы, а не официальный тест.</p>
+      </details>
+      <p class="note">Не каждая профессия доступна удалённо в любой компании. Проверяйте условия каждой вакансии. Результат не гарантирует трудоустройство или доход.</p>
+      <div class="actions"><button id="edit">← Изменить ответы</button><button id="print">Сохранить или распечатать</button><button id="restart">Пройти заново</button></div>
+    </section>`;
+    document.getElementById('edit').onclick = () => go(firstIndexOf(3));
+    document.getElementById('print').onclick = () => window.print();
+    document.getElementById('restart').onclick = () => { reset(); intro(); focusTop(); };
+    focusTop();
   }
-  function renderResult(result){
-    const copy=introResult(result);
-    const chosen=result.primary.map(item=>item.index);
-    const other=result.ranked.filter(item=>!chosen.includes(item.index));
-    const topInterests=Object.entries(result.dimensions).filter(([,value])=>value!==null&&value>=.67).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([key])=>labels[key]);
-    const experienceNote=result.experience===0?'Опыт работы пока не нужен для учебной пробы. Не покупайте обучение до знакомства с реальными задачами.':result.experience===1?'Вспомните опыт из прежней сферы: общение, тексты, расчёты и организация могут стать опорой.':'Сопоставьте уже сделанные задачи с требованиями в свежих вакансиях.';
-    const pathNote=result.path===0?'Ваш первый маршрут — вакансии и стажировки.':result.path===1?'Ваш первый маршрут — небольшие проектные задачи и рекомендации.':'Сравните работу в команде и отдельные проекты: обязанности и способ поиска отличаются.';
-    app.innerHTML=`<div class="eyebrow">Результат профориентации</div><h1 class="results-title">${copy.title}</h1><p class="lead">${copy.lead}</p>
-      <div class="card cream next-steps"><h3>Ваш план после теста</h3><ol><li>Выберите одно или два направления ниже и прочитайте обязанности профессий.</li><li>Откройте несколько свежих удалённых вакансий: выпишите повторяющиеся навыки, график и задачи.</li><li>Сделайте маленькую пробу до покупки обучения и сохраните результат как учебный пример.</li><li>Если задача понравилась, ищите обучение под конкретный пробел и начинайте откликаться на подходящие роли или небольшие проекты.</li></ol><p><strong>Где искать:</strong> удалённые вакансии — на сайтах работы и карьерных страницах компаний; первые проектные задачи — через рекомендации, профильные сообщества и площадки с заказами. Смотрите условия каждой задачи.</p><p>${esc(experienceNote)} ${esc(pathNote)}</p></div>
-      ${topInterests.length?`<p class="profile-line"><strong>Что заметно в ответах:</strong> ${esc(topInterests.join(', '))}. Это интересы, а не оценка способностей.</p>`:''}
-      ${chosen.length?`<div class="career-grid">${result.primary.map(item=>pathCard(item,result)).join('')}</div>`:''}
-      <details class="other-spheres" ${result.uncertain?'open':''}><summary>${result.uncertain?'Сравнить 16 сфер удалённой работы':'Посмотреть остальные сферы'}</summary><div class="directory">${other.map(item=>{const track=tracks[item.index];return `<details><summary>${esc(track.sphere)} <span class="small muted">— ${esc(track.roles[0][0])}</span></summary>${pathCard(item,result)}</details>`}).join('')}</div></details>
-      <details class="method"><summary>На чём основаны вопросы и рекомендации?</summary><p>Мы учитываем интерес к разным типам задач, привычный рабочий ритм и уже знакомые навыки. Структура интересов опирается на модель RIASEC. Для сравнения сфер использованы показатели интересов к похожим профессиям из базы O*NET 31.0 (США); соответствие этих профессий нашим русским направлениям и вопросы составлены автором. Рабочий стиль и знакомые навыки дают дополнительный сигнал, но отсутствие опыта не исключает профессию. Эта русская версия не проходила психометрическую проверку и не является официальным тестом O*NET.</p><p>Для более глубокой профориентации можно пройти <a href="https://www.mynextmove.org/explore/ip" target="_blank" rel="noopener noreferrer">официальный O*NET Interest Profiler ↗</a> (на английском). Данные: <a href="https://www.onetcenter.org/database.html" target="_blank" rel="noopener noreferrer">O*NET 31.0 Database ↗</a>, U.S. Department of Labor, Employment and Training Administration, <a href="https://www.onetcenter.org/license_db.html" target="_blank" rel="noopener noreferrer">CC BY 4.0 ↗</a>. Данные нормированы, профессии сгруппированы и описаны для этого проекта; USDOL/ETA не проверял и не одобрял эти изменения. O*NET® — товарный знак USDOL/ETA.</p></details>
-      <p class="note">Не каждая профессия доступна удалённо в любой компании или стране. Проверьте требования, квалификацию, условия и формат конкретной вакансии. Результат не гарантирует трудоустройство или доход.</p>
-      <div class="actions"><button id="edit">Изменить ответы</button><button id="restart">Пройти заново</button><button id="print">Сохранить или распечатать</button></div>`;
-    document.getElementById('edit').onclick=()=>{step=0;renderQuestion();focusHeading()};
-    document.getElementById('restart').onclick=()=>{answers.fill(null);intro();focusHeading()};
-    document.getElementById('print').onclick=()=>window.print();
-  }
+
   intro();
 })();
