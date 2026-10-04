@@ -1,15 +1,30 @@
-const assert=require('node:assert/strict');
-const {score,questions}=require('./app.js');
-for(let d=0;d<5;d++){
- const answers=[0,0,0,0,0,d,d,d,5,0];answers[d]=4;
- assert.deepEqual(score(answers).chosen,[d]);assert.equal(score(answers).points[d],17);
- const b=[...answers];b[8]=0;b[9]=2;assert.deepEqual(score(b).points,score(answers).points);
+const assert = require('node:assert/strict');
+const {tracks, questions, evaluate} = require('./model.js');
+
+assert.equal(tracks.length, 8);
+assert.equal(questions.length, 19);
+for (let target = 0; target < tracks.length; target++) {
+  const answers = Array(16).fill(0);
+  answers[target] = 4;
+  answers[target + 8] = 4;
+  answers.push(0, 0, 0);
+  const result = evaluate(answers);
+  assert.deepEqual(result.primary, [target]);
+  assert.equal(result.scores[target], 8);
+  const withDifferentContext = [...answers];
+  withDifferentContext.splice(16, 3, 2, 2, 2);
+  assert.deepEqual(evaluate(withDifferentContext).primary, [target]);
 }
-assert.equal(score([5,5,5,5,5,5,5,5,5,0]).uncertain,true);
-assert.equal(score([2,2,2,2,2,5,5,5,5,0]).uncertain,true);
-assert.deepEqual(score([4,4,0,0,0,5,5,5,5,0]).chosen,[0,1]);
-assert.equal(score([0,0,0,0,0,5,5,5,5,0]).uncertain,true);
-assert.throws(()=>score([]));assert.throws(()=>score(Array(10)));assert.throws(()=>score([null,0,0,0,0,0,0,0,0,0]));
-assert.throws(()=>score([6,0,0,0,0,0,0,0,0,0]));
-assert.equal(questions.length,10);
-console.log('Passed: 5 contrasting profiles, background/time invariance, tie, broad tie, unknown, negative interest, incomplete/invalid inputs');
+const unknown = [...Array(16).fill(5), 3, 3, 3];
+assert.equal(evaluate(unknown).uncertain, true);
+const neutral = [...Array(16).fill(2), 3, 3, 3];
+assert.equal(evaluate(neutral).uncertain, true);
+const tie = [...Array(16).fill(0), 3, 3, 3];
+tie[0] = tie[8] = tie[1] = tie[9] = 4;
+assert.deepEqual(evaluate(tie).primary, [0, 1]);
+const broad = [...Array(16).fill(4), 3, 3, 3];
+assert.equal(evaluate(broad).uncertain, true);
+assert.throws(() => evaluate([]));
+assert.throws(() => evaluate(Array(19).fill(null)));
+assert.throws(() => evaluate([...Array(16).fill(0), 9, 0, 0]));
+console.log('Career model: 8 distinct profiles, context independence, unknown, neutral, ties and invalid input PASS');
