@@ -19,3 +19,26 @@
 .other-spheres .career-grid{margin-bottom:0}
 @media(max-width:650px){.career-card h4{font-size:16px}.career-card{padding:21px}.career-grid{gap:12px}.question h2{font-size:29px}.question .lead{font-size:19px}}
 @media print{.career-grid{display:block;max-width:none}.career-card{margin:0 0 16px;break-inside:avoid}.other-spheres:not([open]){display:none}details{border:0;padding:0}.vacancy-link{color:#333}}
+
+/* Career orientation: proof and result layout */
+.proof-grid{grid-template-columns:1fr;gap:12px;max-width:980px}
+.proof-grid .card{display:grid;grid-template-columns:minmax(210px,.75fr) minmax(0,1.25fr);column-gap:28px;align-items:center;padding:28px 32px}
+.proof-grid .card-kicker{grid-column:1;color:var(--accent);font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.proof-grid .cream .card-kicker{color:#9b4b12}
+.proof-grid h3{grid-column:1;font-size:27px;margin:6px 0 0}
+.proof-grid p{grid-column:2;grid-row:1 / span 2;margin:0;max-width:62ch}
+.question-hint{margin:0;color:var(--muted);font-size:15px}
+.question h2{max-width:800px;margin-bottom:12px}
+.question .options{margin-top:28px}
+input[type=checkbox]{accent-color:var(--orange);width:19px;height:19px;flex:none}
+.profile-line{max-width:860px;padding:16px 20px;border:1px solid var(--line);border-radius:14px;color:#d9cbbb}
+.result-section{border-top:1px solid var(--line);margin-top:22px;padding-top:1px}
+.result-section p{margin:10px 0}
+.directory{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:18px}
+.directory>details{margin:0;padding:15px 17px;background:#15110c}
+.directory>details[open]{grid-column:1 / -1}
+.directory>details>.career-card{border:0;padding:12px 0 0;margin:0;background:transparent}
+.directory summary{line-height:1.45}
+.method{max-width:910px}
+@media(max-width:700px){.proof-grid .card{display:block;padding:24px}.proof-grid h3{font-size:24px;margin:8px 0 12px}.proof-grid p{margin:0}.directory{grid-template-columns:1fr}.directory>details[open]{grid-column:auto}}
+@media print{.directory>details:not([open]){display:none}.profile-line{color:#222}}
