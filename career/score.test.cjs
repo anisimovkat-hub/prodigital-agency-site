@@ -1,30 +1,28 @@
-const assert = require('node:assert/strict');
-const {tracks, questions, evaluate} = require('./model.js');
-
-assert.equal(tracks.length, 8);
-assert.equal(questions.length, 19);
-for (let target = 0; target < tracks.length; target++) {
-  const answers = Array(16).fill(0);
-  answers[target] = 4;
-  answers[target + 8] = 4;
-  answers.push(0, 0, 0);
-  const result = evaluate(answers);
-  assert.deepEqual(result.primary, [target]);
-  assert.equal(result.scores[target], 8);
-  const withDifferentContext = [...answers];
-  withDifferentContext.splice(16, 3, 2, 2, 2);
-  assert.deepEqual(evaluate(withDifferentContext).primary, [target]);
+const assert=require('node:assert/strict');
+const {tracks,questions,evaluate,profiles}=require('./model.js');
+const paths=require('./paths.js');
+assert.equal(tracks.length,16);
+assert.equal(questions.length,27);
+assert.deepEqual(Object.keys(profiles).sort(),tracks.map(t=>t.id).sort());
+assert.deepEqual(Object.keys(paths).sort(),tracks.map(t=>t.id).sort());
+for(const track of tracks){assert.equal(track.roles.length,3);assert.ok(track.study.length>=3&&track.read.length>=3&&track.try&&paths[track.id].jobs&&paths[track.id].clients&&paths[track.id].youtube&&paths[track.id].portfolio)}
+const answersFor=dimension=>[...questions.slice(0,18).map(q=>q.dimension===dimension?0:2),...Array(6).fill(3),['none'],0,2];
+for(const dimension of 'RIASEC'){
+ const result=evaluate(answersFor(dimension));
+ assert.equal(result.uncertain,false,dimension);
+ assert.ok(result.primary.length>=1&&result.primary.length<=3,dimension);
+ assert.equal(result.dimensions[dimension],1);
 }
-const unknown = [...Array(16).fill(5), 3, 3, 3];
-assert.equal(evaluate(unknown).uncertain, true);
-const neutral = [...Array(16).fill(2), 3, 3, 3];
-assert.equal(evaluate(neutral).uncertain, true);
-const tie = [...Array(16).fill(0), 3, 3, 3];
-tie[0] = tie[8] = tie[1] = tie[9] = 4;
-assert.deepEqual(evaluate(tie).primary, [0, 1]);
-const broad = [...Array(16).fill(4), 3, 3, 3];
-assert.equal(evaluate(broad).uncertain, true);
-assert.throws(() => evaluate([]));
-assert.throws(() => evaluate(Array(19).fill(null)));
-assert.throws(() => evaluate([...Array(16).fill(0), 9, 0, 0]));
-console.log('Career model: 8 distinct profiles, context independence, unknown, neutral, ties and invalid input PASS');
+const noSignal=[...Array(18).fill(3),...Array(6).fill(3),['none'],0,3];
+assert.equal(evaluate(noSignal).uncertain,true);
+const allYes=[...Array(18).fill(0),...Array(6).fill(3),['none'],0,3];
+assert.equal(evaluate(allYes).uncertain,true);
+const basic=answersFor('A'),withSkills=[...basic];withSkills[24]=['text'];
+assert.equal(evaluate(withSkills).ranked.length,16);
+assert.ok(evaluate(withSkills).ranked.find(x=>tracks[x.index].id==='content').score>evaluate(basic).ranked.find(x=>tracks[x.index].id==='content').score);
+const context=[...basic];context[25]=2;context[26]=1;
+assert.deepEqual(evaluate(context).ranked.map(x=>x.score),evaluate(basic).ranked.map(x=>x.score));
+assert.throws(()=>evaluate([]));
+assert.throws(()=>evaluate([...basic.slice(0,24),['none','text'],0,2]));
+assert.throws(()=>evaluate([...basic.slice(0,24),[],0,2]));
+console.log('Career model: 27 questions, 16 complete paths, six interests, uncertainty, skills and contexts PASS');
