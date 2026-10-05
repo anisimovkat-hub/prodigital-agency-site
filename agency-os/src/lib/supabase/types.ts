@@ -1405,6 +1405,33 @@ export type Database = {
           },
         ];
       };
+      ad_account_credentials: {
+        Row: {
+          ad_account_id: string;
+          secret_id: string;
+          created_by: string | null;
+          created_at: string;
+          last_sync_at: string | null;
+          last_error: string | null;
+        };
+        Insert: {
+          ad_account_id: string;
+          secret_id: string;
+          created_by?: string | null;
+          created_at?: string;
+          last_sync_at?: string | null;
+          last_error?: string | null;
+        };
+        Update: {
+          ad_account_id?: string;
+          secret_id?: string;
+          created_by?: string | null;
+          created_at?: string;
+          last_sync_at?: string | null;
+          last_error?: string | null;
+        };
+        Relationships: [];
+      };
       ad_audience_metrics: {
         Row: {
           id: string;
@@ -1808,6 +1835,18 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      save_ad_account_secret: {
+        Args: { p_account_id: string; p_secret: string; p_user_id: string | null };
+        Returns: undefined;
+      };
+      read_ad_account_secret: {
+        Args: { p_account_id: string };
+        Returns: string | null;
+      };
+      delete_ad_account_secret: {
+        Args: { p_account_id: string };
+        Returns: undefined;
+      };
       cleanup_completed_tasks: {
         Args: Record<string, never>;
         Returns: number;

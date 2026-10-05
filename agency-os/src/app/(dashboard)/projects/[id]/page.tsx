@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AdAccountsSection, type ProjectAdAccount } from "@/app/(dashboard)/projects/[id]/ad-accounts-section";
 import { KpiForm } from "@/app/(dashboard)/projects/kpi-form";
 import { NotesTabs } from "@/app/(dashboard)/projects/notes-tabs";
 import { ProjectEditDisclosure } from "@/app/(dashboard)/projects/project-edit-disclosure";
@@ -31,6 +32,7 @@ import {
   formatPercent,
 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { PROJECT_OWNERSHIP_MODE_LABEL } from "@/lib/labels";
 import { isOperationalProject } from "@/lib/project-lifecycle";
 import {
@@ -116,6 +118,8 @@ export default async function ProjectDetailPage({
     (profile) => profile.id === user?.id && profile.role === "owner",
   );
   const monthlyFee = isOwner ? (projectFinance?.monthly_fee ?? null) : null;
+  // Ad accounts are owner-only under RLS; the project row above already proved access.
+  const adAccountsData = await loadProjectAdAccounts(id, isOwner);
 
   const monthAllocation = allocateTaskTime(
     (timeRows ?? []) as TaskTimeEntry[],
@@ -272,6 +276,8 @@ export default async function ProjectDetailPage({
         </Card>
       </div>
 
+      <AdAccountsSection projectId={id} isOwner={isOwner} accounts={adAccountsData.accounts} unlinkedMeta={adAccountsData.unlinkedMeta} />
+
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-neutral-900">KPI</h2>
         <Table>
@@ -397,4 +403,25 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="text-neutral-900">{children}</span>
     </div>
   );
+}
+
+async function loadProjectAdAccounts(projectId: string, isOwner: boolean): Promise<{ accounts: ProjectAdAccount[]; unlinkedMeta: { id: string; name: string }[] }> {
+  try {
+    const service = createServiceClient();
+    const [{ data: accounts }, { data: credentials }, { data: unlinked }] = await Promise.all([
+      service.from("ad_accounts").select("id,platform,name,currency,is_active").eq("project_id", projectId).order("platform"),
+      service.from("ad_account_credentials").select("ad_account_id,last_sync_at,last_error"),
+      isOwner ? service.from("ad_accounts").select("id,name,external_id").eq("platform", "meta").is("project_id", null).order("name") : Promise.resolve({ data: [] as { id: string; name: string | null; external_id: string }[] }),
+    ]);
+    const byAccount = new Map((credentials ?? []).map((row) => [row.ad_account_id, row]));
+    return {
+      accounts: (accounts ?? []).filter((account) => account.is_active !== false || byAccount.has(account.id)).map((account) => {
+        const credential = byAccount.get(account.id);
+        return { id: account.id, platform: account.platform, name: account.name, currency: account.currency, usesKey: !!credential, lastSyncAt: credential?.last_sync_at ?? null, lastError: credential?.last_error ?? null };
+      }),
+      unlinkedMeta: (unlinked ?? []).map((account) => ({ id: account.id, name: account.name ?? account.external_id })),
+    };
+  } catch {
+    return { accounts: [], unlinkedMeta: [] };
+  }
 }

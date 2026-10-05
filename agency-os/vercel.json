@@ -10,7 +10,7 @@
       "schedule": "30 3 * * *"
     },
     {
-      "path": "/api/cron/yandex-sync",
+      "path": "/api/cron/ad-accounts-sync",
       "schedule": "15 3 * * *"
     },
     {

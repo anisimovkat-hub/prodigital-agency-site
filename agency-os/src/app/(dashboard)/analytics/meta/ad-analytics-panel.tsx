@@ -102,7 +102,7 @@ function GoalBreakdown({ title, items, fallback, currency }: {
 
 export function AdAnalyticsPanel({
   current, accounts, campaigns, goals, granularity, currencies, tree, audience,
-  audienceActions, sourceActions, hasMetaAccount, freshnessWarning, metrics, conversions,
+  audienceActions, hasMetaAccount, freshnessWarning, metrics, conversions,
   previousMetrics, previousConversions, unlinkedMetaAccounts = [],
   audiencePerformanceRows, latestDate = null,
 }: {
@@ -118,7 +118,6 @@ export function AdAnalyticsPanel({
   tree: AdTreeRow[];
   audience: MarketingAudience;
   audienceActions?: ReactNode;
-  sourceActions?: ReactNode;
   hasMetaAccount: boolean;
   freshnessWarning?: string | null;
   metrics: AdMetricDay[];
@@ -223,7 +222,6 @@ export function AdAnalyticsPanel({
         </div>
       </section>}
 
-      {sourceActions}
       {tree.length > 0 && <details className="rounded-2xl border border-neutral-200 bg-white"><summary className="cursor-pointer px-5 py-4 text-sm font-medium text-neutral-700">Детализация: кампании → группы → объявления · исходные цели кампаний</summary><div className="overflow-x-auto border-t border-neutral-100"><AdTreeTable rows={tree} /></div></details>}
       {hasMetaAccount && <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium text-neutral-700">Обновить данные Meta вручную</summary>

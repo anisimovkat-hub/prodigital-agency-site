@@ -1,52 +1,66 @@
 "use client";
 
 import { useActionState } from "react";
-import { FaYandex } from "react-icons/fa";
 
 import {
-  linkYandexAccount,
-  syncYandexProject,
-  type YandexProjectState,
+  discoverYandexAgencyClients,
+  type YandexClientsState,
 } from "@/app/(dashboard)/analytics/yandex-actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
-function Status({ state }: { state: YandexProjectState }) {
-  if (!state) return null;
-  return <p role="status" className={`w-full text-xs ${state.ok ? "text-emerald-700" : "text-red-600"}`}>{state.message}</p>;
-}
+export function YandexClientsPanel() {
+  const [state, action, pending] = useActionState<YandexClientsState, FormData>(
+    discoverYandexAgencyClients,
+    undefined,
+  );
 
-/** Owner-only: link a Yandex Direct login to the project and import statistics read-only. */
-export function YandexProjectPanel({ projectId, period, accounts }: {
-  projectId: string;
-  period: { from: string; to: string };
-  accounts: { login: string; name: string | null; currency: string | null }[];
-}) {
-  const [linkState, linkAction, linking] = useActionState<YandexProjectState, FormData>(linkYandexAccount, undefined);
-  const [syncState, syncAction, syncing] = useActionState<YandexProjectState, FormData>(syncYandexProject, undefined);
+  return (
+    <section className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-semibold text-neutral-950">Яндекс.Директ — агентские кабинеты</h2>
+          <p className="mt-1 max-w-2xl text-xs text-neutral-500">
+            Только чтение: получаем список доступных кабинетов через AgencyClients.get. Кампании,
+            ставки, бюджеты и историческая статистика не меняются и не загружаются на этом шаге.
+          </p>
+        </div>
+        <form action={action}>
+          <Button type="submit" variant="outline" disabled={pending}>
+            {pending ? "Проверяю доступ…" : "Проверить список кабинетов"}
+          </Button>
+        </form>
+      </div>
 
-  return <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
-    <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium text-neutral-700">
-      <FaYandex className="size-4 text-[#fc3f1d]" aria-hidden="true" />Яндекс.Директ{accounts.length ? ` · ${accounts.map((account) => account.name ?? account.login).join(", ")}` : " · не подключён"}
-    </summary>
-    <div className="mt-3 space-y-4 border-t border-neutral-100 pt-3">
-      {accounts.length > 0 && <form action={syncAction} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="project_id" value={projectId} />
-        <input type="hidden" name="from" value={period.from} />
-        <input type="hidden" name="to" value={period.to} />
-        <Button type="submit" disabled={syncing}>{syncing ? "Загружаю отчёт Яндекса…" : "Загрузить статистику за выбранный период"}</Button>
-        <span className="text-xs text-neutral-400">Только чтение · расход без НДС · ежедневно обновляется автоматически</span>
-        <Status state={syncState} />
-      </form>}
-      <form action={linkAction} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="project_id" value={projectId} />
-        <label className="flex min-w-60 flex-1 flex-col gap-1 text-xs text-neutral-500">Логин кабинета клиента в Директе
-          <Input name="login" required placeholder="например, client-login" autoComplete="off" />
-        </label>
-        <Button type="submit" variant="outline" disabled={linking}>{linking ? "Проверяю доступ…" : "Подключить кабинет"}</Button>
-        <p className="w-full text-xs text-neutral-400">Клиент добавляет ваш логин представителем с правом просмотра в «Представители» своего кабинета. Agency OS проверит доступ и ничего не изменит в рекламе.</p>
-        <Status state={linkState} />
-      </form>
-    </div>
-  </details>;
+      {state && (
+        <p className={state.ok ? "mt-3 text-sm font-medium text-emerald-700" : "mt-3 text-sm font-medium text-red-600"}>
+          {state.message}
+        </p>
+      )}
+
+      {state?.ok && state.clients.length > 0 && (
+        <div className="mt-3 overflow-x-auto rounded-lg border border-neutral-200 bg-white">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-neutral-50 text-xs text-neutral-500">
+              <tr>
+                <th className="px-3 py-2 font-medium">Логин</th>
+                <th className="px-3 py-2 font-medium">Название</th>
+                <th className="px-3 py-2 font-medium">Валюта</th>
+                <th className="px-3 py-2 font-medium">Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {state.clients.map((client) => (
+                <tr key={client.login} className="border-t border-neutral-100 text-neutral-700">
+                  <td className="px-3 py-2 font-medium text-neutral-900">{client.login}</td>
+                  <td className="px-3 py-2">{client.name ?? "—"}</td>
+                  <td className="px-3 py-2">{client.currency ?? "—"}</td>
+                  <td className="px-3 py-2">{client.archived ? "Архивный" : "Активный"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }

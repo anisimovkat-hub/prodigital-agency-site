@@ -83,7 +83,7 @@ describe("fetchYandexCampaignReport", () => {
     fetchMock
       .mockResolvedValueOnce({ status: 201, headers: new Headers({ retryIn: "1" }) } as Response)
       .mockResolvedValueOnce({ status: 200, text: async () => "Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\n" } as Response);
-    const pending = fetchYandexCampaignReport("client-a", "2026-10-01", "2026-10-07");
+    const pending = fetchYandexCampaignReport({ clientLogin: "client-a" }, "2026-10-01", "2026-10-07");
     await vi.advanceTimersByTimeAsync(1000);
     await expect(pending).resolves.toEqual([]);
     const [, init] = fetchMock.mock.calls[0];

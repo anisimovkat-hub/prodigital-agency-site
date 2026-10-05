@@ -77,9 +77,13 @@ const API = "https://api.direct.yandex.com/json/v5";
 
 export type YandexClient = { login: string; name: string | null; currency: string | null; archived: boolean };
 
-function headers(clientLogin?: string): Record<string, string> {
+/** A per-account OAuth token from the connected credential, or the shared env token. */
+export type YandexAuth = { token?: string; clientLogin?: string };
+
+function headers(auth: YandexAuth): Record<string, string> {
+  const { clientLogin } = auth;
   return {
-    Authorization: `Bearer ${token()}`,
+    Authorization: `Bearer ${auth.token ?? token()}`,
     "Accept-Language": "ru",
     "Content-Type": "application/json",
     ...(clientLogin ? { "Client-Login": clientLogin } : {}),
@@ -90,11 +94,11 @@ function headers(clientLogin?: string): Record<string, string> {
  * Clients.get: without Client-Login it describes the token owner; with it, a client
  * the token owner may read as an agency or as that advertiser's representative.
  */
-export async function fetchYandexClient(clientLogin?: string): Promise<YandexClient> {
+export async function fetchYandexClient(auth: YandexAuth = {}): Promise<YandexClient> {
   const response = await fetch(`${API}/clients`, {
     method: "POST",
     cache: "no-store",
-    headers: headers(clientLogin),
+    headers: headers(auth),
     body: JSON.stringify({ method: "get", params: { FieldNames: ["Login", "ClientInfo", "Currency", "Archived"] } }),
   });
   const json = (await response.json()) as { result?: { Clients?: AgencyClientRow[] }; error?: YandexDirectResponse["error"] };
@@ -155,7 +159,7 @@ const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(reso
  * Offline reports answer 201/202 first; we poll with the delay Yandex suggests.
  */
 export async function fetchYandexCampaignReport(
-  clientLogin: string,
+  auth: YandexAuth,
   from: string,
   to: string,
   { maxAttempts = 12 }: { maxAttempts?: number } = {},
@@ -164,7 +168,7 @@ export async function fetchYandexCampaignReport(
     params: {
       SelectionCriteria: { DateFrom: from, DateTo: to },
       FieldNames: REPORT_FIELDS,
-      ReportName: `agency-os ${clientLogin} ${from} ${to}`,
+      ReportName: `agency-os ${auth.clientLogin ?? "self"} ${from} ${to}`,
       ReportType: "CUSTOM_REPORT",
       DateRangeType: "CUSTOM_DATE",
       Format: "TSV",
@@ -176,7 +180,7 @@ export async function fetchYandexCampaignReport(
       method: "POST",
       cache: "no-store",
       headers: {
-        ...headers(clientLogin),
+        ...headers(auth),
         processingMode: "auto",
         returnMoneyInMicros: "false",
         skipReportHeader: "true",
@@ -195,7 +199,7 @@ export async function fetchYandexCampaignReport(
       const json = (await response.json()) as YandexDirectResponse;
       message = errorMessage(json, response.status);
     } catch { /* non-JSON error body */ }
-    throw new Error(`${clientLogin}: ${message}`);
+    throw new Error(message);
   }
-  throw new Error(`${clientLogin}: отчёт Яндекс.Директа не успел сформироваться, повторите позже.`);
+  throw new Error("Отчёт Яндекс.Директа не успел сформироваться, повторите позже.");
 }
