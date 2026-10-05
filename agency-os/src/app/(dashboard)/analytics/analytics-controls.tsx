@@ -171,8 +171,20 @@ export function AnalyticsTabs({
     window.history.replaceState(null, "", `/analytics?${search.toString()}`);
   }
 
+  if (section === "ads") return (
+    <div className="inline-flex rounded-xl bg-neutral-100 p-1" role="tablist" aria-label="Раздел аналитики">
+      {tabs.map((tab) => (
+        <button type="button" key={tab.value} onClick={() => select(tab.value)} role="tab" aria-selected={section === tab.value}
+          className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950",
+            section === tab.value ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900")}>
+          <tab.icon className="size-4" aria-hidden="true" />{tab.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="grid w-full gap-2 sm:grid-cols-3 xl:max-w-3xl" role="tablist" aria-label="Раздел аналитики">
+    <div className={"grid w-full gap-2 sm:grid-cols-3 xl:max-w-3xl"} role="tablist" aria-label="Раздел аналитики">
       {tabs.map((tab) => (
         <button
           type="button"
@@ -181,7 +193,8 @@ export function AnalyticsTabs({
           role="tab"
           aria-selected={section === tab.value}
           className={cn(
-            "flex min-w-0 items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
+            "flex min-w-0 items-center rounded-lg border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
+            "gap-3 px-3.5 py-3",
             tab.base,
             section === tab.value && tab.active,
           )}
@@ -236,7 +249,7 @@ export function AnalyticsFilters({
         <div className={cn("grid gap-3", section === "ads" ? "sm:min-w-[300px]" : "sm:grid-cols-2 xl:min-w-[620px]")}>
           <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Проект
-          <Select value={project} onChange={(event) => navigate({ project: event.target.value, social: "" })}>
+          <Select value={project} onChange={(event) => navigate({ project: event.target.value, social: "", account: "", campaign: "", goal: "" })}>
             <option value="">Все проекты</option>
             {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </Select>
@@ -251,7 +264,7 @@ export function AnalyticsFilters({
         </div>
         <AnalyticsPeriodPicker key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} />
       </div>
-      <div className="mt-3 border-t border-neutral-100 pt-3">
+      <div className={cn("border-t border-neutral-100", section === "ads" ? "mt-2 pt-2" : "mt-3 pt-3")}>
         <AnalyticsTabs section={section} onSectionChange={onSectionChange} />
       </div>
     </div>

@@ -1,4 +1,4 @@
-import type { TimeseriesPoint } from "@/lib/ad-analytics";
+import type { Granularity, TimeseriesPoint } from "@/lib/ad-analytics";
 
 export type AdMetricDay = {
   campaign_id: string;
@@ -78,4 +78,57 @@ export function dailyAdDashboardPoints(
     ensure(row.date).conversions += Number(row.count);
   }
   return [...days.values()].sort((a, b) => a.bucket.localeCompare(b.bucket));
+}
+
+export function aggregateAdDashboardPoints(points: TimeseriesPoint[], granularity: Granularity): TimeseriesPoint[] {
+  if (granularity === "day") return points;
+  const buckets = new Map<string, TimeseriesPoint>();
+  for (const point of points) {
+    const date = new Date(`${point.bucket}T00:00:00Z`);
+    if (granularity === "week") date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+    else date.setUTCDate(1);
+    const key = date.toISOString().slice(0, 10);
+    const bucket = buckets.get(key) ?? { bucket: key, spend: 0, impressions: 0, clicks: 0, conversions: 0, conv_value: 0 };
+    for (const field of ["spend", "impressions", "clicks", "conversions", "conv_value"] as const) bucket[field] += point[field];
+    buckets.set(key, bucket);
+  }
+  return [...buckets.values()].sort((a, b) => a.bucket.localeCompare(b.bucket));
+}
+
+/** Every day of the period gets a bucket, so charts keep a true time axis. */
+export function fillAdDashboardDays(points: TimeseriesPoint[], from: string, to: string): TimeseriesPoint[] {
+  const byDay = new Map(points.map((point) => [point.bucket, point]));
+  const days: TimeseriesPoint[] = [];
+  const end = Date.parse(`${to}T00:00:00Z`);
+  for (let time = Date.parse(`${from}T00:00:00Z`); time <= end && days.length < 1100; time += 86_400_000) {
+    const bucket = new Date(time).toISOString().slice(0, 10);
+    days.push(byDay.get(bucket) ?? { bucket, spend: 0, impressions: 0, clicks: 0, conversions: 0, conv_value: 0 });
+  }
+  return days;
+}
+
+const CURRENCY_SIGN: Record<string, string> = { RUB: "₽", USD: "$", EUR: "€", GBP: "£" };
+
+/** Locale-independent formatting: identical on the server and in the browser. */
+export function formatAdNumber(value: number, fractionDigits = 0): string {
+  const sign = value < 0 ? "-" : "";
+  const [whole, fraction] = Math.abs(value).toFixed(fractionDigits).split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  const trimmed = fraction?.replace(/0+$/, "");
+  return `${sign}${grouped}${trimmed ? `,${trimmed}` : ""}`;
+}
+
+export function formatAdMoney(value: number, currency: string | null): string {
+  const digits = Math.abs(value) < 100 && value !== 0 ? 2 : 0;
+  const amount = formatAdNumber(value, digits);
+  if (!currency) return amount;
+  const sign = CURRENCY_SIGN[currency];
+  if (!sign) return `${amount} ${currency}`;
+  return currency === "RUB" ? `${amount} ₽` : `${sign}${amount}`;
+}
+
+/** Growth above +200% reads better as a multiple: "×107" instead of "10 600%". */
+export function formatAdPercent(value: number): string {
+  if (value >= 2) return `×${formatAdNumber(1 + value, 1 + value < 10 ? 1 : 0)}`;
+  return `${formatAdNumber(Math.abs(value * 100), Math.abs(value) < 0.1 ? 1 : 0)}%`;
 }

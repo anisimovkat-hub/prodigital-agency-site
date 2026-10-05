@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import {
   AudienceSyncAction,
   AnalyticsFilters,
+  AnalyticsTabs,
   ClientReportAction,
   InstagramSyncAction,
   type AnalyticsParams,
@@ -23,6 +24,7 @@ export function AnalyticsShell({
   projects,
   socialAccounts,
   adsPanel,
+  adsFilters,
   mediaPlan,
   contentSettings,
   dataWarnings = [],
@@ -34,6 +36,7 @@ export function AnalyticsShell({
   projects: { id: string; name: string }[];
   socialAccounts: SocialAccountOption[];
   adsPanel: ReactNode;
+  adsFilters?: ReactNode;
   mediaPlan?: ReactNode;
   contentSettings?: ReactNode;
   dataWarnings?: string[];
@@ -60,7 +63,7 @@ export function AnalyticsShell({
         mediaPlan={mediaPlan}
         audienceActions={<AudienceSyncAction projectId={params.project} />}
         filters={
-          <AnalyticsFilters
+          section === "ads" && adsFilters ? <div className="space-y-3"><AnalyticsTabs section={section} onSectionChange={setSection} />{adsFilters}</div> : <AnalyticsFilters
             params={params}
             projects={projects}
             socialAccounts={socialAccounts}

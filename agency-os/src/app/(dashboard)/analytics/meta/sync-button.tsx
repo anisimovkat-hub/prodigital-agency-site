@@ -23,7 +23,7 @@ function PeriodFields({ period, projectId }: SyncMetaButtonProps) {
   </>;
 }
 
-export function SyncMetaButton({ period, projectId }: SyncMetaButtonProps) {
+export function SyncMetaButton({ period, projectId, label = "Обновить основную статистику" }: SyncMetaButtonProps & { label?: string }) {
   const [state, formAction, pending] = useActionState<SyncMetaState, FormData>(
     syncMetaAds,
     undefined,
@@ -33,7 +33,7 @@ export function SyncMetaButton({ period, projectId }: SyncMetaButtonProps) {
     <form action={formAction} className="flex w-full flex-wrap items-center gap-2">
       <PeriodFields period={period} projectId={projectId} />
       <Button type="submit" disabled={pending}>
-        {pending ? "Обновляю кампании…" : "Обновить основную статистику"}
+        {pending ? "Обновляю кампании…" : label}
       </Button>
       {state && (
         <span

@@ -1,16 +1,23 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, ArrowDownRight, ArrowUpRight } from "lucide-react";
-import { SiGoogleads, SiMeta, SiTelegram, SiVk } from "react-icons/si";
+import { AlertTriangle, ArrowDown, ArrowUp, Info } from "lucide-react";
 
 import { AdPerformanceCharts } from "@/app/(dashboard)/analytics/meta/ad-performance-charts";
+import { AdResultsTable, type AdAccountResult } from "@/app/(dashboard)/analytics/meta/ad-results-table";
 import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
-import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
+import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
+import { LinkMetaAccount } from "@/app/(dashboard)/analytics/meta/link-meta-account";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import type { Granularity, TimeseriesPoint } from "@/lib/ad-analytics";
+import { selectDefaultAdGoal } from "@/lib/default-ad-goal";
 import { summarizeAudienceGoal, type AudienceGoalRow } from "@/lib/audience-goal-performance";
 import { formatCompact, type MarketingAudience, type MarketingAudienceItem } from "@/lib/marketing-analytics";
 import {
   dailyAdDashboardPoints,
+  aggregateAdDashboardPoints,
+  fillAdDashboardDays,
+  formatAdMoney,
+  formatAdNumber,
+  formatAdPercent,
   percentChange,
   summarizeAdDashboard,
   type AdConversionDay,
@@ -20,54 +27,35 @@ import {
 type AccountOption = { id: string; name: string; project_id: string | null; platform: string; currency: string | null };
 type CampaignOption = { id: string; name: string; project_id: string | null; account_id: string };
 
-const integer = (value: number) => value.toLocaleString("ru-RU", { maximumFractionDigits: 0 });
-const money = (value: number, currency: string | null) =>
-  `${value.toLocaleString("ru-RU", { maximumFractionDigits: value < 100 ? 2 : 0 })}${currency ? ` ${currency}` : ""}`;
+const integer = (value: number) => formatAdNumber(value);
+const money = (value: number, currency: string | null) => formatAdMoney(value, currency);
+const MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const formatAdDate = (value: string) => { const [year, month, day] = value.split("-").map(Number); return `${day} ${MONTHS[month - 1]} ${year}`; };
 
-function Delta({ value, lowerIsBetter = false, neutral = false, compact = false }: { value: number | null; lowerIsBetter?: boolean; neutral?: boolean; compact?: boolean }) {
-  if (value === null) return <span className="text-xs text-neutral-400">Нет сопоставимого периода</span>;
+function DeltaPill({ value, lowerIsBetter = false, neutral = false }: { value: number | null; lowerIsBetter?: boolean; neutral?: boolean }) {
+  if (value === null) return <span className="text-xs text-neutral-400">нет данных за прошлый период</span>;
   const improved = lowerIsBetter ? value < 0 : value > 0;
-  const Icon = value < 0 ? ArrowDownRight : ArrowUpRight;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${neutral ? "text-neutral-600" : improved ? "text-emerald-700" : "text-rose-600"}`}>
-      <Icon className="size-3.5" aria-hidden="true" />
-      {Math.abs(value * 100).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%
-      {!compact && <span className="ml-1 font-normal text-neutral-400">к прошлому периоду</span>}
-    </span>
-  );
+  const Icon = value < 0 ? ArrowDown : ArrowUp;
+  const tone = Math.abs(value) < 0.005 || neutral ? "bg-neutral-100 text-neutral-600" : improved ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600";
+  return <span className="flex flex-wrap items-center gap-2">
+    <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}><Icon className="size-3.5" aria-hidden="true" />{formatAdPercent(value)}</span>
+    <span className="text-xs text-neutral-400">к предыдущему периоду</span>
+  </span>;
 }
 
-function Kpi({ label, value, delta, accent, lowerIsBetter = false, neutral = false, hint }: {
-  label: string; value: string; delta: number | null; accent: string; lowerIsBetter?: boolean; neutral?: boolean; hint?: string;
+function Kpi({ label, value, delta, lowerIsBetter = false, neutral = false, hint, info }: {
+  label: string; value: string; delta: number | null; lowerIsBetter?: boolean; neutral?: boolean; hint?: string; info: string;
 }) {
   return (
-    <article className="min-w-0 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <div className={`mb-4 h-1 w-9 rounded-full ${accent}`} />
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-neutral-500">{label}</p>
-      <p className="mt-2 truncate text-3xl font-semibold tabular-nums tracking-tight text-neutral-950" title={value}>{value}</p>
-      <div className="mt-2 min-h-5">{hint ? <span className="text-xs text-neutral-400">{hint}</span> : <Delta value={delta} lowerIsBetter={lowerIsBetter} neutral={neutral} />}</div>
+    <article className="min-w-0 rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-sm font-medium text-neutral-700">{label}</p>
+        <span title={info} className="cursor-help text-neutral-300 hover:text-neutral-500"><Info className="size-4" aria-label={info} /></span>
+      </div>
+      <p className="mt-2 truncate text-[32px] leading-tight font-bold tabular-nums tracking-tight text-neutral-950" title={value}>{value}</p>
+      <div className="mt-2 min-h-6">{hint ? <span className="text-xs text-neutral-400">{hint}</span> : <DeltaPill value={delta} lowerIsBetter={lowerIsBetter} neutral={neutral} />}</div>
     </article>
   );
-}
-
-function PlatformMark({ platform }: { platform: string }) {
-  if (platform === "meta") return (
-    <span className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700" title="Meta"><SiMeta className="size-5" aria-hidden="true" /></span>
-  );
-  if (platform === "telegram_ads") return <span className="flex size-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600" title="Telegram Ads"><SiTelegram className="size-5" aria-hidden="true" /></span>;
-  if (platform === "vk") return <span className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700" title="VK Реклама"><SiVk className="size-5" aria-hidden="true" /></span>;
-  if (platform === "yandex_direct") return <span className="flex size-8 items-center justify-center rounded-lg bg-red-50 text-base font-bold text-red-600" title="Яндекс Директ">Я</span>;
-  if (platform === "google_ads") return <span className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600" title="Google Ads"><SiGoogleads className="size-5" aria-hidden="true" /></span>;
-  return <span className="flex size-8 items-center justify-center rounded-lg bg-neutral-100 text-sm font-semibold text-neutral-600" aria-hidden="true">•</span>;
-}
-
-function Sparkline({ values }: { values: number[] }) {
-  if (!values.length) return <span className="text-neutral-300">—</span>;
-  const max = Math.max(1, ...values);
-  const points = values.map((value, index) => `${index * 82 / Math.max(1, values.length - 1)},${22 - value / max * 18}`).join(" ");
-  return <svg viewBox="0 0 84 26" className="h-6 w-20" role="img" aria-label="Динамика результатов">
-    <polyline fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" points={points} />
-  </svg>;
 }
 
 function AudienceBreakdown({ title, items }: { title: string; items: MarketingAudienceItem[] }) {
@@ -115,8 +103,8 @@ function GoalBreakdown({ title, items, fallback, currency }: {
 export function AdAnalyticsPanel({
   current, accounts, campaigns, goals, granularity, currencies, tree, audience,
   audienceActions, hasMetaAccount, freshnessWarning, metrics, conversions,
-  previousMetrics, previousConversions,
-  audiencePerformanceRows,
+  previousMetrics, previousConversions, unlinkedMetaAccounts = [],
+  audiencePerformanceRows, latestDate = null,
 }: {
   current: AdsFilterValues;
   accounts: AccountOption[];
@@ -137,16 +125,17 @@ export function AdAnalyticsPanel({
   previousMetrics: AdMetricDay[];
   previousConversions: AdConversionDay[];
   audiencePerformanceRows: AudienceGoalRow[];
+  unlinkedMetaAccounts?: { id: string; name: string }[];
+  latestDate?: string | null;
 }) {
-  const goal = current.goal && goals.some((item) => item.value === current.goal)
-    ? current.goal : goals.length === 1 ? goals[0].value : null;
-  const goalLabel = goals.find((item) => item.value === goal)?.label ?? null;
   const selectedCampaigns = campaigns.filter((campaign) =>
     (!current.project || campaign.project_id === current.project) &&
     (!current.account || campaign.account_id === current.account) &&
     (!current.campaign || campaign.id === current.campaign),
   );
   const campaignIds = new Set(selectedCampaigns.map((campaign) => campaign.id));
+  const goal = selectDefaultAdGoal(current.goal, goals, conversions, campaignIds);
+  const goalLabel = goals.find((item) => item.value === goal)?.label ?? null;
   const selectedAccounts = accounts.filter((account) => !current.account || account.id === current.account);
   const usedAccountIds = new Set(selectedCampaigns.map((campaign) => campaign.account_id));
   const usedCurrencies = new Set(selectedAccounts.filter((account) => usedAccountIds.has(account.id)).map((account) => account.currency));
@@ -154,67 +143,75 @@ export function AdAnalyticsPanel({
   const currency = oneCurrency ? [...usedCurrencies][0] : null;
   const currentTotals = summarizeAdDashboard(metrics, conversions, campaignIds, goal, oneCurrency);
   const previousTotals = summarizeAdDashboard(previousMetrics, previousConversions, campaignIds, goal, oneCurrency);
-  const points = dailyAdDashboardPoints(metrics, conversions, campaignIds, goal);
+  const points = aggregateAdDashboardPoints(fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, campaignIds, goal), current.from, current.to), granularity);
   const hasData = points.some((point) => point.spend > 0 || point.impressions > 0);
+  const goalRows = goals.map((option) => ({
+    ...option,
+    total: summarizeAdDashboard(metrics, conversions, campaignIds, option.value, oneCurrency),
+  })).filter((option) => (option.total.conversions ?? 0) > 0);
+  const accountResults: AdAccountResult[] = selectedAccounts.map((account) => {
+    const accountIds = new Set(selectedCampaigns.filter((campaign) => campaign.account_id === account.id).map((campaign) => campaign.id));
+    const totals = summarizeAdDashboard(metrics, conversions, accountIds, goal, !!account.currency);
+    const previous = summarizeAdDashboard(previousMetrics, previousConversions, accountIds, goal, !!account.currency);
+    const campaignResults = selectedCampaigns.filter((campaign) => accountIds.has(campaign.id)).map((campaign) => {
+      const ids = new Set([campaign.id]);
+      const total = summarizeAdDashboard(metrics, conversions, ids, goal, !!account.currency);
+      const before = summarizeAdDashboard(previousMetrics, previousConversions, ids, goal, !!account.currency);
+      return { id: campaign.id, name: campaign.name, ...total, delta: percentChange(total.cpa, before.cpa), trend: fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, ids, goal), current.from, current.to) };
+    }).filter((campaign) => campaign.spend > 0 || campaign.impressions > 0 || (campaign.conversions ?? 0) > 0).sort((a, b) => b.spend - a.spend);
+    return { ...account, ...totals, delta: percentChange(totals.cpa, previous.cpa), trend: fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, accountIds, goal), current.from, current.to), campaigns: campaignResults };
+  }).filter((account) => account.campaigns.length > 0);
 
   return (
-    <div className="space-y-5">
-      <AdsFilters embedded projects={[]} accounts={accounts} campaigns={campaigns} goals={goals} current={{ ...current, goal: goal ?? "" }} />
-      {freshnessWarning && <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{freshnessWarning}</p>}
+    <div className="space-y-3">
+      {!selectedAccounts.length && current.project && <section className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+        <div><h3 className="text-sm font-semibold text-neutral-950">Рекламный кабинет ещё не подключён</h3><p className="mt-1 text-xs leading-relaxed text-neutral-600">Проверьте кабинеты Meta, затем привяжите нужный к этому проекту. Данные других проектов не будут смешаны.</p></div>
+        <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} label="Найти кабинеты Meta" />
+        <LinkMetaAccount projectId={current.project} accounts={unlinkedMetaAccounts} />
+      </section>}
+      {freshnessWarning && <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />{freshnessWarning}</p>}
       {currencies.length > 1 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Выбраны кабинеты в разных валютах ({currencies.join(", ")}). Общие расход и цена цели скрыты; выберите кабинет.</p>}
 
       <section className="grid gap-3 md:grid-cols-3" aria-label="Ключевые показатели рекламы">
-        <Kpi label={goalLabel ? `Цена: ${goalLabel}` : "Цена цели"} value={goal && oneCurrency && currentTotals.cpa !== null ? money(currentTotals.cpa, currency) : "—"}
-          delta={goal && oneCurrency ? percentChange(currentTotals.cpa, previousTotals.cpa) : null} accent="bg-blue-600" lowerIsBetter hint={!goal ? "сначала выберите цель" : !oneCurrency ? "разные валюты" : undefined} />
-        <Kpi label={goalLabel ?? "Целевые действия"} value={goal && currentTotals.conversions !== null ? integer(currentTotals.conversions) : "—"}
-          delta={goal ? percentChange(currentTotals.conversions, previousTotals.conversions) : null} accent="bg-emerald-500" hint={!goal ? "сначала выберите цель" : undefined} />
+        <Kpi label="Цена результата" value={goal && oneCurrency && currentTotals.cpa !== null ? money(currentTotals.cpa, currency) : "—"}
+          delta={goal && oneCurrency ? percentChange(currentTotals.cpa, previousTotals.cpa) : null} lowerIsBetter
+          hint={!goal ? "сначала выберите цель" : !oneCurrency ? "кабинеты в разных валютах" : undefined}
+          info={`Расход, делённый на число результатов${goalLabel ? ` «${goalLabel}»` : ""} за период`} />
+        <Kpi label={goalLabel ? `Результаты · ${goalLabel}` : "Результаты"} value={goal && currentTotals.conversions !== null ? integer(currentTotals.conversions) : "—"}
+          delta={goal ? percentChange(currentTotals.conversions, previousTotals.conversions) : null}
+          hint={!goal ? "сначала выберите цель" : undefined}
+          info="Количество выбранных целевых действий по данным рекламных кабинетов" />
         <Kpi label="Расход" value={oneCurrency ? money(currentTotals.spend, currency) : "—"}
-          delta={oneCurrency ? percentChange(currentTotals.spend, previousTotals.spend) : null} accent="bg-violet-500" neutral hint={!oneCurrency ? "разные валюты" : undefined} />
+          delta={oneCurrency ? percentChange(currentTotals.spend, previousTotals.spend) : null} neutral
+          hint={!oneCurrency ? "кабинеты в разных валютах" : undefined}
+          info="Сумма расхода по выбранным кабинетам без НДС, как её отдаёт рекламная система" />
       </section>
 
       <AdPerformanceCharts points={points} goalLabel={goalLabel} currency={currency} granularity={granularity} />
 
-      <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-neutral-100 px-5 py-4">
-          <h3 className="font-semibold text-neutral-950">Результаты по рекламным кабинетам</h3>
-          <span className="text-xs text-neutral-400">Один проект · отдельные валюты и цели</span>
+      <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-4 pb-2">
+          <h3 className="text-[15px] font-semibold text-neutral-950">Где получены результаты</h3>
+          {goalLabel && <span className="text-xs text-neutral-400">Цель: {goalLabel}</span>}
         </div>
-        {!hasData ? <p className="p-5 text-sm text-neutral-500">За выбранный период нет рекламных данных. Проверьте подключение кабинетов или измените даты.</p> :
-          <div className="divide-y divide-neutral-100">{selectedAccounts.map((account, index) => {
-            const accountIds = new Set(selectedCampaigns.filter((campaign) => campaign.account_id === account.id).map((campaign) => campaign.id));
-            const accountTotals = summarizeAdDashboard(metrics, conversions, accountIds, goal, !!account.currency);
-            const previousAccount = summarizeAdDashboard(previousMetrics, previousConversions, accountIds, goal, !!account.currency);
-            const accountDelta = percentChange(accountTotals.cpa, previousAccount.cpa);
-            const accountPoints = dailyAdDashboardPoints(metrics, conversions, accountIds, goal);
-            const accountRows = tree.filter((row) => accountIds.has(row.id));
-            if (!accountRows.length && accountTotals.impressions === 0 && accountTotals.spend === 0) return null;
-            return <details key={account.id} className="group" open={index === 0}>
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 px-5 py-4 transition-colors hover:bg-neutral-50 [&::-webkit-details-marker]:hidden">
-                <PlatformMark platform={account.platform} />
-                <span className="min-w-40 flex-1 text-sm font-semibold text-neutral-900">{account.name}</span>
-                <span className="text-xs tabular-nums text-neutral-500">{goalLabel ?? "Результаты"}: <strong className="ml-1 text-sm text-neutral-900">{goal ? integer(accountTotals.conversions ?? 0) : "—"}</strong></span>
-                <span className="min-w-28 text-right text-xs tabular-nums text-neutral-500">Расход <strong className="ml-1 text-sm text-neutral-900">{money(accountTotals.spend, account.currency)}</strong></span>
-                <span className="min-w-28 text-right text-xs tabular-nums text-neutral-500">Цена <strong className="ml-1 text-sm text-neutral-900">{goal && accountTotals.cpa !== null ? money(accountTotals.cpa, account.currency) : "—"}</strong></span>
-                <span className="min-w-12 text-right text-xs"><Delta value={accountDelta} lowerIsBetter compact /></span>
-                <Sparkline values={accountPoints.map((point) => point.conversions)} />
-                <span className="text-xs text-neutral-400 group-open:rotate-180" aria-hidden="true">⌄</span>
-              </summary>
-              <div className="overflow-x-auto border-t border-neutral-100 bg-neutral-50/40 px-5 py-3">
-                <table className="w-full min-w-[580px] text-left text-sm">
-                  <thead><tr className="text-xs text-neutral-500"><th className="pb-2 font-medium">Кампания</th><th className="pb-2 text-right font-medium">Клики</th><th className="pb-2 text-right font-medium">Результаты</th><th className="pb-2 text-right font-medium">Расход</th><th className="pb-2 text-right font-medium">Цена цели</th><th className="pb-2 text-right font-medium">Изменение</th><th className="pb-2 text-right font-medium">Динамика</th></tr></thead>
-                  <tbody>{accountRows.map((row) => {
-                    const result = summarizeAdDashboard(metrics, conversions, new Set([row.id]), goal, !!account.currency);
-                    const previous = summarizeAdDashboard(previousMetrics, previousConversions, new Set([row.id]), goal, !!account.currency);
-                    const series = dailyAdDashboardPoints(metrics, conversions, new Set([row.id]), goal);
-                    return <tr key={row.id} className="border-t border-neutral-100"><td className="max-w-72 truncate py-2 pr-4 text-neutral-800" title={row.name}>{row.name}</td><td className="py-2 text-right tabular-nums text-neutral-600">{integer(result.clicks)}</td><td className="py-2 text-right tabular-nums font-medium text-neutral-900">{goal ? integer(result.conversions ?? 0) : "—"}</td><td className="py-2 text-right tabular-nums text-neutral-600">{money(result.spend, account.currency)}</td><td className="py-2 text-right tabular-nums font-medium text-neutral-900">{goal && result.cpa !== null ? money(result.cpa, account.currency) : "—"}</td><td className="py-2 text-right"><Delta value={percentChange(result.cpa, previous.cpa)} lowerIsBetter compact /></td><td className="py-2"><div className="flex justify-end"><Sparkline values={series.map((point) => point.conversions)} /></div></td></tr>;
-                  })}</tbody>
-                </table>
-              </div>
-            </details>;
-          })}</div>}
+        {!hasData ? <p className="px-5 pb-5 text-sm text-neutral-500">За выбранный период нет рекламных данных. Проверьте подключение кабинетов или измените даты.</p> : <AdResultsTable accounts={accountResults} />}
       </section>
 
-      {hasData && <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs tabular-nums text-neutral-500"><span>Показы <strong className="ml-1 text-neutral-800">{integer(currentTotals.impressions)}</strong></span><span>Клики <strong className="ml-1 text-neutral-800">{integer(currentTotals.clicks)}</strong></span><span>CTR <strong className="ml-1 text-neutral-800">{currentTotals.impressions ? `${(currentTotals.clicks / currentTotals.impressions * 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%` : "—"}</strong></span></div>}
+      {(hasData || latestDate) && <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-1 text-xs tabular-nums text-neutral-400">
+        {hasData ? <span className="flex flex-wrap gap-x-4 gap-y-1">
+          <span>Показы <strong className="ml-1 font-semibold text-neutral-800">{integer(currentTotals.impressions)}</strong></span>
+          <span>Клики <strong className="ml-1 font-semibold text-neutral-800">{integer(currentTotals.clicks)}</strong></span>
+          <span>CTR <strong className="ml-1 font-semibold text-neutral-800">{currentTotals.impressions ? `${formatAdNumber(currentTotals.clicks / currentTotals.impressions * 100, 2)}%` : "—"}</strong></span>
+        </span> : <span />}
+        {latestDate && <span>Последние данные в кабинетах: {formatAdDate(latestDate)}</span>}
+      </div>}
+
+      {goalRows.length > 1 && <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">Все цели и конверсии · {goalRows.length}</summary>
+        <p className="mt-2 text-xs text-neutral-500">Каждая цель показана отдельно: Meta может учитывать одно действие сразу в нескольких типах конверсий, поэтому числа не складываются.</p>
+        <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[420px] text-left text-sm"><thead><tr className="border-b border-neutral-100 text-xs text-neutral-500"><th className="py-2 font-medium">Цель</th><th className="py-2 text-right font-medium">Конверсии</th><th className="py-2 text-right font-medium">Цена</th></tr></thead><tbody>{goalRows.map((row) => <tr key={row.value} className="border-b border-neutral-100 last:border-0"><td className="py-2 text-neutral-800">{row.label}</td><td className="py-2 text-right tabular-nums">{integer(row.total.conversions ?? 0)}</td><td className="py-2 text-right tabular-nums">{row.total.cpa !== null ? money(row.total.cpa, currency) : "—"}</td></tr>)}</tbody></table></div>
+      </details>}
+
 
       {hasMetaAccount && <section className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-neutral-950">Аудитория и география</h3><p className="mt-1 max-w-3xl text-xs leading-relaxed text-neutral-500">Если Meta передала расход и конверсии по выбранной цели, срезы отсортированы по цене результата. Иначе показано только распределение показов — по нему нельзя судить о конверсии. Срезы разных валют не объединяются.</p></div>{audienceActions}</div>

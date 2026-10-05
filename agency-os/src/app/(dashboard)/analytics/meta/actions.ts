@@ -19,6 +19,34 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 export type SyncMetaState = { ok: boolean; message: string } | undefined;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Assign an already discovered, unlinked Meta account to one active project. */
+export async function linkMetaAccount(
+  _prevState: SyncMetaState,
+  formData: FormData,
+): Promise<SyncMetaState> {
+  const accountId = formData.get("account_id");
+  const projectId = formData.get("project_id");
+  if (typeof accountId !== "string" || !UUID.test(accountId) || typeof projectId !== "string" || !UUID.test(projectId)) {
+    return { ok: false, message: "Выберите проект и рекламный кабинет." };
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Войдите в аккаунт владельца." };
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (profile?.role !== "owner") return { ok: false, message: "Недостаточно прав." };
+  const { data: project, error: projectError } = await supabase.from("projects").select("id").eq("id", projectId).in("stage", ["launching", "active"]).maybeSingle();
+  if (projectError || !project) return { ok: false, message: "Активный проект не найден." };
+  const { data: account, error: accountError } = await supabase.from("ad_accounts").select("id").eq("id", accountId).eq("platform", "meta").is("project_id", null).maybeSingle();
+  if (accountError || !account) return { ok: false, message: "Кабинет уже привязан или недоступен." };
+  const { data: linked, error: linkError } = await supabase.from("ad_accounts").update({ project_id: projectId }).eq("id", accountId).is("project_id", null).select("id").maybeSingle();
+  if (linkError || !linked) return { ok: false, message: "Не удалось привязать кабинет." };
+  const { error: campaignsError } = await supabase.from("ad_campaigns").update({ project_id: projectId }).eq("ad_account_id", accountId).is("project_id", null);
+  if (campaignsError) return { ok: false, message: `Кабинет привязан, но кампании требуют проверки: ${campaignsError.message}` };
+  revalidatePath("/analytics");
+  return { ok: true, message: "Кабинет подключён к проекту. Теперь обновите статистику за нужный период." };
+}
 
 function selectedProjectId(formData: FormData | undefined): string | undefined {
   const value = formData?.get("project_id");

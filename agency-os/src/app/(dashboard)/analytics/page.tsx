@@ -1,6 +1,6 @@
 import { AdAnalyticsPanel } from "@/app/(dashboard)/analytics/meta/ad-analytics-panel";
 import type { AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
-import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
+import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import {
   AudienceSyncAction,
   InstagramAccountAssignment,
@@ -21,6 +21,8 @@ import {
   type TimeseriesPoint,
 } from "@/lib/ad-analytics";
 import { describeAdDataFreshness } from "@/lib/ad-data-freshness";
+import { selectDefaultAdGoal } from "@/lib/default-ad-goal";
+import { fetchCompleteQuery } from "@/lib/complete-query";
 import type {
   MarketingAdDetail,
   MarketingAudience,
@@ -170,8 +172,8 @@ export default async function AnalyticsPage({
   let socialId = raw.social ?? "";
   const section = marketingSection(raw.section, raw.view);
   const granularity: Granularity = isGranularity(raw.gran) ? raw.gran : "day";
-  const accountFilter = raw.account ?? "";
-  const campaignFilter = raw.campaign ?? "";
+  let accountFilter = raw.account ?? "";
+  let campaignFilter = raw.campaign ?? "";
   const goalFilter = raw.goal ?? "";
 
   const [
@@ -252,6 +254,8 @@ export default async function AnalyticsPage({
   const visibleAdAccountRows = currentAdAccountRows.filter(
     (account) => !projectId || account.project_id === projectId,
   );
+  if (accountFilter && !visibleAdAccountRows.some((account) => account.id === accountFilter)) accountFilter = "";
+  if (campaignFilter && !allCampaignRows.some((campaign) => campaign.id === campaignFilter && (!projectId || campaign.project_id === projectId) && (!accountFilter || campaign.ad_account_id === accountFilter))) campaignFilter = "";
   const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
   const campaignIdList = [...campaignIds];
@@ -316,26 +320,24 @@ export default async function AnalyticsPage({
         .order("reach", { ascending: false })
         .range(0, 49)
     : Promise.resolve({ data: [], error: null });
-  const paidMetricsQuery = supabase
-    .from("ad_campaign_metrics")
-    .select("campaign_id,date,spend,impressions,clicks,reach")
-    .gte("date", from)
-    .lte("date", to);
-  const conversionsQuery = supabase
-    .from("ad_conversions")
-    .select("campaign_id,date,action_type,count,value")
-    .gte("date", from)
-    .lte("date", to);
-  const paidMetricsPromise = projectId
-    ? campaignIdList.length
-      ? paidMetricsQuery.in("campaign_id", campaignIdList).range(0, 9999)
-      : Promise.resolve({ data: [] as CampaignMetricRow[], error: null })
-    : paidMetricsQuery.range(0, 9999);
-  const conversionsPromise = projectId
-    ? campaignIdList.length
-      ? conversionsQuery.in("campaign_id", campaignIdList).range(0, 19999)
-      : Promise.resolve({ data: [] as ConversionRow[], error: null })
-    : conversionsQuery.range(0, 19999);
+  function completeMetrics(start: string, end: string) {
+    if (projectId && !campaignIdList.length) return Promise.resolve({ data: [] as CampaignMetricRow[], error: null });
+    return fetchCompleteQuery<CampaignMetricRow>((offset, last) => {
+      const query = supabase.from("ad_campaign_metrics").select("campaign_id,date,spend,impressions,clicks,reach")
+        .gte("date", start).lte("date", end).order("date").order("campaign_id");
+      return (projectId ? query.in("campaign_id", campaignIdList) : query).range(offset, last);
+    }, "Метрики рекламы");
+  }
+  function completeConversions(start: string, end: string) {
+    if (projectId && !campaignIdList.length) return Promise.resolve({ data: [] as ConversionRow[], error: null });
+    return fetchCompleteQuery<ConversionRow>((offset, last) => {
+      const query = supabase.from("ad_conversions").select("campaign_id,date,action_type,count,value")
+        .gte("date", start).lte("date", end).order("date").order("campaign_id").order("action_type");
+      return (projectId ? query.in("campaign_id", campaignIdList) : query).range(offset, last);
+    }, "Конверсии рекламы");
+  }
+  const paidMetricsPromise = completeMetrics(from, to);
+  const conversionsPromise = completeConversions(from, to);
   const audiencePromise = (async () => {
     if (!projectId || !campaignIdList.length) return { data: [] as AudienceRow[], error: null };
     const rows: AudienceRow[] = [];
@@ -363,38 +365,8 @@ export default async function AnalyticsPage({
         .limit(1)
         .maybeSingle()
     : Promise.resolve({ data: null as { date: string } | null, error: null });
-  const portfolioPreviousMetricsPromise = projectId && campaignIdList.length
-    ? supabase
-        .from("ad_campaign_metrics")
-        .select("campaign_id,date,spend,impressions,clicks,reach")
-        .in("campaign_id", campaignIdList)
-        .gte("date", previousPeriod.from)
-        .lte("date", previousPeriod.to)
-        .range(0, 19999)
-    : !projectId
-      ? supabase
-        .from("ad_campaign_metrics")
-        .select("campaign_id,date,spend,impressions,clicks,reach")
-        .gte("date", previousPeriod.from)
-        .lte("date", previousPeriod.to)
-        .range(0, 19999)
-      : Promise.resolve({ data: [] as CampaignMetricRow[], error: null });
-  const portfolioPreviousConversionsPromise = projectId && campaignIdList.length
-    ? supabase
-        .from("ad_conversions")
-        .select("campaign_id,date,action_type,count,value")
-        .in("campaign_id", campaignIdList)
-        .gte("date", previousPeriod.from)
-        .lte("date", previousPeriod.to)
-        .range(0, 19999)
-    : !projectId
-      ? supabase
-        .from("ad_conversions")
-        .select("campaign_id,date,action_type,count,value")
-        .gte("date", previousPeriod.from)
-        .lte("date", previousPeriod.to)
-        .range(0, 19999)
-      : Promise.resolve({ data: [] as ConversionRow[], error: null });
+  const portfolioPreviousMetricsPromise = completeMetrics(previousPeriod.from, previousPeriod.to);
+  const portfolioPreviousConversionsPromise = completeConversions(previousPeriod.from, previousPeriod.to);
   const portfolioLatestMetricDatesPromise = !projectId && campaignIdList.length
     ? supabase
         .from("ad_campaign_metrics")
@@ -855,7 +827,7 @@ export default async function AnalyticsPage({
     project: projectId,
     account: accountFilter,
     campaign: campaignFilter,
-    goal: goalFilter,
+    goal: selectDefaultAdGoal(goalFilter, goalOptions, allGoalConversions, filteredCampaignIds) ?? "",
   };
   const params: AnalyticsParams = { from, to, project: projectId, social: socialId, section };
   const freshnessWarning = describeAdDataFreshness({
@@ -902,6 +874,7 @@ export default async function AnalyticsPage({
         name: `@${account.username || account.name || account.id}`,
       }))}
       contentSettings={contentSettings}
+      adsFilters={<AdsFilters report projects={projectRows} accounts={visibleAdAccountRows.map((account) => ({ id: account.id, name: account.name ?? account.external_id, project_id: account.project_id }))} campaigns={allCampaignRows.map((campaign) => ({ id: campaign.id, name: campaign.name ?? "Без названия", project_id: campaign.project_id, account_id: campaign.ad_account_id }))} goals={goalOptions} current={currentAdsFilters} />}
       dataWarnings={dataWarnings}
       portfolioOverview={portfolioSummary ? (
         <ProjectAnalyticsOverview rows={portfolioSummary} from={from} to={to} projects={projectRows} />
@@ -968,8 +941,10 @@ export default async function AnalyticsPage({
             audience={audience}
             audiencePerformanceRows={((audienceMetrics ?? []) as AudienceRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id))}
             hasMetaAccount={visibleAdAccountRows.some((account) => account.platform === "meta")}
+            unlinkedMetaAccounts={currentAdAccountRows.filter((account) => account.platform === "meta" && !account.project_id).map((account) => ({ id: account.id, name: account.name ?? account.external_id }))}
             audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
             freshnessWarning={freshnessWarning}
+            latestDate={latestPaidMetric?.date ?? null}
             metrics={paidRows}
             conversions={allGoalConversions}
             previousMetrics={(portfolioPreviousMetrics ?? []) as CampaignMetricRow[]}
