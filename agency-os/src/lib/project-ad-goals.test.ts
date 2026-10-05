@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+
+import { attributeCampaignGoals, buildGoalCards, goalDailyPoints } from "@/lib/project-ad-goals";
+
+const campaigns = [
+  { id: "lead", platform: "meta", objective: "OUTCOME_LEADS", optimization_goal: "LEAD_GENERATION" },
+  { id: "sale", platform: "meta", objective: "OUTCOME_SALES", optimization_goal: "OFFSITE_CONVERSIONS:PURCHASE" },
+  { id: "traffic", platform: "meta", objective: "OUTCOME_TRAFFIC", optimization_goal: "PROFILE_VISIT" },
+];
+const metrics = [
+  { campaign_id: "lead", date: "2026-10-01", spend: 100, impressions: 1000, clicks: 10 },
+  { campaign_id: "sale", date: "2026-10-01", spend: 300, impressions: 2000, clicks: 20 },
+  { campaign_id: "traffic", date: "2026-10-01", spend: 50, impressions: 5000, clicks: 90 },
+];
+const conversions = [
+  { campaign_id: "lead", date: "2026-10-01", action_type: "lead", count: 10 },
+  { campaign_id: "sale", date: "2026-10-01", action_type: "purchase", count: 3 },
+  { campaign_id: "sale", date: "2026-10-01", action_type: "add_to_cart", count: 12 },
+  { campaign_id: "sale", date: "2026-10-01", action_type: "lead", count: 1 },
+  { campaign_id: "traffic", date: "2026-10-01", action_type: "instagram_profile_visit", count: 80 },
+];
+const goals = attributeCampaignGoals(campaigns, conversions);
+const selected = new Set(campaigns.map((campaign) => campaign.id));
+
+describe("buildGoalCards", () => {
+  it("prices each goal only by the spend of its own campaigns", () => {
+    const cards = buildGoalCards({ selected, goals, settings: [], metrics, conversions, previousMetrics: [], previousConversions: [] });
+    expect(cards.map((card) => [card.label, card.current.results, card.current.spend, card.current.cpa])).toEqual([
+      ["Покупки", 3, 300, 100],
+      ["Лиды", 10, 100, 10],
+      ["Переходы в профиль", 80, 50, 0.625],
+    ]);
+  });
+
+  it("adds an extra goal counted across all campaigns without a price", () => {
+    const cards = buildGoalCards({ selected, goals, settings: [{ goal_key: "cart", label: "Корзина", hidden: false, extra: true }], metrics, conversions, previousMetrics: [], previousConversions: [] });
+    expect(cards.at(-1)).toMatchObject({ label: "Корзина", extra: true, current: { results: 12, cpa: null } });
+  });
+
+  it("hides and renames goals from project settings", () => {
+    const cards = buildGoalCards({ selected, goals, settings: [{ goal_key: "profile", label: null, hidden: true, extra: false }, { goal_key: "leads", label: "Заявки", hidden: false, extra: false }], metrics, conversions, previousMetrics: [], previousConversions: [] });
+    expect(cards.map((card) => card.label)).toEqual(["Покупки", "Заявки"]);
+  });
+
+  it("drops goals whose campaigns did nothing in the period", () => {
+    const idle = buildGoalCards({ selected, goals, settings: [], metrics: metrics.filter((row) => row.campaign_id !== "lead"), conversions: conversions.filter((row) => row.campaign_id !== "lead"), previousMetrics: [], previousConversions: [] });
+    expect(idle.map((card) => card.key)).not.toContain("leads");
+  });
+});
+
+describe("goalDailyPoints", () => {
+  it("counts each campaign's own action and its spend", () => {
+    const [leads] = buildGoalCards({ selected: new Set(["lead", "sale"]), goals, settings: [], metrics, conversions, previousMetrics: [], previousConversions: [] }).filter((card) => card.key === "leads");
+    expect(goalDailyPoints(metrics, conversions, leads, goals)).toEqual([{ bucket: "2026-10-01", spend: 100, impressions: 1000, clicks: 10, conversions: 10, conv_value: 0 }]);
+  });
+});

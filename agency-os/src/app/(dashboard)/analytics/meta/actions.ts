@@ -387,3 +387,29 @@ export async function syncMetaAdDetails(
     };
   }
 }
+
+export type GoalSettingsState = { ok: boolean; message: string } | undefined;
+
+/** Owner-only: names, visibility and extra goals of one project's ad report. */
+export async function saveGoalSettings(_state: GoalSettingsState, formData: FormData): Promise<GoalSettingsState> {
+  const projectId = formData.get("project_id");
+  if (typeof projectId !== "string" || !UUID.test(projectId)) return { ok: false, message: "Проект не найден." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "Войдите в аккаунт владельца." };
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (profile?.role !== "owner") return { ok: false, message: "Настраивать цели может владелец." };
+  const keys = formData.getAll("goal_key").map(String).filter((key) => /^[a-z_]+$|^custom:\d+$/.test(key)).slice(0, 50);
+  const rows = keys.map((key) => ({
+    project_id: projectId,
+    goal_key: key,
+    label: String(formData.get(`label:${key}`) ?? "").trim().slice(0, 60) || null,
+    hidden: formData.get(`show:${key}`) !== "on",
+    extra: formData.get(`extra:${key}`) === "on",
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await supabase.from("project_ad_goal_settings").upsert(rows, { onConflict: "project_id,goal_key" });
+  if (error) return { ok: false, message: `Не удалось сохранить: ${error.message}` };
+  revalidatePath("/analytics");
+  return { ok: true, message: "Цели проекта сохранены." };
+}

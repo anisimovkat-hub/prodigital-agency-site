@@ -1,46 +1,46 @@
-type AdDataFreshnessInput = {
-  latestDate: string | null;
-  from: string;
-  to: string;
-};
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC" }).format(
     new Date(`${value}T00:00:00Z`),
   );
 }
 
-function daysBetween(left: string, right: string): number {
-  const leftMs = new Date(`${left}T00:00:00Z`).getTime();
-  const rightMs = new Date(`${right}T00:00:00Z`).getTime();
-  return Math.round((rightMs - leftMs) / 86_400_000);
-}
+export type AdSourceState = "ok" | "error" | "paused" | "no_results" | "not_loaded";
+export type AdSourceStatus = { state: AdSourceState; message: string | null };
+
+type SourceAccount = { platform: string; last_sync_at: string | null; last_sync_error: string | null };
 
 /**
- * Не даёт пустому выбранному периоду выглядеть как настоящий нулевой расход.
- * Один день допуска оставляем для ещё не закрывшихся суток в Meta.
+ * One honest status per project's ad sources:
+ * - error: a load really failed, or the daily load has not run for two days;
+ * - paused: Meta confirms no active campaigns, so missing days are expected;
+ * - no_results: loads succeed but nothing ran in the selected period;
+ * - not_loaded: accounts were never loaded.
  */
-export function describeAdDataFreshness({
-  latestDate,
-  from,
-  to,
-}: AdDataFreshnessInput): string | null {
-  if (!latestDate) {
-    return "Рекламные данные ещё не загружены. Обновите статистику Meta.";
+export function describeAdSourceStatus({ accounts, campaignStatuses, latestDate, hasDataInPeriod, now = new Date() }: {
+  accounts: SourceAccount[];
+  campaignStatuses: (string | null)[];
+  latestDate: string | null;
+  hasDataInPeriod: boolean;
+  now?: Date;
+}): AdSourceStatus {
+  if (!accounts.length) return { state: "ok", message: null };
+  const failed = accounts.find((account) => account.last_sync_error);
+  if (failed) return { state: "error", message: `Ошибка загрузки: ${failed.last_sync_error}` };
+  const lastSync = accounts.reduce<number | null>((latest, account) => {
+    const time = account.last_sync_at ? Date.parse(account.last_sync_at) : NaN;
+    return Number.isFinite(time) && (latest === null || time > latest) ? time : latest;
+  }, null);
+  if (lastSync === null) {
+    return latestDate ? { state: "ok", message: null } : { state: "not_loaded", message: "Статистика кабинетов ещё не загружалась." };
   }
-  if (![latestDate, from, to].every((value) => ISO_DATE.test(value))) {
-    return null;
+  if (now.getTime() - lastSync > 2 * 86_400_000) {
+    return { state: "error", message: `Ошибка загрузки: автоматическое обновление не запускалось с ${formatDate(new Date(lastSync).toISOString().slice(0, 10))}.` };
   }
-
-  const lagDays = daysBetween(latestDate, to);
-  if (lagDays <= 1) return null;
-
-  const latestLabel = formatDate(latestDate);
-  if (latestDate < from) {
-    return `Последние рекламные данные — за ${latestLabel}. Выбранный период начинается позже, поэтому нулевые значения ниже не означают отсутствие расхода.`;
+  if (hasDataInPeriod) return { state: "ok", message: null };
+  const metaOnly = accounts.every((account) => account.platform === "meta");
+  const anyActive = campaignStatuses.some((status) => status === "ACTIVE");
+  if (metaOnly && campaignStatuses.length && !anyActive) {
+    return { state: "paused", message: `Реклама выключена${latestDate ? `: последние показы ${formatDate(latestDate)}` : ""}.` };
   }
-
-  return `Данные Meta отстают на ${lagDays} дн.: последний загруженный день — ${latestLabel}. Обновите статистику перед анализом.`;
+  return { state: "no_results", message: "Нет показов за выбранный период: загрузка прошла успешно." };
 }

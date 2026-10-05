@@ -41,11 +41,13 @@ function mainPrice(row: ProjectAnalyticsSummary): { label: string; value: number
   return { label: row.goalLabel ? `Цена: ${row.goalLabel}` : "Цена цели", value: row.costPerGoal, delta: row.costPerGoalDeltaPercent };
 }
 
+const STATUS_LABEL: Record<string, string> = { error: "Ошибка загрузки", paused: "Реклама выключена", no_results: "Нет показов за период", not_loaded: "Ещё не загружено" };
+
 function rank(row: ProjectAnalyticsSummary): number {
   if (priceDelta(row) !== null && priceDelta(row)! > 15) return 0;
   const age = daysSince(row.startedAt);
   if (age !== null && age < 14) return 1;
-  if (row.freshnessWarning) return 2;
+  if (row.sourceStatus.state === "error") return 2;
   if (row.hasData) return 3;
   return 4;
 }
@@ -58,9 +60,9 @@ function DeltaBadge({ label, value, tone }: { label: string; value: number; tone
 function matchesFilter(row: ProjectAnalyticsSummary, filter: PortfolioFilter): boolean {
   const increased = (priceDelta(row) ?? 0) > 15;
   const isNew = (daysSince(row.startedAt) ?? 99) < 14;
-  if (filter === "attention") return increased || Boolean(row.freshnessWarning);
+  if (filter === "attention") return increased || row.sourceStatus.state === "error";
   if (filter === "new") return isNew;
-  if (filter === "normal") return row.hasData && !increased && !isNew && !row.freshnessWarning;
+  if (filter === "normal") return row.hasData && !increased && !isNew && row.sourceStatus.state !== "error";
   if (filter === "empty") return !row.hasData;
   return true;
 }
@@ -83,7 +85,7 @@ function ProjectCard({ row }: { row: ProjectAnalyticsSummary }) {
 
       {isEmpty ? (
         <div className="ml-1 mt-2 flex items-center justify-between gap-3 text-sm text-neutral-500">
-          <span>{row.freshnessWarning ? "Кабинет не отвечает" : "Нет рекламных данных"}</span>
+          <span title={row.sourceStatus.message ?? undefined}>{STATUS_LABEL[row.sourceStatus.state] ?? "Нет рекламных данных"}</span>
           <Link href={projectUrl} className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-800 hover:border-neutral-400"><PlugZap className="size-3.5" />Подключить</Link>
         </div>
       ) : (
@@ -101,7 +103,7 @@ function ProjectCard({ row }: { row: ProjectAnalyticsSummary }) {
         {delta !== null && delta > 15 && <DeltaBadge label={price.label} value={delta} tone="red" />}
         {delta !== null && delta < 0 && <DeltaBadge label={price.label} value={delta} tone="green" />}
         {age !== null && age < 14 && <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800">Новый · {age} дн.</span>}
-        {row.freshnessWarning && <span title={row.freshnessWarning} className="rounded-full bg-red-100 px-2 py-1 text-[11px] font-semibold text-red-700">Кабинет не отвечает</span>}
+        {row.sourceStatus.state !== "ok" && <span title={row.sourceStatus.message ?? undefined} className={cn("rounded-full px-2 py-1 text-[11px] font-semibold", row.sourceStatus.state === "error" ? "bg-red-100 text-red-700" : "bg-neutral-100 text-neutral-600")}>{STATUS_LABEL[row.sourceStatus.state]}</span>}
         {row.hasMixedCurrencies && <span className="rounded-full bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-600">Несколько валют</span>}
         {row.hasMultipleGoalTypes && <span className="rounded-full bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-600">Разные цели</span>}
       </div>

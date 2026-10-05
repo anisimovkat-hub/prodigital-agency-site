@@ -1,9 +1,9 @@
 import { actionTypeLabel, isGoalAction, type ConversionRow } from "@/lib/ad-analytics";
-import { describeAdDataFreshness } from "@/lib/ad-data-freshness";
+import { describeAdSourceStatus, type AdSourceStatus } from "@/lib/ad-data-freshness";
 
 type ProjectRow = { id: string; name: string; brand_color?: string | null; started_at?: string | null };
-type CampaignRow = { id: string; project_id: string | null; ad_account_id: string };
-type AccountRow = { id: string; currency: string | null; project_id?: string | null };
+type CampaignRow = { id: string; project_id: string | null; ad_account_id: string; status?: string | null };
+type AccountRow = { id: string; currency: string | null; project_id?: string | null; platform?: string; last_sync_at?: string | null; last_sync_error?: string | null };
 type MetricRow = { campaign_id: string; spend: number; impressions: number; clicks: number };
 type DatedConversionRow = ConversionRow & { date: string };
 
@@ -14,7 +14,7 @@ export type ProjectAnalyticsSummary = {
   startedAt: string | null;
   hasData: boolean;
   hasConnectedAccount: boolean;
-  freshnessWarning: string | null;
+  sourceStatus: AdSourceStatus;
   currency: string | null;
   hasMixedCurrencies: boolean;
   spend: number;
@@ -31,7 +31,7 @@ export type ProjectAnalyticsSummary = {
 };
 
 type CalculatedMetrics = Omit<ProjectAnalyticsSummary,
-  "projectId" | "projectName" | "brandColor" | "startedAt" | "hasConnectedAccount" | "freshnessWarning" |
+  "projectId" | "projectName" | "brandColor" | "startedAt" | "hasConnectedAccount" | "sourceStatus" |
   "costPerGoalDeltaPercent" | "costPerLeadDeltaPercent" | "spendDeltaPercent"
 > & { goalActionType: string | null };
 
@@ -103,7 +103,7 @@ function percentDelta(current: number | null, previous: number | null): number |
 /** Builds non-aggregated cards: costs need one currency and one goal type. */
 export function summarizeProjectAnalytics({
   projects, campaigns, accounts, metrics, conversions, previousMetrics = [], previousConversions = [],
-  latestMetricDates = [], from, to,
+  latestMetricDates = [],
 }: {
   projects: ProjectRow[];
   campaigns: CampaignRow[];
@@ -134,7 +134,12 @@ export function summarizeProjectAnalytics({
       startedAt: project.started_at ?? null,
       hasData: current.hasData,
       hasConnectedAccount,
-      freshnessWarning: hasConnectedAccount ? describeAdDataFreshness({ latestDate, from, to }) : null,
+      sourceStatus: describeAdSourceStatus({
+        accounts: accounts.filter((account) => account.project_id === project.id).map((account) => ({ platform: account.platform ?? "meta", last_sync_at: account.last_sync_at ?? null, last_sync_error: account.last_sync_error ?? null })),
+        campaignStatuses: projectCampaigns.map((campaign) => campaign.status ?? null),
+        latestDate,
+        hasDataInPeriod: current.hasData,
+      }),
       currency: current.currency,
       hasMixedCurrencies: current.hasMixedCurrencies,
       spend: current.spend,

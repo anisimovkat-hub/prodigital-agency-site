@@ -103,8 +103,8 @@ function Chart({ points, granularity, maximum, format, tooltip, children }: Char
   </div>;
 }
 
-export function AdPerformanceCharts({ points, goalLabel, currency, granularity }: {
-  points: TimeseriesPoint[]; goalLabel: string | null; currency: string | null; granularity: Granularity;
+export function AdPerformanceCharts({ points, goalLabel, currency, granularity, priceNote }: {
+  points: TimeseriesPoint[]; goalLabel: string | null; currency: string | null; granularity: Granularity; priceNote?: string;
 }) {
   const interval = granularity === "week" ? "неделям" : granularity === "month" ? "месяцам" : "дням";
   const prices = points.map((point) => (point.conversions > 0 ? point.spend / point.conversions : null));
@@ -134,7 +134,7 @@ export function AdPerformanceCharts({ points, goalLabel, currency, granularity }
         </Chart>}
     </ChartCard>
     <ChartCard title={`Цена результата по ${interval}`} hiddenOnPhone={phoneChart !== "price"} switcher={switcher}>
-      {!goalLabel ? <Empty text="Выберите цель, чтобы рассчитать цену" /> : !currency ? <Empty text="Кабинеты в разных валютах — выберите один источник" /> : !hasConversions ? <Empty text="Нет результатов для расчёта цены" /> :
+      {!goalLabel ? <Empty text="Выберите цель, чтобы рассчитать цену" /> : priceNote ? <Empty text={priceNote} /> : !currency ? <Empty text="Нет курса валюты для общей цены" /> : !hasConversions ? <Empty text="Нет результатов для расчёта цены" /> :
         <Chart points={points} granularity={granularity} maximum={priceMax} format={compact}
           tooltip={(point) => point.conversions > 0 ? `${formatAdMoney(point.spend / point.conversions, currency)} · расход ${formatAdMoney(point.spend, currency)}` : `Нет результатов · расход ${formatAdMoney(point.spend, currency)}`}>
           {({ x, y, bottom }) => {

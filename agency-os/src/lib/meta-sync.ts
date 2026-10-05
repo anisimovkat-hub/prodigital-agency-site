@@ -5,6 +5,7 @@ import {
   fetchMetaCampaignInsights,
   fetchMetaCampaigns,
   fetchMetaCustomConversions,
+  fetchMetaCampaignOptimizationGoals,
   fetchMetaInsights,
   type MetaCampaign,
   type MetaCampaignDailyMetric,
@@ -41,6 +42,7 @@ type AccountPayload = {
   campaigns: MetaCampaign[];
   campaignMetrics: MetaCampaignDailyMetric[];
   customConversions: MetaCustomConversion[];
+  optimizationGoals: Map<string, string>;
 };
 
 type AccountSyncFailure = {
@@ -166,12 +168,14 @@ export async function syncMetaAdsData(
     const { from: since, to: until } = period;
     const accountResults = await Promise.allSettled(
       accountRowsToSync.map(async (account) => {
-        const [metrics, campaigns, campaignMetrics, customConversions] =
+        const [metrics, campaigns, campaignMetrics, customConversions, optimizationGoals] =
           await Promise.all([
             fetchMetaInsights(account.external_id, since, until),
             fetchMetaCampaigns(account.external_id),
             fetchMetaCampaignInsights(account.external_id, since, until),
             fetchMetaCustomConversions(account.external_id),
+            // Goal settings are optional context: a failure must not block statistics.
+            fetchMetaCampaignOptimizationGoals(account.external_id).catch(() => new Map<string, string>()),
           ]);
         return {
           account,
@@ -179,6 +183,7 @@ export async function syncMetaAdsData(
           campaigns,
           campaignMetrics,
           customConversions,
+          optimizationGoals,
         };
       }),
     );
@@ -186,6 +191,14 @@ export async function syncMetaAdsData(
       accountRowsToSync,
       accountResults,
     );
+    // Per-account outcome: lets the dashboard tell a failed load from paused ads.
+    const syncedAt = new Date().toISOString();
+    await Promise.all(accountRowsToSync.map((account, index) => {
+      const result = accountResults[index];
+      return supabase.from("ad_accounts").update(result.status === "fulfilled"
+        ? { last_sync_at: syncedAt, last_sync_error: null }
+        : { last_sync_error: (result.reason instanceof Error ? result.reason.message : "Meta не вернула данные").slice(0, 300) }).eq("id", account.id);
+    }));
     if (payloads.length === 0) {
       return {
         ok: false,
@@ -207,6 +220,7 @@ export async function syncMetaAdsData(
       campaigns,
       campaignMetrics,
       customConversions,
+      optimizationGoals,
     } of payloads) {
       if (metrics.length > 0) {
         const { error } = await supabase.from("ad_metrics").upsert(
@@ -263,6 +277,7 @@ export async function syncMetaAdsData(
             name: campaign.name,
             objective: campaign.objective,
             status: campaign.status,
+            ...(optimizationGoals.has(campaign.externalId) ? { optimization_goal: optimizationGoals.get(campaign.externalId) } : {}),
           })),
           { onConflict: "ad_account_id,external_id" },
         )

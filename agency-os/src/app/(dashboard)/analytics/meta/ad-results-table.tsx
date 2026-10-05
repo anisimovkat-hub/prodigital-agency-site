@@ -14,8 +14,8 @@ type Result = {
   delta: number | null;
   trend: { bucket: string; conversions: number }[];
 };
-type CampaignResult = Result & { id: string; name: string };
-export type AdAccountResult = Result & { id: string; name: string; platform: string; currency: string | null; campaigns: CampaignResult[] };
+type CampaignResult = Result & { id: string; name: string; goalLabel?: string | null };
+export type AdAccountResult = Result & { id: string; name: string; platform: string; currency: string | null; goalLabel?: string | null; campaigns: CampaignResult[] };
 
 type SortKey = "spend" | "conversions" | "cpa" | "delta";
 const PLATFORMS: Record<string, string> = { meta: "Meta Ads", yandex_direct: "Яндекс Директ", google_ads: "Google Ads", vk: "VK Реклама", telegram_ads: "Telegram Ads" };
@@ -114,7 +114,7 @@ export function AdResultsTable({ accounts }: { accounts: AdAccountResult[] }) {
             <PlatformMark platform={account.platform} />
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-neutral-950">{PLATFORMS[account.platform] ?? account.platform}</span>
-              <span className="block truncate text-xs text-neutral-400">{account.name}</span>
+              <span className="block truncate text-xs text-neutral-400">{account.name}{account.goalLabel ? ` · ${account.goalLabel}` : ""}</span>
             </span>
             <ChevronDown className={`size-4 shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
           </span>
@@ -127,6 +127,7 @@ export function AdResultsTable({ accounts }: { accounts: AdAccountResult[] }) {
         {open && <ul className="border-t border-neutral-100 bg-neutral-50/60">
           {visible.map((campaign) => <li key={campaign.id} className="border-b border-neutral-100 px-4 py-2.5 last:border-0">
             <p className="truncate text-[13px] text-neutral-800" title={campaign.name}>{campaign.name}</p>
+            {campaign.goalLabel && <p className="truncate text-[11px] text-neutral-400">{campaign.goalLabel}</p>}
             <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs tabular-nums text-neutral-500">
               <span>{account.currency ? formatAdMoney(campaign.spend, account.currency) : "—"}</span>
               <span>{campaign.conversions === null ? "—" : formatAdNumber(campaign.conversions)} рез.</span>
@@ -161,7 +162,7 @@ export function AdResultsTable({ accounts }: { accounts: AdAccountResult[] }) {
                 <PlatformMark platform={account.platform} />
                 <span className="min-w-0">
                   <span className="block font-semibold text-neutral-950">{PLATFORMS[account.platform] ?? account.platform}</span>
-                  <span className="block truncate text-xs text-neutral-400" title={account.name}>{account.name} · {account.campaigns.length} камп.</span>
+                  <span className="block truncate text-xs text-neutral-400" title={account.name}>{account.name} · {account.campaigns.length} камп.{account.goalLabel ? ` · ${account.goalLabel}` : ""}</span>
                 </span>
               </button>
             </td>
@@ -169,7 +170,7 @@ export function AdResultsTable({ accounts }: { accounts: AdAccountResult[] }) {
           </tr>
           {open && visible.map((campaign) => <tr key={campaign.id} className="border-b border-neutral-100 bg-neutral-50/40 hover:bg-neutral-50">
             <td className="max-w-0 py-2.5 pr-3 pl-[70px]">
-              <span className="flex min-w-0 items-center gap-2"><span className="size-1 shrink-0 rounded-full bg-neutral-300" /><span className="truncate text-neutral-700" title={campaign.name}>{campaign.name}</span></span>
+              <span className="flex min-w-0 items-center gap-2"><span className="size-1 shrink-0 rounded-full bg-neutral-300" /><span className="min-w-0"><span className="block truncate text-neutral-700" title={campaign.name}>{campaign.name}</span>{campaign.goalLabel && <span className="block truncate text-[11px] text-neutral-400">{campaign.goalLabel}</span>}</span></span>
             </td>
             <Cells result={campaign} currency={account.currency} />
           </tr>)}

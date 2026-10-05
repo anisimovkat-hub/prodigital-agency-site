@@ -321,6 +321,37 @@ export async function fetchMetaCampaignInsights(
   return out;
 }
 
+type MetaAdsetGoalRow = {
+  campaign_id?: string;
+  optimization_goal?: string;
+  effective_status?: string;
+  promoted_object?: { custom_event_type?: string; custom_conversion_id?: string };
+};
+
+/**
+ * What each campaign is optimized for, from its ad sets: "GOAL", "GOAL:EVENT" or
+ * "GOAL:custom:<id>". Active ad sets win; among them the most common setting.
+ */
+export async function fetchMetaCampaignOptimizationGoals(externalId: string): Promise<Map<string, string>> {
+  const params = new URLSearchParams({
+    fields: "campaign_id,optimization_goal,effective_status,promoted_object",
+    limit: "500",
+    access_token: token(),
+  });
+  const rows = await fetchAllPages<MetaAdsetGoalRow>(`${BASE}/${externalId}/adsets?${params.toString()}`);
+  const votes = new Map<string, Map<string, number>>();
+  for (const row of rows) {
+    if (!row.campaign_id || !row.optimization_goal) continue;
+    const customId = row.promoted_object?.custom_conversion_id;
+    const event = row.promoted_object?.custom_event_type;
+    const value = customId ? `${row.optimization_goal}:custom:${customId}` : event && event !== "OTHER" ? `${row.optimization_goal}:${event}` : row.optimization_goal;
+    const campaignVotes = votes.get(row.campaign_id) ?? new Map<string, number>();
+    campaignVotes.set(value, (campaignVotes.get(value) ?? 0) + (row.effective_status === "ACTIVE" ? 100 : 1));
+    votes.set(row.campaign_id, campaignVotes);
+  }
+  return new Map([...votes].map(([campaignId, campaignVotes]) => [campaignId, [...campaignVotes].sort((a, b) => b[1] - a[1])[0][0]]));
+}
+
 // Группы объявлений кабинета: id, имя, статус, внешний id кампании-родителя.
 export async function fetchMetaAdsets(externalId: string): Promise<MetaAdset[]> {
   const params = new URLSearchParams({

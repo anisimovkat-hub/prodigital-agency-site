@@ -1,45 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { describeAdDataFreshness } from "@/lib/ad-data-freshness";
+import { describeAdSourceStatus } from "@/lib/ad-data-freshness";
 
-describe("describeAdDataFreshness", () => {
-  it("предупреждает, когда данных нет совсем", () => {
-    expect(
-      describeAdDataFreshness({
-        latestDate: null,
-        from: "2026-08-01",
-        to: "2026-08-12",
-      }),
-    ).toContain("ещё не загружены");
+describe("describeAdSourceStatus", () => {
+  const now = new Date("2026-10-06T08:00:00Z");
+  const synced = { platform: "meta", last_sync_at: "2026-10-06T03:01:00Z", last_sync_error: null };
+
+  it("calls paused Meta ads paused, not a failed load", () => {
+    expect(describeAdSourceStatus({ accounts: [synced], campaignStatuses: ["PAUSED", "ARCHIVED"], latestDate: "2026-09-28", hasDataInPeriod: false, now }))
+      .toEqual({ state: "paused", message: "Реклама выключена: последние показы 28.09.2026." });
   });
-
-  it("объясняет нули, если выбранный период позже последних данных", () => {
-    expect(
-      describeAdDataFreshness({
-        latestDate: "2026-07-28",
-        from: "2026-08-01",
-        to: "2026-08-12",
-      }),
-    ).toContain("нулевые значения");
+  it("reports a real load error", () => {
+    expect(describeAdSourceStatus({ accounts: [{ ...synced, last_sync_error: "(#200) нет доступа" }], campaignStatuses: ["ACTIVE"], latestDate: null, hasDataInPeriod: false, now }).state).toBe("error");
   });
-
-  it("предупреждает о частично устаревшем диапазоне", () => {
-    expect(
-      describeAdDataFreshness({
-        latestDate: "2026-08-05",
-        from: "2026-08-01",
-        to: "2026-08-12",
-      }),
-    ).toContain("отстают на 7 дн.");
+  it("treats a successful load with no rows as no results", () => {
+    expect(describeAdSourceStatus({ accounts: [synced], campaignStatuses: ["ACTIVE"], latestDate: "2026-09-01", hasDataInPeriod: false, now }).state).toBe("no_results");
   });
-
-  it("не тревожит, если данные доходят до конца периода с допуском в сутки", () => {
-    expect(
-      describeAdDataFreshness({
-        latestDate: "2026-08-11",
-        from: "2026-08-01",
-        to: "2026-08-12",
-      }),
-    ).toBeNull();
+  it("flags a daily load that stopped running", () => {
+    expect(describeAdSourceStatus({ accounts: [{ ...synced, last_sync_at: "2026-10-01T03:00:00Z" }], campaignStatuses: ["ACTIVE"], latestDate: "2026-10-01", hasDataInPeriod: true, now }).state).toBe("error");
+  });
+  it("is quiet when data is fresh", () => {
+    expect(describeAdSourceStatus({ accounts: [synced], campaignStatuses: ["ACTIVE"], latestDate: "2026-10-05", hasDataInPeriod: true, now })).toEqual({ state: "ok", message: null });
   });
 });

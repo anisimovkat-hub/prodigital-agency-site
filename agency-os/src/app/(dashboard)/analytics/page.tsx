@@ -6,6 +6,7 @@ import {
   InstagramAccountAssignment,
   type AnalyticsParams,
 } from "@/app/(dashboard)/analytics/analytics-controls";
+import { GoalSettingsForm, type GoalSettingOption } from "@/app/(dashboard)/analytics/meta/goal-settings";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
 import { ProjectAnalyticsOverview } from "@/app/(dashboard)/analytics/project-analytics-overview";
@@ -17,10 +18,11 @@ import {
   summarizeCampaigns,
   type ConversionRow as AdSummaryConversionRow,
   type Granularity,
-  type TimeseriesPoint,
 } from "@/lib/ad-analytics";
-import { describeAdDataFreshness } from "@/lib/ad-data-freshness";
-import { selectDefaultAdGoal } from "@/lib/default-ad-goal";
+import { describeAdSourceStatus } from "@/lib/ad-data-freshness";
+import { attributeCampaignGoals, buildGoalCards, type GoalSetting } from "@/lib/project-ad-goals";
+import { goalLabel, goalsWithData, type GoalKey } from "@/lib/ad-goals";
+import type { FxRate } from "@/lib/fx-rates";
 import { fetchCompleteQuery } from "@/lib/complete-query";
 import type {
   MarketingAdDetail,
@@ -49,6 +51,7 @@ type SearchParams = {
   account?: string;
   campaign?: string;
   goal?: string;
+  cur?: string;
 };
 
 type SocialMetricRow = {
@@ -183,6 +186,8 @@ export default async function AnalyticsPage({
     adsResult,
     customConversionsResult,
     mediaPlansResult,
+    goalSettingsResult,
+    fxRatesResult,
   ] = await Promise.all([
     supabase
       .from("projects")
@@ -193,8 +198,8 @@ export default async function AnalyticsPage({
       .select("id,project_id,username,name,profile_picture_url,followers_count,last_synced_at")
       .eq("platform", "instagram")
       .order("name"),
-    supabase.from("ad_campaigns").select("id,name,objective,status,project_id,ad_account_id"),
-    supabase.from("ad_accounts").select("id,name,external_id,project_id,currency,platform"),
+    supabase.from("ad_campaigns").select("id,name,objective,optimization_goal,status,project_id,ad_account_id"),
+    supabase.from("ad_accounts").select("id,name,external_id,project_id,currency,platform,last_sync_at,last_sync_error"),
     supabase.from("ad_sets").select("id,name,status,campaign_id"),
     supabase.from("ads").select("id,name,status,adset_id"),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
@@ -205,6 +210,13 @@ export default async function AnalyticsPage({
           .eq("project_id", projectId)
           .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    projectId
+      ? supabase.from("project_ad_goal_settings").select("goal_key,label,hidden,extra").eq("project_id", projectId)
+      : Promise.resolve({ data: [] as GoalSetting[], error: null }),
+    // Rates from two weeks before the comparison period, so weekends reuse the last published rate.
+    fetchCompleteQuery<FxRate>((offset, last) => supabase.from("fx_rates").select("date,currency,rub_per_unit")
+      .gte("date", new Date(Date.parse(`${previousPeriod.from}T00:00:00Z`) - 14 * 86_400_000).toISOString().slice(0, 10))
+      .lte("date", to).order("date").order("currency").range(offset, last), "Курсы валют"),
   ]);
   const { data: projects } = projectsResult;
   const { data: socialAccounts } = socialAccountsResult;
@@ -383,7 +395,6 @@ export default async function AnalyticsPage({
     adSetSummaryResult,
     adSummaryResult,
     audienceMetricsResult,
-    adTimeseriesResult,
     latestPaidMetricResult,
     activePlanMetricsResult,
     planMetricsFactResult,
@@ -400,15 +411,6 @@ export default async function AnalyticsPage({
     supabase.rpc("ad_set_period_summary", { p_since: from, p_until: to }),
     supabase.rpc("ad_ad_period_summary", { p_since: from, p_until: to }),
     audiencePromise,
-    supabase.rpc("ad_timeseries", {
-      p_since: from,
-      p_until: to,
-      p_granularity: granularity,
-      p_project_id: projectId || null,
-      p_account_id: accountFilter || null,
-      p_campaign_id: campaignFilter || null,
-      p_action_type: goalFilter || null,
-    }),
     latestPaidMetricPromise,
     activePlanMetricsPromise,
     planMetricsFactPromise,
@@ -425,7 +427,6 @@ export default async function AnalyticsPage({
   const { data: adSetSummary } = adSetSummaryResult;
   const { data: adSummary } = adSummaryResult;
   const { data: audienceMetrics } = audienceMetricsResult;
-  const { data: adTimeseries } = adTimeseriesResult;
   const { data: latestPaidMetric } = latestPaidMetricResult;
   const { data: portfolioPreviousMetrics } = portfolioPreviousMetricsResult;
   const { data: portfolioPreviousConversions } = portfolioPreviousConversionsResult;
@@ -439,7 +440,6 @@ export default async function AnalyticsPage({
     ["сводку групп объявлений", adSetSummaryResult.error],
     ["сводку объявлений", adSummaryResult.error],
     ["аудиторию", audienceMetricsResult.error],
-    ["график рекламы", adTimeseriesResult.error],
     ["дату последнего обновления рекламы", latestPaidMetricResult.error],
     ["метрики медиаплана", activePlanMetricsResult.error],
     ["факт медиаплана", planMetricsFactResult.error || planConversionsFactResult.error],
@@ -713,31 +713,6 @@ export default async function AnalyticsPage({
       })
     : null;
 
-  const goalCampaignIds = new Set(
-    allCampaignRows
-      .filter(
-        (campaign) =>
-          (!projectId || campaign.project_id === projectId) &&
-          (!accountFilter || campaign.ad_account_id === accountFilter) &&
-          (!campaignFilter || campaign.id === campaignFilter),
-      )
-      .map((campaign) => campaign.id),
-  );
-  const conversionLabels = new Set<string>();
-  for (const conversion of allGoalConversions) {
-    if (goalCampaignIds.has(conversion.campaign_id)) {
-      conversionLabels.add(conversion.action_type);
-    }
-  }
-  for (const conversion of (portfolioPreviousConversions ?? []) as ConversionRow[]) {
-    if (goalCampaignIds.has(conversion.campaign_id) && isGoalAction(conversion.action_type)) {
-      conversionLabels.add(conversion.action_type);
-    }
-  }
-  const goalOptions = [...conversionLabels]
-    .map((value) => ({ value, label: actionTypeLabel(value, customNames) }))
-    .sort((a, b) => a.label.localeCompare(b.label, "ru"));
-
   const filteredCampaigns = allCampaignRows.filter(
     (campaign) =>
       (!projectId || campaign.project_id === projectId) &&
@@ -809,15 +784,28 @@ export default async function AnalyticsPage({
     .filter((row) => filteredCampaignIds.has(row.id))
     .sort(bySpend);
 
-  const relevantAccounts = campaignFilter
-    ? currentAdAccountRows.filter((account) => account.id === allCampaignRows.find((campaign) => campaign.id === campaignFilter)?.ad_account_id)
-    : accountFilter
-      ? currentAdAccountRows.filter((account) => account.id === accountFilter)
-      : projectId
-        ? currentAdAccountRows.filter((account) => account.project_id === projectId)
-        : currentAdAccountRows;
-  const detailCurrencies = [...new Set(relevantAccounts.map((account) => account.currency).filter((value): value is string => !!value))];
-  const detailCurrency = detailCurrencies.length === 1 ? detailCurrencies[0] : null;
+  // Goals: each campaign is attributed to what its platform settings optimize for.
+  const accountPlatform = new Map(currentAdAccountRows.map((account) => [account.id, account.platform]));
+  const projectConversions = ((conversions ?? []) as ConversionRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id));
+  const previousProjectConversions = ((portfolioPreviousConversions ?? []) as ConversionRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id));
+  const goalSettings = (goalSettingsResult.data ?? []) as GoalSetting[];
+  const campaignGoals = attributeCampaignGoals(
+    filteredCampaigns.map((campaign) => ({ id: campaign.id, platform: accountPlatform.get(campaign.ad_account_id) ?? "meta", objective: campaign.objective, optimization_goal: campaign.optimization_goal })),
+    [...projectConversions, ...previousProjectConversions],
+  );
+  const goalChoices = buildGoalCards({
+    selected: filteredCampaignIds, goals: campaignGoals, settings: goalSettings,
+    metrics: ((paidMetrics ?? []) as CampaignMetricRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id)),
+    conversions: projectConversions, previousMetrics: [], previousConversions: [], customNames,
+  }).map((card) => ({ value: card.key, label: card.label }));
+  const mainGoalKeys = new Set([...campaignGoals.values()].flatMap((goal) => goal ? [goal.key] : []));
+  const goalSettingsOptions: GoalSettingOption[] = [...new Set<GoalKey>([...mainGoalKeys, ...goalsWithData(projectConversions.map((row) => row.action_type)), ...goalSettings.map((item) => item.goal_key as GoalKey)])].map((key) => {
+    const setting = goalSettings.find((item) => item.goal_key === key);
+    return { key, defaultLabel: goalLabel(key, customNames), label: setting?.label ?? null, hidden: setting?.hidden ?? false, extra: setting?.extra ?? false, isMain: mainGoalKeys.has(key) };
+  }).sort((a, b) => Number(b.isMain) - Number(a.isMain) || a.defaultLabel.localeCompare(b.defaultLabel, "ru"));
+  const displayCurrency = raw.cur === "RUB" ? "RUB" : "USD";
+  if (fxRatesResult.error) dataWarnings.push(`Не удалось загрузить курсы валют: ${fxRatesResult.error.message}`);
+
   const currentAdsFilters: AdsFilterValues = {
     from,
     to,
@@ -825,13 +813,14 @@ export default async function AnalyticsPage({
     project: projectId,
     account: accountFilter,
     campaign: campaignFilter,
-    goal: selectDefaultAdGoal(goalFilter, goalOptions, allGoalConversions, filteredCampaignIds) ?? "",
+    goal: goalChoices.some((choice) => choice.value === goalFilter) ? goalFilter : goalChoices[0]?.value ?? "",
   };
   const params: AnalyticsParams = { from, to, project: projectId, social: socialId, section };
-  const freshnessWarning = describeAdDataFreshness({
+  const sourceStatus = describeAdSourceStatus({
+    accounts: visibleAdAccountRows.map((account) => ({ platform: account.platform, last_sync_at: account.last_sync_at, last_sync_error: account.last_sync_error })),
+    campaignStatuses: campaignRows.map((campaign) => campaign.status ?? null),
     latestDate: latestPaidMetric?.date ?? null,
-    from,
-    to,
+    hasDataInPeriod: paidRows.some((row) => Number(row.spend) > 0 || Number(row.impressions) > 0),
   });
 
   const contentSettings = accountRows.length > 0 ? (
@@ -872,7 +861,7 @@ export default async function AnalyticsPage({
         name: `@${account.username || account.name || account.id}`,
       }))}
       contentSettings={contentSettings}
-      adsFilters={<AdsFilters report projects={projectRows} accounts={visibleAdAccountRows.map((account) => ({ id: account.id, name: account.name ?? account.external_id, project_id: account.project_id }))} campaigns={allCampaignRows.map((campaign) => ({ id: campaign.id, name: campaign.name ?? "Без названия", project_id: campaign.project_id, account_id: campaign.ad_account_id }))} goals={goalOptions} current={currentAdsFilters} />}
+      adsFilters={<AdsFilters report projects={projectRows} accounts={visibleAdAccountRows.map((account) => ({ id: account.id, name: account.name ?? account.external_id, project_id: account.project_id }))} campaigns={allCampaignRows.map((campaign) => ({ id: campaign.id, name: campaign.name ?? "Без названия", project_id: campaign.project_id, account_id: campaign.ad_account_id }))} goals={goalChoices} current={currentAdsFilters} />}
       dataWarnings={dataWarnings}
       portfolioOverview={portfolioSummary ? (
         <ProjectAnalyticsOverview rows={portfolioSummary} from={from} to={to} projects={projectRows} />
@@ -928,24 +917,25 @@ export default async function AnalyticsPage({
               project_id: campaign.project_id,
               account_id: campaign.ad_account_id,
             }))}
-            goals={goalOptions}
-            points={(adTimeseries ?? []) as TimeseriesPoint[]}
+            campaignGoals={campaignGoals}
+            goalSettings={goalSettings}
+            customNames={customNames}
+            fxRates={(fxRatesResult.data ?? []) as FxRate[]}
+            displayCurrency={displayCurrency}
             granularity={granularity}
-            currency={detailCurrency}
-            currencies={detailCurrencies}
-            goalLabel={goalFilter ? actionTypeLabel(goalFilter, customNames) : null}
             tree={adTree}
             audience={audience}
             audiencePerformanceRows={((audienceMetrics ?? []) as AudienceRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id))}
             hasMetaAccount={visibleAdAccountRows.some((account) => account.platform === "meta")}
             unlinkedMetaAccounts={currentAdAccountRows.filter((account) => account.platform === "meta" && !account.project_id).map((account) => ({ id: account.id, name: account.name ?? account.external_id }))}
             audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
-            freshnessWarning={freshnessWarning}
+            sourceStatus={sourceStatus}
             latestDate={latestPaidMetric?.date ?? null}
             metrics={paidRows}
-            conversions={allGoalConversions}
+            conversions={projectConversions}
             previousMetrics={(portfolioPreviousMetrics ?? []) as CampaignMetricRow[]}
-            previousConversions={(portfolioPreviousConversions ?? []) as ConversionRow[]}
+            previousConversions={previousProjectConversions}
+            goalSettingsForm={projectId ? <GoalSettingsForm projectId={projectId} goals={goalSettingsOptions} /> : undefined}
           />
         </>
       }

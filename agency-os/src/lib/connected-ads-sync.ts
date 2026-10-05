@@ -98,10 +98,12 @@ export async function syncConnectedAccounts(client: Service, period: AnalyticsPe
       const days = await fetchConnectedDays(client, account, period);
       await storeCampaignDays(client, account, days);
       await client.from("ad_account_credentials").update({ last_sync_at: new Date().toISOString(), last_error: null }).eq("ad_account_id", account.id);
+      await client.from("ad_accounts").update({ last_sync_at: new Date().toISOString(), last_sync_error: null }).eq("id", account.id);
       results.push({ name, days: days.length });
     } catch (syncError) {
       const message = syncError instanceof Error ? syncError.message.slice(0, 300) : "Неизвестная ошибка";
       await client.from("ad_account_credentials").update({ last_error: message }).eq("ad_account_id", account.id);
+      await client.from("ad_accounts").update({ last_sync_error: message }).eq("id", account.id);
       results.push({ name, days: 0, error: message });
     }
   }

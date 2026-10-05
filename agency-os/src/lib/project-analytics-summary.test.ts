@@ -49,7 +49,7 @@ describe("summarizeProjectAnalytics", () => {
     expect(summary.costPerLead).toBeNull();
   });
 
-  it("помечает подключённый кабинет без свежих данных", () => {
+  it("сообщает, что подключённый кабинет ещё не загружался", () => {
     const [summary] = summarizeProjectAnalytics({
       ...base,
       metrics: [],
@@ -58,7 +58,7 @@ describe("summarizeProjectAnalytics", () => {
     });
 
     expect(summary.hasData).toBe(false);
-    expect(summary.freshnessWarning).toContain("ещё не загружены");
+    expect(summary.sourceStatus.state).toBe("not_loaded");
     expect(summary.brandColor).toBe("#2563eb");
   });
 });

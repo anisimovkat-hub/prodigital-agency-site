@@ -946,6 +946,8 @@ export type Database = {
           project_id: string | null;
           is_active: boolean;
           created_at: string | null;
+          last_sync_at: string | null;
+          last_sync_error: string | null;
         };
         Insert: {
           id?: string;
@@ -956,6 +958,8 @@ export type Database = {
           project_id?: string | null;
           is_active?: boolean;
           created_at?: string | null;
+          last_sync_at?: string | null;
+          last_sync_error?: string | null;
         };
         Update: {
           id?: string;
@@ -966,6 +970,8 @@ export type Database = {
           project_id?: string | null;
           is_active?: boolean;
           created_at?: string | null;
+          last_sync_at?: string | null;
+          last_sync_error?: string | null;
         };
         Relationships: [
           {
@@ -1025,6 +1031,7 @@ export type Database = {
           external_id: string;
           name: string | null;
           objective: string | null;
+          optimization_goal: string | null;
           status: string | null;
           project_id: string | null;
           created_at: string | null;
@@ -1035,6 +1042,7 @@ export type Database = {
           external_id: string;
           name?: string | null;
           objective?: string | null;
+          optimization_goal?: string | null;
           status?: string | null;
           project_id?: string | null;
           created_at?: string | null;
@@ -1045,6 +1053,7 @@ export type Database = {
           external_id?: string;
           name?: string | null;
           objective?: string | null;
+          optimization_goal?: string | null;
           status?: string | null;
           project_id?: string | null;
           created_at?: string | null;
@@ -1404,6 +1413,18 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      fx_rates: {
+        Row: { date: string; currency: string; rub_per_unit: number };
+        Insert: { date: string; currency: string; rub_per_unit: number };
+        Update: { date?: string; currency?: string; rub_per_unit?: number };
+        Relationships: [];
+      };
+      project_ad_goal_settings: {
+        Row: { project_id: string; goal_key: string; label: string | null; hidden: boolean; extra: boolean; updated_at: string };
+        Insert: { project_id: string; goal_key: string; label?: string | null; hidden?: boolean; extra?: boolean; updated_at?: string };
+        Update: { project_id?: string; goal_key?: string; label?: string | null; hidden?: boolean; extra?: boolean; updated_at?: string };
+        Relationships: [];
       };
       ad_account_credentials: {
         Row: {

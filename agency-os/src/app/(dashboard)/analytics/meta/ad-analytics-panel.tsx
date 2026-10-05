@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { AlertTriangle, ArrowDown, ArrowUp, Info } from "lucide-react";
 
 import { AdPerformanceCharts } from "@/app/(dashboard)/analytics/meta/ad-performance-charts";
@@ -7,8 +8,11 @@ import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad
 import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { LinkMetaAccount } from "@/app/(dashboard)/analytics/meta/link-meta-account";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
-import type { Granularity, TimeseriesPoint } from "@/lib/ad-analytics";
-import { selectDefaultAdGoal } from "@/lib/default-ad-goal";
+import type { Granularity } from "@/lib/ad-analytics";
+import type { AdSourceStatus } from "@/lib/ad-data-freshness";
+import { goalLabel, type CampaignGoal, type GoalKey } from "@/lib/ad-goals";
+import { makeConverter, type FxRate } from "@/lib/fx-rates";
+import { buildGoalCards, goalDailyPoints, type GoalCard, type GoalSetting } from "@/lib/project-ad-goals";
 import { summarizeAudienceGoal, type AudienceGoalRow } from "@/lib/audience-goal-performance";
 import { formatCompact, type MarketingAudience, type MarketingAudienceItem } from "@/lib/marketing-analytics";
 import {
@@ -33,7 +37,7 @@ const MONTHS = ["января", "февраля", "марта", "апреля", 
 const formatAdDate = (value: string) => { const [year, month, day] = value.split("-").map(Number); return `${day} ${MONTHS[month - 1]} ${year}`; };
 
 function DeltaPill({ value, lowerIsBetter = false, neutral = false }: { value: number | null; lowerIsBetter?: boolean; neutral?: boolean }) {
-  if (value === null) return <span className="text-xs text-neutral-400">нет данных за прошлый период</span>;
+  if (value === null) return <span className="text-xs text-neutral-400">нет сравнения</span>;
   const improved = lowerIsBetter ? value < 0 : value > 0;
   const Icon = value < 0 ? ArrowDown : ArrowUp;
   const tone = Math.abs(value) < 0.005 || neutral ? "bg-neutral-100 text-neutral-600" : improved ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600";
@@ -44,20 +48,22 @@ function DeltaPill({ value, lowerIsBetter = false, neutral = false }: { value: n
 }
 
 /** On phones the first (main) card spans the row; the other two sit side by side. */
-function Kpi({ label, detail, value, delta, lowerIsBetter = false, neutral = false, hint, info, main = false }: {
+function Kpi({ label, detail, value, delta, lowerIsBetter = false, neutral = false, hint, info, main = false, footnote, action }: {
   label: string; detail?: string | null; value: string; delta: number | null; lowerIsBetter?: boolean; neutral?: boolean; hint?: string; info: string; main?: boolean;
+  footnote?: string; action?: ReactNode;
 }) {
   return (
     <article className={`min-w-0 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:px-5 md:py-4 ${main ? "col-span-2 md:col-span-1" : ""}`}>
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-xs font-medium text-neutral-600 md:text-sm md:text-neutral-700" title={detail ? `${label} · ${detail}` : label}>{label}{detail && <span className="hidden md:inline"> · {detail}</span>}</p>
-        <span title={info} className="hidden cursor-help text-neutral-300 hover:text-neutral-500 md:inline"><Info className="size-4" aria-label={info} /></span>
+        <span className="flex shrink-0 items-center gap-2">{action}<span title={info} className="hidden cursor-help text-neutral-300 hover:text-neutral-500 md:inline"><Info className="size-4" aria-label={info} /></span></span>
       </div>
       {/* The main card puts its change next to the value on phones instead of leaving the right half empty. */}
       <div className={main ? "flex items-end justify-between gap-3 md:block" : ""}>
         <p className={`mt-1 truncate leading-tight font-bold tabular-nums tracking-tight text-neutral-950 md:mt-2 md:text-[32px] ${main ? "text-[28px]" : "text-xl"}`} title={value}>{value}</p>
         <div className={`min-h-6 md:mt-2 ${main ? "shrink-0 pb-1 md:pb-0" : "mt-1.5"}`}>{hint ? <span className="text-xs text-neutral-400">{hint}</span> : <DeltaPill value={delta} lowerIsBetter={lowerIsBetter} neutral={neutral} />}</div>
       </div>
+      {footnote && <p className="mt-1 truncate text-[11px] text-neutral-500 md:text-xs" title={footnote}>{footnote}</p>}
     </article>
   );
 }
@@ -104,26 +110,49 @@ function GoalBreakdown({ title, items, fallback, currency }: {
   </div>;
 }
 
+/** Audience slices come in account currency, so a price is shown only for a single currency. */
+function singleNative(accounts: AccountOption[]): string | null {
+  const set = new Set(accounts.map((account) => account.currency));
+  return set.size === 1 ? [...set][0] : null;
+}
+
+const CURRENCY_CHOICES = [["USD", "$"], ["RUB", "₽"]] as const;
+
+/** Link to the same report in another summary currency. */
+function currencyHref(current: AdsFilterValues, currency: string) {
+  const params = new URLSearchParams({ section: "ads", project: current.project, from: current.from, to: current.to, cur: currency });
+  for (const key of ["gran", "account", "campaign", "goal"] as const) if (current[key]) params.set(key, current[key]);
+  return `/analytics?${params}`;
+}
+
+function GoalCardView({ card, currency, main }: { card: GoalCard; currency: string | null; main: boolean }) {
+  const cpa = card.current.cpa;
+  return <Kpi main={main} label={card.label} value={integer(card.current.results)}
+    delta={card.extra || cpa === null ? percentChange(card.current.results, card.previous.results) : percentChange(cpa, card.previous.cpa)}
+    lowerIsBetter={!card.extra && cpa !== null}
+    footnote={card.extra ? "по всем кампаниям, без цены" : cpa !== null && currency ? `${money(cpa, currency)} за результат` : card.current.spend > 0 ? "результатов нет" : undefined}
+    info={card.extra ? "Дополнительная цель: считается по всем кампаниям проекта; отдельной цены у неё нет." : "Цена — расход только тех кампаний, которые оптимизированы на эту цель, делённый на их результаты."} />;
+}
+
 export function AdAnalyticsPanel({
-  current, accounts, campaigns, goals, granularity, currencies, tree, audience,
-  audienceActions, hasMetaAccount, freshnessWarning, metrics, conversions,
-  previousMetrics, previousConversions, unlinkedMetaAccounts = [],
-  audiencePerformanceRows, latestDate = null,
+  current, accounts, campaigns, campaignGoals, goalSettings, customNames, fxRates, displayCurrency,
+  granularity, tree, audience, audienceActions, hasMetaAccount, sourceStatus, metrics, conversions,
+  previousMetrics, previousConversions, unlinkedMetaAccounts = [], audiencePerformanceRows, latestDate = null, goalSettingsForm,
 }: {
   current: AdsFilterValues;
   accounts: AccountOption[];
   campaigns: CampaignOption[];
-  goals: { value: string; label: string }[];
-  points: TimeseriesPoint[];
+  campaignGoals: Map<string, CampaignGoal>;
+  goalSettings: GoalSetting[];
+  customNames?: Map<string, string>;
+  fxRates: FxRate[];
+  displayCurrency: string;
   granularity: Granularity;
-  currency: string | null;
-  currencies: string[];
-  goalLabel: string | null;
   tree: AdTreeRow[];
   audience: MarketingAudience;
   audienceActions?: ReactNode;
   hasMetaAccount: boolean;
-  freshnessWarning?: string | null;
+  sourceStatus?: AdSourceStatus;
   metrics: AdMetricDay[];
   conversions: AdConversionDay[];
   previousMetrics: AdMetricDay[];
@@ -131,6 +160,7 @@ export function AdAnalyticsPanel({
   audiencePerformanceRows: AudienceGoalRow[];
   unlinkedMetaAccounts?: { id: string; name: string }[];
   latestDate?: string | null;
+  goalSettingsForm?: ReactNode;
 }) {
   const selectedCampaigns = campaigns.filter((campaign) =>
     (!current.project || campaign.project_id === current.project) &&
@@ -138,91 +168,117 @@ export function AdAnalyticsPanel({
     (!current.campaign || campaign.id === current.campaign),
   );
   const campaignIds = new Set(selectedCampaigns.map((campaign) => campaign.id));
-  const goal = selectDefaultAdGoal(current.goal, goals, conversions, campaignIds);
-  const goalLabel = goals.find((item) => item.value === goal)?.label ?? null;
   const selectedAccounts = accounts.filter((account) => !current.account || account.id === current.account);
-  const usedAccountIds = new Set(selectedCampaigns.map((campaign) => campaign.account_id));
-  const usedCurrencies = new Set(selectedAccounts.filter((account) => usedAccountIds.has(account.id)).map((account) => account.currency));
-  const oneCurrency = usedCurrencies.size === 1 && !usedCurrencies.has(null);
-  const currency = oneCurrency ? [...usedCurrencies][0] : null;
-  const currentTotals = summarizeAdDashboard(metrics, conversions, campaignIds, goal, oneCurrency);
-  const previousTotals = summarizeAdDashboard(previousMetrics, previousConversions, campaignIds, goal, oneCurrency);
-  const points = aggregateAdDashboardPoints(fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, campaignIds, goal), current.from, current.to), granularity);
-  const hasData = points.some((point) => point.spend > 0 || point.impressions > 0);
-  const goalRows = goals.map((option) => ({
-    ...option,
-    total: summarizeAdDashboard(metrics, conversions, campaignIds, option.value, oneCurrency),
-  })).filter((option) => (option.total.conversions ?? 0) > 0);
+  const accountCurrency = new Map(accounts.map((account) => [account.id, account.currency]));
+  const campaignCurrency = new Map(campaigns.map((campaign) => [campaign.id, accountCurrency.get(campaign.account_id) ?? null]));
+
+  // Summary in one currency: every day converted at that day's Bank of Russia rate.
+  const convert = makeConverter(fxRates, displayCurrency);
+  const toDisplay = (rows: AdMetricDay[]) => {
+    let complete = true;
+    const converted = rows.filter((row) => campaignIds.has(row.campaign_id)).map((row) => {
+      const spend = convert(Number(row.spend), campaignCurrency.get(row.campaign_id) ?? null, row.date);
+      if (spend === null) complete = false;
+      return { ...row, spend: spend ?? 0 };
+    });
+    return { converted, complete };
+  };
+  const currentDisplay = toDisplay(metrics);
+  const previousDisplay = toDisplay(previousMetrics);
+  const currency = currentDisplay.complete && previousDisplay.complete ? displayCurrency : null;
+  const summaryMetrics = currency ? currentDisplay.converted : [];
+  const summaryPrevious = currency ? previousDisplay.converted : [];
+
+  const cards = buildGoalCards({ selected: campaignIds, goals: campaignGoals, settings: goalSettings, metrics: summaryMetrics, conversions, previousMetrics: summaryPrevious, previousConversions, customNames });
+  const selectedCard = cards.find((card) => card.key === current.goal) ?? cards.find((card) => !card.extra) ?? cards[0] ?? null;
+  const spendNow = summaryMetrics.reduce((sum, row) => sum + Number(row.spend), 0);
+  const spendBefore = summaryPrevious.reduce((sum, row) => sum + Number(row.spend), 0);
+  const noGoalSpend = summaryMetrics.filter((row) => !campaignGoals.get(row.campaign_id)).reduce((sum, row) => sum + Number(row.spend), 0);
+  const totals = summarizeAdDashboard(metrics, conversions, campaignIds, null, false);
+  const points = selectedCard
+    ? aggregateAdDashboardPoints(fillAdDashboardDays(goalDailyPoints(summaryMetrics.length ? summaryMetrics : metrics, conversions, selectedCard, campaignGoals), current.from, current.to), granularity)
+    : [];
+  const hasData = totals.spend > 0 || totals.impressions > 0;
+  const labelOf = (key: GoalKey) => goalSettings.find((item) => item.goal_key === key)?.label || goalLabel(key, customNames);
+
+  // Table: native account currency; each campaign is measured by its own goal.
   const accountResults: AdAccountResult[] = selectedAccounts.map((account) => {
-    const accountIds = new Set(selectedCampaigns.filter((campaign) => campaign.account_id === account.id).map((campaign) => campaign.id));
-    const totals = summarizeAdDashboard(metrics, conversions, accountIds, goal, !!account.currency);
-    const previous = summarizeAdDashboard(previousMetrics, previousConversions, accountIds, goal, !!account.currency);
-    const campaignResults = selectedCampaigns.filter((campaign) => accountIds.has(campaign.id)).map((campaign) => {
+    const accountCampaigns = selectedCampaigns.filter((campaign) => campaign.account_id === account.id);
+    const campaignResults = accountCampaigns.map((campaign) => {
+      const goal = campaignGoals.get(campaign.id) ?? null;
       const ids = new Set([campaign.id]);
-      const total = summarizeAdDashboard(metrics, conversions, ids, goal, !!account.currency);
-      const before = summarizeAdDashboard(previousMetrics, previousConversions, ids, goal, !!account.currency);
-      return { id: campaign.id, name: campaign.name, ...total, delta: percentChange(total.cpa, before.cpa), trend: fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, ids, goal), current.from, current.to) };
-    }).filter((campaign) => campaign.spend > 0 || campaign.impressions > 0 || (campaign.conversions ?? 0) > 0).sort((a, b) => b.spend - a.spend);
-    return { ...account, ...totals, delta: percentChange(totals.cpa, previous.cpa), trend: fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, accountIds, goal), current.from, current.to), campaigns: campaignResults };
+      const total = summarizeAdDashboard(metrics, conversions, ids, goal?.action ?? null, !!account.currency);
+      const before = summarizeAdDashboard(previousMetrics, previousConversions, ids, goal?.action ?? null, !!account.currency);
+      return { id: campaign.id, name: campaign.name, goalKey: goal?.key ?? null, goalLabel: goal ? labelOf(goal.key) : "Без целевого действия", ...total, delta: percentChange(total.cpa, before.cpa), trend: fillAdDashboardDays(dailyAdDashboardPoints(metrics, conversions, ids, goal?.action ?? null), current.from, current.to) };
+    }).filter((campaign) => campaign.spend > 0 || campaign.impressions > 0 || (campaign.conversions ?? 0) > 0);
+    const keys = new Set(campaignResults.map((campaign) => campaign.goalKey));
+    const single = keys.size === 1 && !keys.has(null);
+    const spend = campaignResults.reduce((sum, campaign) => sum + campaign.spend, 0);
+    const results = single ? campaignResults.reduce((sum, campaign) => sum + (campaign.conversions ?? 0), 0) : null;
+    const previousSpend = summarizeAdDashboard(previousMetrics, previousConversions, new Set(accountCampaigns.map((campaign) => campaign.id)), null, false).spend;
+    const previousResults = single ? accountCampaigns.reduce((sum, campaign) => {
+      const goal = campaignGoals.get(campaign.id);
+      return sum + (goal ? summarizeAdDashboard(previousMetrics, previousConversions, new Set([campaign.id]), goal.action, false).conversions ?? 0 : 0);
+    }, 0) : null;
+    const cpa = single && results ? spend / results : null;
+    const previousCpa = single && previousResults ? previousSpend / previousResults : null;
+    const trendByDay = new Map<string, number>();
+    for (const campaign of campaignResults) for (const point of campaign.trend) trendByDay.set(point.bucket, (trendByDay.get(point.bucket) ?? 0) + (single ? point.conversions : 0));
+    return {
+      ...account, spend, impressions: 0, clicks: 0, conversions: results, cpa, delta: percentChange(cpa, previousCpa),
+      goalLabel: single ? campaignResults[0].goalLabel : keys.size > 1 ? "разные цели" : null,
+      trend: [...trendByDay].map(([bucket, conversions]) => ({ bucket, conversions })).sort((x, y) => x.bucket.localeCompare(y.bucket)),
+      campaigns: campaignResults.sort((x, y) => y.spend - x.spend),
+    };
   }).filter((account) => account.campaigns.length > 0);
+  const audienceAction = selectedCard && !selectedCard.extra ? [...selectedCard.campaignIds].map((id) => campaignGoals.get(id)?.action).find(Boolean) ?? null : null;
 
   return (
     <div className="space-y-3">
       {!selectedAccounts.length && current.project && <section className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-        <div><h3 className="text-sm font-semibold text-neutral-950">Рекламный кабинет ещё не подключён</h3><p className="mt-1 text-xs leading-relaxed text-neutral-600">Проверьте кабинеты Meta, затем привяжите нужный к этому проекту. Данные других проектов не будут смешаны.</p></div>
+        <div><h3 className="text-sm font-semibold text-neutral-950">Рекламный кабинет ещё не подключён</h3><p className="mt-1 text-xs leading-relaxed text-neutral-600">Кабинеты Яндекса, ВК и Telegram подключаются на странице проекта. Для Meta проверьте кабинеты и привяжите нужный.</p></div>
         <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} label="Найти кабинеты Meta" />
         <LinkMetaAccount projectId={current.project} accounts={unlinkedMetaAccounts} />
       </section>}
-      {freshnessWarning && <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />{freshnessWarning}</p>}
-      {currencies.length > 1 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Выбраны кабинеты в разных валютах ({currencies.join(", ")}). Общие расход и цена цели скрыты; выберите кабинет.</p>}
+      {sourceStatus?.message && <p className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${sourceStatus.state === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>{sourceStatus.state === "error" ? <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" /> : <Info className="size-3.5 shrink-0" aria-hidden="true" />}{sourceStatus.message}</p>}
+      {!currency && hasData && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Нет курса для одной из валют кабинетов — общая сводка в {displayCurrency} недоступна. Таблица ниже показывает суммы в валютах кабинетов.</p>}
 
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3" aria-label="Ключевые показатели рекламы">
-        <Kpi main label="Цена результата" value={goal && oneCurrency && currentTotals.cpa !== null ? money(currentTotals.cpa, currency) : "—"}
-          delta={goal && oneCurrency ? percentChange(currentTotals.cpa, previousTotals.cpa) : null} lowerIsBetter
-          hint={!goal ? "сначала выберите цель" : !oneCurrency ? "кабинеты в разных валютах" : undefined}
-          info={`Расход, делённый на число результатов${goalLabel ? ` «${goalLabel}»` : ""} за период`} />
-        <Kpi label="Результаты" detail={goalLabel} value={goal && currentTotals.conversions !== null ? integer(currentTotals.conversions) : "—"}
-          delta={goal ? percentChange(currentTotals.conversions, previousTotals.conversions) : null}
-          hint={!goal ? "сначала выберите цель" : undefined}
-          info="Количество выбранных целевых действий по данным рекламных кабинетов" />
-        <Kpi label="Расход" value={oneCurrency ? money(currentTotals.spend, currency) : "—"}
-          delta={oneCurrency ? percentChange(currentTotals.spend, previousTotals.spend) : null} neutral
-          hint={!oneCurrency ? "кабинеты в разных валютах" : undefined}
-          info="Сумма расхода по выбранным кабинетам без НДС, как её отдаёт рекламная система" />
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:gap-3" aria-label="Ключевые показатели рекламы">
+        <Kpi main label="Расход" value={currency ? money(spendNow, currency) : "—"}
+          delta={currency ? percentChange(spendNow, spendBefore) : null} neutral
+          footnote={currency && noGoalSpend > 0 ? `из них ${money(noGoalSpend, currency)} — без целевого действия` : undefined}
+          action={<span className="flex rounded-md bg-neutral-100 p-0.5 text-[11px] font-semibold">{CURRENCY_CHOICES.map(([code, sign]) => <Link key={code} href={currencyHref(current, code)} scroll={false} aria-label={`Сводка в ${code}`} className={`rounded px-1.5 py-0.5 ${displayCurrency === code ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}>{sign}</Link>)}</span>}
+          info="Сумма расхода всех кабинетов без НДС, приведённая к одной валюте по курсу ЦБ на дату каждого дня." />
+        {cards.map((card) => <GoalCardView key={card.key} card={card} currency={currency} main={false} />)}
       </section>
 
-      <AdPerformanceCharts points={points} goalLabel={goalLabel} currency={currency} granularity={granularity} />
+      <AdPerformanceCharts points={points} goalLabel={selectedCard?.label ?? null} currency={selectedCard && !selectedCard.extra ? currency : null} granularity={granularity} priceNote={selectedCard?.extra ? "У дополнительной цели нет отдельной цены" : undefined} />
 
       <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
         <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3 pb-2 md:px-5 md:pt-4">
           <h3 className="text-[15px] font-semibold text-neutral-950">Где получены результаты</h3>
-          {goalLabel && <span className="text-xs text-neutral-400">Цель: {goalLabel}</span>}
+          <span className="text-xs text-neutral-400">Каждая кампания — по своей цели · суммы в валюте кабинета</span>
         </div>
-        {!hasData ? <p className="px-5 pb-5 text-sm text-neutral-500">За выбранный период нет рекламных данных. Проверьте подключение кабинетов или измените даты.</p> : <AdResultsTable accounts={accountResults} />}
+        {!hasData ? <p className="px-5 pb-5 text-sm text-neutral-500">За выбранный период нет рекламных данных.</p> : <AdResultsTable accounts={accountResults} />}
       </section>
 
       {(hasData || latestDate) && <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 px-1 text-xs tabular-nums text-neutral-400">
         {hasData ? <span className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>Показы <strong className="ml-1 font-semibold text-neutral-800">{integer(currentTotals.impressions)}</strong></span>
-          <span>Клики <strong className="ml-1 font-semibold text-neutral-800">{integer(currentTotals.clicks)}</strong></span>
-          <span>CTR <strong className="ml-1 font-semibold text-neutral-800">{currentTotals.impressions ? `${formatAdNumber(currentTotals.clicks / currentTotals.impressions * 100, 2)}%` : "—"}</strong></span>
+          <span>Показы <strong className="ml-1 font-semibold text-neutral-800">{integer(totals.impressions)}</strong></span>
+          <span>Клики <strong className="ml-1 font-semibold text-neutral-800">{integer(totals.clicks)}</strong></span>
+          <span>CTR <strong className="ml-1 font-semibold text-neutral-800">{totals.impressions ? `${formatAdNumber(totals.clicks / totals.impressions * 100, 2)}%` : "—"}</strong></span>
         </span> : <span />}
         {latestDate && <span>Последние данные в кабинетах: {formatAdDate(latestDate)}</span>}
       </div>}
 
-      {goalRows.length > 1 && <details className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
-        <summary className="cursor-pointer text-sm font-semibold text-neutral-900">Все цели и конверсии · {goalRows.length}</summary>
-        <p className="mt-2 text-xs text-neutral-500">Каждая цель показана отдельно: Meta может учитывать одно действие сразу в нескольких типах конверсий, поэтому числа не складываются.</p>
-        <div className="mt-2 overflow-x-auto"><table className="w-full min-w-[420px] text-left text-sm"><thead><tr className="border-b border-neutral-100 text-xs text-neutral-500"><th className="py-2 font-medium">Цель</th><th className="py-2 text-right font-medium">Конверсии</th><th className="py-2 text-right font-medium">Цена</th></tr></thead><tbody>{goalRows.map((row) => <tr key={row.value} className="border-b border-neutral-100 last:border-0"><td className="py-2 text-neutral-800">{row.label}</td><td className="py-2 text-right tabular-nums">{integer(row.total.conversions ?? 0)}</td><td className="py-2 text-right tabular-nums">{row.total.cpa !== null ? money(row.total.cpa, currency) : "—"}</td></tr>)}</tbody></table></div>
-      </details>}
-
+      {goalSettingsForm}
 
       {hasMetaAccount && <section className="rounded-2xl border border-neutral-200 bg-neutral-50/50 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-neutral-950">Аудитория и география</h3><p className="mt-1 max-w-3xl text-xs leading-relaxed text-neutral-500">Если Meta передала расход и конверсии по выбранной цели, срезы отсортированы по цене результата. Иначе показано только распределение показов — по нему нельзя судить о конверсии. Срезы разных валют не объединяются.</p></div>{audienceActions}</div>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <GoalBreakdown title="Страны" items={summarizeAudienceGoal(audiencePerformanceRows, "country", goal)} fallback={audience.country} currency={currency} />
-          <GoalBreakdown title="Возраст" items={summarizeAudienceGoal(audiencePerformanceRows, "age", goal)} fallback={audience.age} currency={currency} />
-          <GoalBreakdown title="Пол" items={summarizeAudienceGoal(audiencePerformanceRows, "gender", goal)} fallback={audience.gender} currency={currency} />
+          <GoalBreakdown title="Страны" items={summarizeAudienceGoal(audiencePerformanceRows, "country", audienceAction)} fallback={audience.country} currency={singleNative(selectedAccounts)} />
+          <GoalBreakdown title="Возраст" items={summarizeAudienceGoal(audiencePerformanceRows, "age", audienceAction)} fallback={audience.age} currency={singleNative(selectedAccounts)} />
+          <GoalBreakdown title="Пол" items={summarizeAudienceGoal(audiencePerformanceRows, "gender", audienceAction)} fallback={audience.gender} currency={singleNative(selectedAccounts)} />
         </div>
       </section>}
 
