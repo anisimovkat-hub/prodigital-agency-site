@@ -141,6 +141,7 @@ export function actionTypeLabel(
   const known = ACTION_TYPE_LABEL[actionType];
   if (known) return known;
   if (actionType === "telegram:joins") return "Вступления в Telegram";
+  if (actionType === "yandex:conversions") return "Конверсии Яндекс.Директа";
   if (actionType.startsWith("vk:")) return actionType.slice(3);
   const custom = /^offsite_conversion\.custom\.(.+)$/.exec(actionType);
   if (custom) {
@@ -154,6 +155,7 @@ export function isGoalAction(actionType: string): boolean {
   return (
     GOAL_PRIORITY.has(actionType) ||
     actionType === "telegram:joins" ||
+    actionType.startsWith("yandex:") ||
     actionType.startsWith("vk:") ||
     actionType === "offsite_conversion.custom" ||
     actionType.startsWith("offsite_conversion.custom.")

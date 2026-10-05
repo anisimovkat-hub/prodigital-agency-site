@@ -1,3 +1,4 @@
+import { YandexProjectPanel } from "@/app/(dashboard)/analytics/yandex-clients-panel";
 import { AdAnalyticsPanel } from "@/app/(dashboard)/analytics/meta/ad-analytics-panel";
 import type { AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
 import { AdsFilters, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
@@ -942,6 +943,7 @@ export default async function AnalyticsPage({
             audiencePerformanceRows={((audienceMetrics ?? []) as AudienceRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id))}
             hasMetaAccount={visibleAdAccountRows.some((account) => account.platform === "meta")}
             unlinkedMetaAccounts={currentAdAccountRows.filter((account) => account.platform === "meta" && !account.project_id).map((account) => ({ id: account.id, name: account.name ?? account.external_id }))}
+            sourceActions={projectId ? <YandexProjectPanel projectId={projectId} period={{ from, to }} accounts={visibleAdAccountRows.filter((account) => account.platform === "yandex_direct").map((account) => ({ login: account.external_id, name: account.name, currency: account.currency }))} /> : undefined}
             audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
             freshnessWarning={freshnessWarning}
             latestDate={latestPaidMetric?.date ?? null}
