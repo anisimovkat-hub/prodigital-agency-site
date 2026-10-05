@@ -1,15 +1,5 @@
 import "server-only";
 
-const BASE_URL = "https://api.direct.yandex.com/json/v5/agencyclients";
-
-export type YandexAgencyClient = {
-  login: string;
-  clientId: string | null;
-  name: string | null;
-  currency: string | null;
-  archived: boolean;
-};
-
 type AgencyClientRow = {
   Login?: string;
   ClientId?: string | number;
@@ -23,67 +13,23 @@ type YandexDirectResponse = {
   error?: { error_code?: number; error_string?: string; error_detail?: string };
 };
 
-function token(): string {
-  const value = process.env.YANDEX_DIRECT_TOKEN;
-  if (!value) {
-    throw new Error(
-      "YANDEX_DIRECT_TOKEN не задан в sensitive-переменных Vercel.",
-    );
-  }
-  return value;
-}
-
 function errorMessage(json: YandexDirectResponse, status: number): string {
   return json.error?.error_string
     ? `Яндекс.Директ: ${json.error.error_string}${json.error.error_detail ? ` — ${json.error.error_detail}` : ""}`
     : `Яндекс.Директ вернул статус ${status}.`;
 }
 
-// Первый и единственный запрос этапа Y1. Не передаём Client-Login: метод
-// возвращает весь список рекламодателей, доступных агентскому представителю.
-export async function fetchYandexAgencyClients(): Promise<YandexAgencyClient[]> {
-  const response = await fetch(BASE_URL, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      Authorization: `Bearer ${token()}`,
-      "Accept-Language": "ru",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      method: "get",
-      params: {
-        SelectionCriteria: {},
-        FieldNames: ["Login", "ClientId", "ClientInfo", "Currency", "Archived"],
-      },
-    }),
-  });
-  const json = (await response.json()) as YandexDirectResponse;
-  if (!response.ok || json.error) throw new Error(errorMessage(json, response.status));
-
-  return (json.result?.Clients ?? [])
-    .filter((client): client is AgencyClientRow & { Login: string } => Boolean(client.Login))
-    .map((client) => ({
-      login: client.Login,
-      clientId: client.ClientId === undefined ? null : String(client.ClientId),
-      name: client.ClientInfo ?? null,
-      currency: client.Currency ?? null,
-      archived: client.Archived === true || client.Archived === "YES",
-    }))
-    .sort((a, b) => a.login.localeCompare(b.login, "ru"));
-}
-
 const API = "https://api.direct.yandex.com/json/v5";
 
 export type YandexClient = { login: string; name: string | null; currency: string | null; archived: boolean };
 
-/** A per-account OAuth token from the connected credential, or the shared env token. */
-export type YandexAuth = { token?: string; clientLogin?: string };
+/** The OAuth token stored for a connected account, and the client login it reads. */
+export type YandexAuth = { token: string; clientLogin?: string };
 
 function headers(auth: YandexAuth): Record<string, string> {
   const { clientLogin } = auth;
   return {
-    Authorization: `Bearer ${auth.token ?? token()}`,
+    Authorization: `Bearer ${auth.token}`,
     "Accept-Language": "ru",
     "Content-Type": "application/json",
     ...(clientLogin ? { "Client-Login": clientLogin } : {}),
@@ -94,7 +40,7 @@ function headers(auth: YandexAuth): Record<string, string> {
  * Clients.get: without Client-Login it describes the token owner; with it, a client
  * the token owner may read as an agency or as that advertiser's representative.
  */
-export async function fetchYandexClient(auth: YandexAuth = {}): Promise<YandexClient> {
+export async function fetchYandexClient(auth: YandexAuth): Promise<YandexClient> {
   const response = await fetch(`${API}/clients`, {
     method: "POST",
     cache: "no-store",
@@ -135,11 +81,12 @@ export function parseYandexCampaignReport(tsv: string): YandexCampaignDay[] {
     if (index < 0) throw new Error(`В отчёте Яндекс.Директа нет столбца ${name}.`);
     return index;
   };
-  const columns = Object.fromEntries(REPORT_FIELDS.map((name) => [name, at(name)])) as Record<(typeof REPORT_FIELDS)[number], number>;
+  // Accounts without key goals may come back without a Conversions column: spend still counts.
+  const columns = Object.fromEntries(REPORT_FIELDS.map((name) => [name, name === "Conversions" ? header.indexOf(name) : at(name)])) as Record<(typeof REPORT_FIELDS)[number], number>;
   const number = (value: string | undefined) => (value === undefined || value === "--" || value === "" ? 0 : Number(value));
   return lines.slice(1).map((line) => {
     const cells = line.split("\t");
-    const conversions = cells[columns.Conversions];
+    const conversions = columns.Conversions < 0 ? undefined : cells[columns.Conversions];
     return {
       date: cells[columns.Date],
       campaignId: cells[columns.CampaignId],
@@ -168,7 +115,8 @@ export async function fetchYandexCampaignReport(
     params: {
       SelectionCriteria: { DateFrom: from, DateTo: to },
       FieldNames: REPORT_FIELDS,
-      ReportName: `agency-os ${auth.clientLogin ?? "self"} ${from} ${to}`,
+      // Yandex caches reports by name; a fresh name returns today's numbers, not a cached copy.
+      ReportName: `agency-os ${auth.clientLogin ?? "self"} ${from} ${to} ${Date.now()}`,
       ReportType: "CUSTOM_REPORT",
       DateRangeType: "CUSTOM_DATE",
       Format: "TSV",

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { AnalyticsPeriod } from "@/lib/analytics-period";
 import type { Database } from "@/lib/supabase/types";
-import { fetchTelegramAdDays, fetchTonRubRate } from "@/lib/telegram-ads";
+import { fetchTelegramAdDays, fetchTonRubRates } from "@/lib/telegram-ads";
 import { ensureVkToken, fetchVkCampaignDays, type VkCredential } from "@/lib/vk-ads";
 import { fetchYandexCampaignReport } from "@/lib/yandex-direct";
 
@@ -37,8 +37,8 @@ async function readSecret<T extends ConnectedSecret>(client: Service, accountId:
 export async function fetchConnectedDays(client: Service, account: { id: string; platform: ConnectedPlatform }, period: AnalyticsPeriod): Promise<CampaignDay[]> {
   if (account.platform === "telegram_ads") {
     const { token } = await readSecret<TelegramSecret>(client, account.id);
-    const [days, rate] = await Promise.all([fetchTelegramAdDays(token, period.from, period.to), fetchTonRubRate()]);
-    return days.map((day) => ({ campaignId: day.adId, name: day.title, date: day.date, spend: Math.round(day.spendTon * rate * 100) / 100, impressions: day.views, clicks: day.clicks, results: day.joins, actionType: "telegram:joins" }));
+    const [days, rateOn] = await Promise.all([fetchTelegramAdDays(token, period.from, period.to), fetchTonRubRates(period.from)]);
+    return days.map((day) => ({ campaignId: day.adId, name: day.title, date: day.date, spend: Math.round(day.spendTon * rateOn(day.date) * 100) / 100, impressions: day.views, clicks: day.clicks, results: day.joins, actionType: "telegram:joins" }));
   }
   if (account.platform === "vk") {
     const stored = await readSecret<VkCredential>(client, account.id);

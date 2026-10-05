@@ -33,37 +33,54 @@ export async function fetchTelegramAds(token: string): Promise<TelegramAd[]> {
 
 export type TelegramAdDay = { adId: string; title: string; date: string; spendTon: number; views: number; clicks: number; joins: number };
 
-/** Daily statistics per ad; spend comes in TON. */
+async function inParallel<T, R>(items: T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await run(items[index]);
+    }
+  }));
+  return results;
+}
+
+/** Daily statistics per ad; spend comes in TON. A few ads are requested at once to fit the cron time limit. */
 export async function fetchTelegramAdDays(token: string, from: string, to: string): Promise<TelegramAdDay[]> {
   const ads = await fetchTelegramAds(token);
   const start = Date.parse(`${from}T00:00:00Z`) / 1000;
   const end = Date.parse(`${to}T00:00:00Z`) / 1000 + 86_400;
-  const days: TelegramAdDay[] = [];
-  for (const ad of ads) {
+  const perAd = await inParallel(ads, 5, async (ad) => {
     const stats = await request<TelegramStat[]>(token, "getAdStats", { ad_id: ad.ad_id, from_time: start, to_time: end, interval: 86_400 });
-    for (const stat of Array.isArray(stats) ? stats : []) {
-      if (!Number.isFinite(Number(stat.from_time))) continue;
+    return (Array.isArray(stats) ? stats : []).flatMap((stat) => {
+      if (!Number.isFinite(Number(stat.from_time))) return [];
       const views = Number(stat.views ?? 0), clicks = Number(stat.clicks ?? 0), spendTon = Number(stat.spent_budget ?? 0);
-      if (!views && !clicks && !spendTon) continue;
-      days.push({
+      if (!views && !clicks && !spendTon) return [];
+      return [{
         adId: String(ad.ad_id),
         title: String(ad.title ?? `Объявление ${ad.ad_id}`),
         date: new Date(Number(stat.from_time) * 1000).toISOString().slice(0, 10),
         spendTon, views, clicks, joins: Number(stat.joins ?? 0),
-      });
-    }
-  }
-  return days;
+      }];
+    });
+  });
+  return perAd.flat();
 }
 
-/** TON → RUB through TON/USD (Kraken) and USD/RUB, as in the existing Sheets script. */
-export async function fetchTonRubRate(): Promise<number> {
-  const [crypto, fx] = await Promise.all([
-    fetch("https://api.kraken.com/0/public/Ticker?pair=TONUSD", { cache: "no-store" }).then((response) => response.json()),
+/**
+ * TON → RUB for each day: the daily TON/USD close (Kraken) times the current USD/RUB.
+ * Past days keep their own TON price, so a resync does not re-price old spend.
+ */
+export async function fetchTonRubRates(from: string): Promise<(date: string) => number> {
+  const since = Date.parse(`${from}T00:00:00Z`) / 1000 - 86_400;
+  const [ohlc, fx] = await Promise.all([
+    fetch(`https://api.kraken.com/0/public/OHLC?pair=TONUSD&interval=1440&since=${since}`, { cache: "no-store" }).then((response) => response.json()),
     fetch("https://open.er-api.com/v6/latest/USD", { cache: "no-store" }).then((response) => response.json()),
-  ]) as [{ result?: Record<string, { c?: string[] }> }, { rates?: { RUB?: number } }];
-  const tonUsd = Number(Object.values(crypto.result ?? {})[0]?.c?.[0]);
+  ]) as [{ result?: Record<string, unknown> }, { rates?: { RUB?: number } }];
   const usdRub = Number(fx.rates?.RUB);
-  if (!(tonUsd > 0) || !(usdRub > 0)) throw new Error("Не удалось получить курс TON/RUB.");
-  return tonUsd * usdRub;
+  const candles = Object.entries(ohlc.result ?? {}).find(([key]) => key !== "last")?.[1] as [number, string, string, string, string][] | undefined;
+  const closes = new Map((candles ?? []).map((candle) => [new Date(candle[0] * 1000).toISOString().slice(0, 10), Number(candle[4])]));
+  const latest = [...closes.values()].at(-1);
+  if (!(usdRub > 0) || !(latest && latest > 0)) throw new Error("Не удалось получить курс TON/RUB.");
+  return (date) => (closes.get(date) ?? latest) * usdRub;
 }

@@ -410,7 +410,7 @@ async function loadProjectAdAccounts(projectId: string, isOwner: boolean): Promi
     const service = createServiceClient();
     const [{ data: accounts }, { data: credentials }, { data: unlinked }] = await Promise.all([
       service.from("ad_accounts").select("id,platform,name,currency,is_active").eq("project_id", projectId).order("platform"),
-      service.from("ad_account_credentials").select("ad_account_id,last_sync_at,last_error"),
+      service.from("ad_account_credentials").select("ad_account_id,last_sync_at,last_error,ad_accounts!inner(project_id)").eq("ad_accounts.project_id", projectId),
       isOwner ? service.from("ad_accounts").select("id,name,external_id").eq("platform", "meta").is("project_id", null).order("name") : Promise.resolve({ data: [] as { id: string; name: string | null; external_id: string }[] }),
     ]);
     const byAccount = new Map((credentials ?? []).map((row) => [row.ad_account_id, row]));

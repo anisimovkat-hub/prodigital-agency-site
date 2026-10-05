@@ -29,9 +29,14 @@ export async function ensureVkToken(credential: VkCredential): Promise<{ credent
       ? await tokenRequest({ ...base, grant_type: "refresh_token", refresh_token: credential.refreshToken })
       : await tokenRequest({ ...base, grant_type: "client_credentials" });
   } catch {
-    // Expired refresh token or token limit: start over with a clean client_credentials token.
-    await fetch(`${API}/oauth2/token/delete.json`, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(base) });
-    json = await tokenRequest({ ...base, grant_type: "client_credentials" });
+    try {
+      // An expired refresh token: a new client_credentials token is enough.
+      json = await tokenRequest({ ...base, grant_type: "client_credentials" });
+    } catch {
+      // Only the 5-token limit is left: revoke old tokens of this key and start over.
+      await fetch(`${API}/oauth2/token/delete.json`, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(base) });
+      json = await tokenRequest({ ...base, grant_type: "client_credentials" });
+    }
   }
   return {
     changed: true,
@@ -64,7 +69,7 @@ type VkRow = { date: string; base?: { shows?: number | string; clicks?: number |
 export async function fetchVkCampaignDays(token: string, from: string, to: string): Promise<VkCampaignDay[]> {
   const campaigns: { id: number; name: string }[] = [];
   for (let offset = 0; offset < 10_000; offset += 250) {
-    const page = await get<{ items?: { id: number; name: string }[]; count?: number }>(token, "campaigns.json", { fields: "id,name", limit: "250", offset: String(offset), _status__in: "active,blocked,deleted" });
+    const page = await get<{ items?: { id: number; name: string }[]; count?: number }>(token, "campaigns.json", { fields: "id,name", limit: "250", offset: String(offset) });
     campaigns.push(...(page.items ?? []));
     if ((page.items?.length ?? 0) < 250) break;
   }

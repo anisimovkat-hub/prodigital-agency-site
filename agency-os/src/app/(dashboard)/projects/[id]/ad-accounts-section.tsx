@@ -105,7 +105,9 @@ export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta }
           <p className="text-xs text-neutral-500">{PLATFORM_LABEL[account.platform] ?? account.platform}{account.currency ? ` · ${account.currency}` : ""}</p>
         </div>
         <div className="flex items-center gap-4">
-          {account.lastError
+          {!account.usesKey && account.platform !== "meta"
+            ? <span className="text-xs text-neutral-400">старые данные, не обновляются — подключите кабинет ключом</span>
+            : account.lastError
             ? <span className="flex max-w-md items-center gap-1 text-xs text-red-600" title={account.lastError}><CircleAlert className="size-3.5 shrink-0" /><span className="truncate">{account.lastError}</span></span>
             : <span className="flex items-center gap-1 text-xs text-emerald-700"><CircleCheck className="size-3.5" />{account.lastSyncAt ? `обновлено ${syncedAt(account.lastSyncAt)}` : account.usesKey ? "ждёт первой загрузки" : "общий доступ агентства"}</span>}
           {account.usesKey && <ReplaceKey projectId={projectId} account={account} />}

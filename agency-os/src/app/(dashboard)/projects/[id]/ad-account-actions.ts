@@ -156,8 +156,14 @@ export async function replaceAdAccountKey(_state: AdAccountState, formData: Form
   } catch (error) {
     return { ok: false, message: `Ключ не подошёл: ${error instanceof Error ? error.message : "площадка не ответила"}` };
   }
-  // A key of another cabinet would silently mix two accounts' statistics.
-  if (account.platform !== "vk" && verified.externalId !== account.external_id) return { ok: false, message: "Этот ключ от другого кабинета. Подключите его как новый кабинет." };
+  // A Yandex login names the cabinet exactly; a key of another login would mix two accounts.
+  if (account.platform === "yandex_direct" && verified.externalId !== account.external_id) return { ok: false, message: "Этот ключ от другого кабинета. Подключите его как новый кабинет." };
+  // VK and Telegram ids can change with a reissued key; keep the account and move it to the new id.
+  if (verified.externalId !== account.external_id) {
+    const { data: taken } = await service.from("ad_accounts").select("id").eq("platform", account.platform).eq("external_id", verified.externalId).maybeSingle();
+    if (taken) return { ok: false, message: "Этот ключ уже подключён как отдельный кабинет." };
+    await service.from("ad_accounts").update({ external_id: verified.externalId }).eq("id", account.id);
+  }
   try {
     await saveSecret(service, account.id, verified.secret, access.userId);
     await service.from("ad_accounts").update({ is_active: true }).eq("id", account.id);
