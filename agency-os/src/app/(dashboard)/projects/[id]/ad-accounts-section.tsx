@@ -6,6 +6,7 @@ import { CircleAlert, CircleCheck, Plus, RefreshCw } from "lucide-react";
 import {
   connectAdAccount,
   disconnectAdAccount,
+  replaceAdAccountKey,
   syncProjectAdAccounts,
   type AdAccountState,
 } from "@/app/(dashboard)/projects/[id]/ad-account-actions";
@@ -46,6 +47,31 @@ function DisconnectButton({ projectId, accountId }: { projectId: string; account
   </form>;
 }
 
+function KeyFields({ platform }: { platform: string }) {
+  const config = AD_PLATFORMS.find((item) => item.value === platform);
+  if (!config) return null;
+  return <div className="grid gap-3 sm:grid-cols-2">{config.fields.map((field) => <label key={field.name} className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
+    {field.label}{field.optional ? " (необязательно)" : ""}
+    <Input name={field.name} type={field.secret ? "password" : "text"} required={!field.optional} placeholder={field.placeholder} autoComplete={field.secret ? "new-password" : "off"} spellCheck={false} />
+  </label>)}</div>;
+}
+
+function ReplaceKey({ projectId, account }: { projectId: string; account: ProjectAdAccount }) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState<AdAccountState, FormData>(replaceAdAccountKey, undefined);
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="text-xs text-blue-600 hover:underline">Заменить ключ</button>;
+  return <form action={action} className="mt-3 w-full space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3" autoComplete="off">
+    <input type="hidden" name="project_id" value={projectId} />
+    <input type="hidden" name="account_id" value={account.id} />
+    <KeyFields platform={account.platform} />
+    <div className="flex items-center gap-2">
+      <Button type="submit" size="sm" disabled={pending}>{pending ? "Проверяю…" : "Сохранить новый ключ"}</Button>
+      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Отмена</Button>
+    </div>
+    <Status state={state} />
+  </form>;
+}
+
 export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta }: {
   projectId: string;
   isOwner: boolean;
@@ -82,6 +108,7 @@ export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta }
           {account.lastError
             ? <span className="flex max-w-md items-center gap-1 text-xs text-red-600" title={account.lastError}><CircleAlert className="size-3.5 shrink-0" /><span className="truncate">{account.lastError}</span></span>
             : <span className="flex items-center gap-1 text-xs text-emerald-700"><CircleCheck className="size-3.5" />{account.lastSyncAt ? `обновлено ${syncedAt(account.lastSyncAt)}` : account.usesKey ? "ждёт первой загрузки" : "общий доступ агентства"}</span>}
+          {account.usesKey && <ReplaceKey projectId={projectId} account={account} />}
           {account.usesKey && <DisconnectButton projectId={projectId} accountId={account.id} />}
         </div>
       </li>)}
@@ -104,10 +131,7 @@ export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta }
                 <Select name="meta_account_id" required defaultValue=""><option value="" disabled>Выберите кабинет</option>{unlinkedMeta.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</Select>
               </label>
             : <p className="text-xs text-amber-700">Свободных кабинетов Meta нет: все найденные уже привязаны к проектам.</p>
-          : <div className="grid gap-3 sm:grid-cols-2">{config.fields.map((field) => <label key={field.name} className="flex flex-col gap-1 text-xs font-medium text-neutral-600">
-              {field.label}{field.optional ? " (необязательно)" : ""}
-              <Input name={field.name} type={field.secret ? "password" : "text"} required={!field.optional} placeholder={field.placeholder} autoComplete={field.secret ? "new-password" : "off"} spellCheck={false} />
-            </label>)}</div>}
+          : <KeyFields platform={config.value} />}
         <p className="text-[11px] text-neutral-400">Ключ проверяется запросом к площадке и хранится в зашифрованном хранилище. Agency OS только читает статистику и ничего не меняет в рекламе.</p>
       </>}
       <div className="flex flex-wrap items-center gap-2">

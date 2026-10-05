@@ -39,6 +39,7 @@ import { actionTypeLabel } from "@/lib/ad-analytics";
 import { PROJECT_HEALTH_LABEL } from "@/lib/labels";
 import { isOperationalProject, isTaskOperational } from "@/lib/project-lifecycle";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { isActiveTaskStatus } from "@/lib/task-status";
 import type { Enums } from "@/lib/supabase/types";
@@ -408,6 +409,7 @@ export default async function DashboardPage({
     },
   ].filter((item) => item.count > 0);
   const hasCalendarEvents = !!calendar?.events.length;
+  const brokenAdAccounts = showPersonalCalendar ? await loadBrokenAdAccounts() : [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -426,6 +428,12 @@ export default async function DashboardPage({
           Утренняя сводка
         </Link>
       </div>
+
+      {brokenAdAccounts.length > 0 && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800" role="alert">
+        <span className="font-medium">Статистика перестала обновляться:</span>{" "}
+        {brokenAdAccounts.map((account, index) => <span key={account.id}>{index > 0 && ", "}<Link href={`/projects/${account.projectId}`} className="underline underline-offset-2 hover:text-red-950">{account.projectName} · {account.name}</Link></span>)}
+        <span className="text-red-700"> — откройте проект и замените ключ кабинета.</span>
+      </div>}
 
       <div className="dashboard-summary grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {summaries.map((summary) => (
@@ -760,4 +768,21 @@ export default async function DashboardPage({
       </Table>
     </div>
   );
+}
+
+/** Connected ad accounts of active projects whose key failed or which have not updated for two days. */
+async function loadBrokenAdAccounts(): Promise<{ id: string; name: string; projectId: string; projectName: string }[]> {
+  try {
+    const { data } = await createServiceClient().from("ad_account_credentials")
+      .select("ad_account_id,created_at,last_sync_at,last_error, ad_accounts!inner(name,project_id,is_active,projects!inner(name,stage))")
+      .eq("ad_accounts.is_active", true)
+      .in("ad_accounts.projects.stage", ["launching", "active"]);
+    const stale = Date.now() - 2 * 86_400_000;
+    return (data ?? []).filter((row) => row.last_error || (Date.parse(row.last_sync_at ?? row.created_at) < stale)).map((row) => {
+      const account = row.ad_accounts as unknown as { name: string | null; project_id: string; projects: { name: string } };
+      return { id: row.ad_account_id, name: account.name ?? "кабинет", projectId: account.project_id, projectName: account.projects.name };
+    });
+  } catch {
+    return [];
+  }
 }

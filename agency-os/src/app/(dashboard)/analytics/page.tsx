@@ -8,7 +8,6 @@ import {
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
-import { ManifestSyncButton } from "@/app/(dashboard)/analytics/manifest-sync-button";
 import { ProjectAnalyticsOverview } from "@/app/(dashboard)/analytics/project-analytics-overview";
 import {
   actionTypeLabel,
@@ -31,7 +30,6 @@ import type {
   MarketingPost,
 } from "@/lib/marketing-analytics";
 import { calculateMediaPlanFact } from "@/lib/media-plan-fact";
-import { MANIFEST_PROJECT_ID } from "@/lib/manifest-sheet";
 import { sortProjectsForDisplay } from "@/lib/project-order";
 import { marketingSection } from "@/lib/marketing-sections";
 import { lastDaysPeriod, parseAnalyticsPeriod, previousComparablePeriod } from "@/lib/analytics-period";
@@ -915,7 +913,6 @@ export default async function AnalyticsPage({
       }
       adsPanel={
         <>
-          {projectId === MANIFEST_PROJECT_ID && <ManifestSyncButton />}
           <AdAnalyticsPanel
             current={currentAdsFilters}
             accounts={visibleAdAccountRows.map((account) => ({

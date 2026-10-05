@@ -6,10 +6,6 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/manifest-sheet-sync",
-      "schedule": "30 3 * * *"
-    },
-    {
       "path": "/api/cron/ad-accounts-sync",
       "schedule": "15 3 * * *"
     },
