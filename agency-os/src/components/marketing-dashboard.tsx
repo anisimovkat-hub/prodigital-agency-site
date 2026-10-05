@@ -355,7 +355,7 @@ function ProjectMark({ payload, compact = false, publicReport = false }: { paylo
     {payload.project.id && <ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" />}
     <div className="min-w-0">
       <p className="mb-0.5 text-xs text-neutral-400">{publicReport ? "Отчёт по рекламе" : <><Link href="/analytics" className="hover:text-neutral-700 hover:underline">Все проекты</Link> / {payload.project.name}</>}</p>
-      <h1 className="truncate text-[26px] font-bold tracking-tight text-neutral-950">Аналитика / {payload.project.name}</h1>
+      <h1 className="truncate text-xl font-bold tracking-tight text-neutral-950 sm:text-[26px]"><span className="hidden sm:inline">Аналитика / </span>{payload.project.name}</h1>
     </div>
   </div>;
   return <div className="flex items-center gap-3">{payload.project.id && <ProjectLogo projectId={payload.project.id} name={payload.project.name} logoUrl={payload.project.logoUrl} size="lg" />}<div><p className="text-xs font-medium uppercase tracking-[0.15em] text-neutral-400">Маркетинговая аналитика</p><h1 className="text-xl font-semibold text-neutral-950">{payload.project.name}</h1></div></div>;
@@ -375,7 +375,7 @@ export function MarketingDashboard({
   const insights = buildMarketingInsights(payload);
   return (
     <div className={cn("mx-auto flex w-full max-w-[1500px] flex-col", section === "ads" ? "gap-3" : "gap-4")}>
-      <header className="flex flex-wrap items-center justify-between gap-4"><ProjectMark payload={payload} compact={section === "ads"} publicReport={publicReport} />{controls}</header>
+      <header className={cn("flex items-center justify-between", section === "ads" ? "gap-3" : "flex-wrap gap-4")}><ProjectMark payload={payload} compact={section === "ads"} publicReport={publicReport} />{controls}</header>
       {filters}
       {publicReport && <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800"><BadgeCheck className="h-4 w-4" />Актуальный клиентский отчёт · данные доступны только для этого проекта</div>}
       {section === "overview" && (

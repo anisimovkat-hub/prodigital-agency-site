@@ -172,10 +172,10 @@ export function AnalyticsTabs({
   }
 
   if (section === "ads") return (
-    <div className="inline-flex rounded-xl bg-neutral-100 p-1" role="tablist" aria-label="Раздел аналитики">
+    <div className="flex w-full rounded-xl bg-neutral-100 p-1 sm:inline-flex sm:w-auto" role="tablist" aria-label="Раздел аналитики">
       {tabs.map((tab) => (
         <button type="button" key={tab.value} onClick={() => select(tab.value)} role="tab" aria-selected={section === tab.value}
-          className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950",
+          className={cn("inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition sm:flex-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950",
             section === tab.value ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900")}>
           <tab.icon className="size-4" aria-hidden="true" />{tab.label}
         </button>
@@ -332,9 +332,9 @@ export function ClientReportAction({ projectId }: { projectId: string }) {
     <div className="flex flex-wrap items-center justify-end gap-2">
       <form action={action}>
         <input type="hidden" name="project_id" value={projectId} />
-        <Button type="submit" disabled={!projectId || pending}>
+        <Button type="submit" disabled={!projectId || pending} aria-label="Отчёт для клиента" title="Отчёт для клиента">
           <Share2 className="h-4 w-4" />
-          {pending ? "Создаём…" : "Отчёт для клиента"}
+          <span className="hidden sm:inline">{pending ? "Создаём…" : "Отчёт для клиента"}</span>
         </Button>
       </form>
       {state?.url && (

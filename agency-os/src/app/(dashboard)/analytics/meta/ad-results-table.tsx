@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsUpDown, CircleHelp } from "lucide-react";
 import { SiGoogleads, SiMeta, SiTelegram, SiVk } from "react-icons/si";
 import { FaYandex } from "react-icons/fa";
@@ -38,6 +38,14 @@ function PriceDelta({ value }: { value: number | null }) {
   const Icon = better ? ArrowDown : ArrowUp;
   return <span className={`inline-flex items-center justify-end gap-0.5 font-medium ${better ? "text-emerald-600" : "text-rose-600"}`}>
     <Icon className="size-3.5" aria-hidden="true" />{formatAdPercent(value)}
+  </span>;
+}
+
+function PhoneMetric({ label, value, extra }: { label: string; value: string; extra?: ReactNode }) {
+  return <span className="min-w-0">
+    <span className="block text-[11px] text-neutral-400">{label}</span>
+    <span className="block truncate font-semibold text-neutral-950">{value}</span>
+    {extra && <span className="block text-[11px]">{extra}</span>}
   </span>;
 }
 
@@ -93,7 +101,45 @@ export function AdResultsTable({ accounts }: { accounts: AdAccountResult[] }) {
     </th>;
   };
 
-  return <div className="overflow-x-auto">
+  return <>
+  {/* Phone: one card per source, three key numbers in a row, campaigns on tap. */}
+  <ul className="divide-y divide-neutral-100 border-t border-neutral-100 md:hidden">
+    {order(accounts).map((account) => {
+      const open = expanded.has(account.id);
+      const campaigns = order(account.campaigns);
+      const visible = showAll.has(account.id) ? campaigns : campaigns.slice(0, VISIBLE_CAMPAIGNS);
+      return <li key={account.id}>
+        <button type="button" className="w-full px-4 py-3 text-left" onClick={() => toggleIn(setExpanded, account.id)} aria-expanded={open}>
+          <span className="flex items-center gap-2.5">
+            <PlatformMark platform={account.platform} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-neutral-950">{PLATFORMS[account.platform] ?? account.platform}</span>
+              <span className="block truncate text-xs text-neutral-400">{account.name}</span>
+            </span>
+            <ChevronDown className={`size-4 shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
+          </span>
+          <span className="mt-2.5 grid grid-cols-3 gap-2 text-[13px] tabular-nums">
+            <PhoneMetric label="Расход" value={account.currency ? formatAdMoney(account.spend, account.currency) : "—"} />
+            <PhoneMetric label="Результаты" value={account.conversions === null ? "—" : formatAdNumber(account.conversions)} />
+            <PhoneMetric label="Цена" value={account.cpa === null ? "—" : formatAdMoney(account.cpa, account.currency)} extra={<PriceDelta value={account.delta} />} />
+          </span>
+        </button>
+        {open && <ul className="border-t border-neutral-100 bg-neutral-50/60">
+          {visible.map((campaign) => <li key={campaign.id} className="border-b border-neutral-100 px-4 py-2.5 last:border-0">
+            <p className="truncate text-[13px] text-neutral-800" title={campaign.name}>{campaign.name}</p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs tabular-nums text-neutral-500">
+              <span>{account.currency ? formatAdMoney(campaign.spend, account.currency) : "—"}</span>
+              <span>{campaign.conversions === null ? "—" : formatAdNumber(campaign.conversions)} рез.</span>
+              <span>{campaign.cpa === null ? "—" : formatAdMoney(campaign.cpa, account.currency)}</span>
+              {campaign.delta !== null && <PriceDelta value={campaign.delta} />}
+            </p>
+          </li>)}
+          {campaigns.length > VISIBLE_CAMPAIGNS && <li className="px-4 py-2"><button type="button" className="text-xs font-medium text-blue-600" onClick={() => toggleIn(setShowAll, account.id)}>{showAll.has(account.id) ? "Свернуть" : `Ещё ${campaigns.length - VISIBLE_CAMPAIGNS} кампаний`}</button></li>}
+        </ul>}
+      </li>;
+    })}
+  </ul>
+  <div className="hidden overflow-x-auto md:block">
     <table className="w-full min-w-[820px] text-left text-[13px]">
       <thead><tr className="border-b border-neutral-100 text-xs text-neutral-400">
         <th className="w-[36%] px-5 py-3 font-normal">Источник / Кампания</th>
@@ -137,5 +183,6 @@ export function AdResultsTable({ accounts }: { accounts: AdAccountResult[] }) {
         </Fragment>;
       })}</tbody>
     </table>
-  </div>;
+  </div>
+  </>;
 }

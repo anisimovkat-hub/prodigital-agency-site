@@ -39,21 +39,25 @@ function DeltaPill({ value, lowerIsBetter = false, neutral = false }: { value: n
   const tone = Math.abs(value) < 0.005 || neutral ? "bg-neutral-100 text-neutral-600" : improved ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-600";
   return <span className="flex flex-wrap items-center gap-2">
     <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${tone}`}><Icon className="size-3.5" aria-hidden="true" />{formatAdPercent(value)}</span>
-    <span className="text-xs text-neutral-400">к предыдущему периоду</span>
+    <span className="hidden text-xs text-neutral-400 sm:inline">к предыдущему периоду</span>
   </span>;
 }
 
-function Kpi({ label, value, delta, lowerIsBetter = false, neutral = false, hint, info }: {
-  label: string; value: string; delta: number | null; lowerIsBetter?: boolean; neutral?: boolean; hint?: string; info: string;
+/** On phones the first (main) card spans the row; the other two sit side by side. */
+function Kpi({ label, detail, value, delta, lowerIsBetter = false, neutral = false, hint, info, main = false }: {
+  label: string; detail?: string | null; value: string; delta: number | null; lowerIsBetter?: boolean; neutral?: boolean; hint?: string; info: string; main?: boolean;
 }) {
   return (
-    <article className="min-w-0 rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+    <article className={`min-w-0 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] md:px-5 md:py-4 ${main ? "col-span-2 md:col-span-1" : ""}`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-sm font-medium text-neutral-700">{label}</p>
-        <span title={info} className="cursor-help text-neutral-300 hover:text-neutral-500"><Info className="size-4" aria-label={info} /></span>
+        <p className="truncate text-xs font-medium text-neutral-600 md:text-sm md:text-neutral-700" title={detail ? `${label} · ${detail}` : label}>{label}{detail && <span className="hidden md:inline"> · {detail}</span>}</p>
+        <span title={info} className="hidden cursor-help text-neutral-300 hover:text-neutral-500 md:inline"><Info className="size-4" aria-label={info} /></span>
       </div>
-      <p className="mt-2 truncate text-[32px] leading-tight font-bold tabular-nums tracking-tight text-neutral-950" title={value}>{value}</p>
-      <div className="mt-2 min-h-6">{hint ? <span className="text-xs text-neutral-400">{hint}</span> : <DeltaPill value={delta} lowerIsBetter={lowerIsBetter} neutral={neutral} />}</div>
+      {/* The main card puts its change next to the value on phones instead of leaving the right half empty. */}
+      <div className={main ? "flex items-end justify-between gap-3 md:block" : ""}>
+        <p className={`mt-1 truncate leading-tight font-bold tabular-nums tracking-tight text-neutral-950 md:mt-2 md:text-[32px] ${main ? "text-[28px]" : "text-xl"}`} title={value}>{value}</p>
+        <div className={`min-h-6 md:mt-2 ${main ? "shrink-0 pb-1 md:pb-0" : "mt-1.5"}`}>{hint ? <span className="text-xs text-neutral-400">{hint}</span> : <DeltaPill value={delta} lowerIsBetter={lowerIsBetter} neutral={neutral} />}</div>
+      </div>
     </article>
   );
 }
@@ -172,12 +176,12 @@ export function AdAnalyticsPanel({
       {freshnessWarning && <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" />{freshnessWarning}</p>}
       {currencies.length > 1 && <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Выбраны кабинеты в разных валютах ({currencies.join(", ")}). Общие расход и цена цели скрыты; выберите кабинет.</p>}
 
-      <section className="grid gap-3 md:grid-cols-3" aria-label="Ключевые показатели рекламы">
-        <Kpi label="Цена результата" value={goal && oneCurrency && currentTotals.cpa !== null ? money(currentTotals.cpa, currency) : "—"}
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3" aria-label="Ключевые показатели рекламы">
+        <Kpi main label="Цена результата" value={goal && oneCurrency && currentTotals.cpa !== null ? money(currentTotals.cpa, currency) : "—"}
           delta={goal && oneCurrency ? percentChange(currentTotals.cpa, previousTotals.cpa) : null} lowerIsBetter
           hint={!goal ? "сначала выберите цель" : !oneCurrency ? "кабинеты в разных валютах" : undefined}
           info={`Расход, делённый на число результатов${goalLabel ? ` «${goalLabel}»` : ""} за период`} />
-        <Kpi label={goalLabel ? `Результаты · ${goalLabel}` : "Результаты"} value={goal && currentTotals.conversions !== null ? integer(currentTotals.conversions) : "—"}
+        <Kpi label="Результаты" detail={goalLabel} value={goal && currentTotals.conversions !== null ? integer(currentTotals.conversions) : "—"}
           delta={goal ? percentChange(currentTotals.conversions, previousTotals.conversions) : null}
           hint={!goal ? "сначала выберите цель" : undefined}
           info="Количество выбранных целевых действий по данным рекламных кабинетов" />
@@ -190,7 +194,7 @@ export function AdAnalyticsPanel({
       <AdPerformanceCharts points={points} goalLabel={goalLabel} currency={currency} granularity={granularity} />
 
       <section className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-4 pb-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3 pb-2 md:px-5 md:pt-4">
           <h3 className="text-[15px] font-semibold text-neutral-950">Где получены результаты</h3>
           {goalLabel && <span className="text-xs text-neutral-400">Цель: {goalLabel}</span>}
         </div>

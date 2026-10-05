@@ -31,9 +31,9 @@ export type AdsFilterValues = {
 function FilterSelect({ icon, prefix, label, value, onChange, children }: {
   icon?: ReactNode; prefix?: string; label: string; value: string; onChange: (value: string) => void; children: ReactNode;
 }) {
-  return <label className="relative flex h-12 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-sm text-neutral-900 shadow-sm transition focus-within:ring-2 focus-within:ring-neutral-500 hover:border-neutral-400">
+  return <label className="relative flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 text-sm md:h-12 md:px-4 text-neutral-900 shadow-sm transition focus-within:ring-2 focus-within:ring-neutral-500 hover:border-neutral-400">
     {icon && <span className="shrink-0 text-neutral-500">{icon}</span>}
-    {prefix && <span className="shrink-0 text-neutral-500">{prefix}</span>}
+    {prefix && <span className={`shrink-0 text-neutral-500 ${icon ? "hidden sm:inline" : ""}`}>{prefix}</span>}
     <span className="min-w-0 flex-1 truncate font-medium" title={label}>{label}</span>
     <ChevronDown className="size-4 shrink-0 text-neutral-500" aria-hidden="true" />
     <select className="absolute inset-0 cursor-pointer opacity-0" value={value} onChange={(event) => onChange(event.target.value)} aria-label={prefix ? `${prefix} ${label}` : label}>{children}</select>
@@ -122,12 +122,13 @@ export function AdsFilters({
     const accountLabel = visibleAccounts.find((account) => account.id === current.account)?.name ?? "Все источники";
     const campaignLabel = visibleCampaigns.find((campaign) => campaign.id === current.campaign)?.name ?? "Все кампании";
     return <div className={`space-y-2 transition-opacity ${isPending ? "opacity-60" : ""}`} aria-busy={isPending}>
-      <div className="grid gap-3 md:grid-cols-3">
+      {/* Phone: the period is the most used control, so it gets a full row; goal and source share the next one. */}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
         <FilterSelect icon={<Target className="size-4" />} prefix="Цель:" label={goalLabel} value={current.goal} onChange={(value) => apply({ goal: value })}>
           {!current.goal && <option value="">Выберите цель</option>}
           {goals.map((goal) => <option key={goal.value} value={goal.value}>{goal.label}</option>)}
         </FilterSelect>
-        <AnalyticsPeriodPicker compact key={`${current.from}-${current.to}`} period={{ from: current.from, to: current.to }} onApply={(period) => apply(period)} />
+        <div className="order-first col-span-2 md:order-none md:col-span-1"><AnalyticsPeriodPicker compact key={`${current.from}-${current.to}`} period={{ from: current.from, to: current.to }} onApply={(period) => apply(period)} /></div>
         <FilterSelect icon={<Layers className="size-4" />} label={accountLabel} value={current.account} onChange={onAccountChange}>
           <option value="">Все источники</option>
           {visibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -135,7 +136,7 @@ export function AdsFilters({
       </div>
       <details className="group text-xs text-neutral-500" open={!!current.campaign || current.gran !== "day" ? true : undefined}>
         <summary className="inline-flex cursor-pointer list-none items-center gap-1 select-none hover:text-neutral-800"><SlidersHorizontal className="size-3.5" />Кампания и шаг графика{isPending ? " · обновляю…" : ""}</summary>
-        <div className="mt-2 grid gap-3 md:grid-cols-3">
+        <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
           <FilterSelect label={campaignLabel} value={current.campaign} onChange={(value) => apply({ campaign: value })}>
             <option value="">Все кампании</option>
             {visibleCampaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
@@ -143,7 +144,7 @@ export function AdsFilters({
           <FilterSelect prefix="Шаг:" label={GRANULARITIES.find((item) => item.value === current.gran)?.label ?? "По дням"} value={current.gran} onChange={(value) => apply({ gran: value })}>
             {GRANULARITIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </FilterSelect>
-          <div className="flex items-center"><Button type="button" variant="ghost" size="sm" onClick={resetFilters} disabled={!hasActiveFilters}>Сбросить фильтры</Button></div>
+          <div className="col-span-2 flex items-center md:col-span-1"><Button type="button" variant="ghost" size="sm" onClick={resetFilters} disabled={!hasActiveFilters}>Сбросить фильтры</Button></div>
         </div>
       </details>
     </div>;
