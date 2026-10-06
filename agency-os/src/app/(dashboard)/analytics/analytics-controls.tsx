@@ -188,7 +188,7 @@ export function AnalyticsFilters({
 
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
-          <FilterSelect prefix="Проект:" label={projects.find((item) => item.id === project)?.name ?? "Все проекты"} value={project} onChange={(value) => navigate({ project: value, social: "", account: "", campaign: "", goal: "" })}>
+          <FilterSelect prefix="Проект:" label={projects.find((item) => item.id === project)?.name ?? "Все проекты"} value={project} onChange={(value) => navigate({ project: value, social: "", account: "", campaign: "", goal: "", cur: "" })}>
             <option value="">Все проекты</option>
             {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </FilterSelect>

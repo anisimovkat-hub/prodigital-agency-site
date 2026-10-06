@@ -88,7 +88,7 @@ export function AdsFilters({
   const dateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Меняем несколько параметров разом; сброшенные значения удаляем из URL.
-  function apply(changes: Partial<AdsFilterValues>) {
+  function apply(changes: Partial<AdsFilterValues> & { cur?: ReportCurrency | "" }) {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(changes)) {
       if (value) params.set(key, value);
@@ -110,7 +110,7 @@ export function AdsFilters({
   // кабинета — кампанию и цель. Иначе от прошлого проекта осталась бы
   // несовместимая цель/кампания.
   function onProjectChange(value: string) {
-    apply({ project: value, account: "", campaign: "", goal: "" });
+    apply({ project: value, account: "", campaign: "", goal: "", cur: "" });
   }
   function onAccountChange(value: string) {
     apply({ account: value, campaign: "", goal: "" });

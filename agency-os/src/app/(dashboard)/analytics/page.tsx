@@ -805,7 +805,7 @@ export default async function AnalyticsPage({
     const setting = goalSettings.find((item) => item.goal_key === key);
     return { key, defaultLabel: goalLabel(key, customNames), label: setting?.label ?? null, hidden: setting?.hidden ?? false, extra: setting?.extra ?? false, isMain: mainGoalKeys.has(key) };
   }).sort((a, b) => Number(b.isMain) - Number(a.isMain) || a.defaultLabel.localeCompare(b.defaultLabel, "ru"));
-  const displayCurrency = reportCurrency(raw.cur);
+  const displayCurrency = reportCurrency(raw.cur, visibleAdAccountRows.map((account) => account.platform));
   if (fxRatesResult.error) dataWarnings.push(`Не удалось загрузить курсы валют: ${fxRatesResult.error.message}`);
 
   const currentAdsFilters: AdsFilterValues = {

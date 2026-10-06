@@ -19,6 +19,24 @@ describe("report currency", () => {
     expect(reportCurrency("native")).toBe("native");
     expect(reportCurrency("RUB")).toBe("RUB");
   });
+  it("defaults all Yandex-only projects to RUB, including multiple accounts", () => {
+    expect(reportCurrency(undefined, ["yandex_direct"])).toBe("RUB");
+    expect(reportCurrency(undefined, ["yandex_direct", "yandex_direct"])).toBe("RUB");
+    expect(reportCurrency("invalid", ["yandex_direct"])).toBe("RUB");
+    const result = prepareReportCurrency({ ...setup, mode: reportCurrency(undefined, ["yandex_direct"]), rates: [], campaignCurrencies: new Map([["c1", "RUB"]]) });
+    expect(result.current.currency).toBe("RUB");
+    expect(result.current.metrics[0].spend).toBe(400);
+  });
+  it("retains USD for Meta, mixed projects, unknown sources and no accounts", () => {
+    for (const platforms of [["meta"], ["yandex_direct", "meta"], ["yandex_direct", "vk"], [""], []]) {
+      expect(reportCurrency(undefined, platforms)).toBe("USD");
+    }
+  });
+  it("respects an explicit choice even in a Yandex-only project", () => {
+    for (const currency of ["USD", "RUB", "native"] as const) {
+      expect(reportCurrency(currency, ["yandex_direct"])).toBe(currency);
+    }
+  });
   it("preserves the tab, project, dates, account and goal in navigation", () => {
     const url = reportCurrencyHref("/analytics", "section=overview&project=p1&account=a1&goal=leads&from=2026-09-01&to=2026-09-30&cur=RUB", "native");
     expect(url).toBe("/analytics?section=overview&project=p1&account=a1&goal=leads&from=2026-09-01&to=2026-09-30&cur=native");

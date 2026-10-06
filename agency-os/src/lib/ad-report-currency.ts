@@ -3,9 +3,10 @@ import type { AdMetricDay } from "@/lib/project-ad-dashboard";
 
 export type ReportCurrency = "native" | "USD" | "RUB";
 
-/** USD remains the default; an explicit original-currency choice travels with report filters. */
-export function reportCurrency(value: string | undefined): ReportCurrency {
-  return value === "native" || value === "RUB" ? value : "USD";
+/** Project sources decide the default, never a date window or a selected account alone. */
+export function reportCurrency(value: string | undefined, projectPlatforms: readonly string[] = []): ReportCurrency {
+  if (value === "native" || value === "RUB" || value === "USD") return value;
+  return projectPlatforms.length > 0 && projectPlatforms.every((platform) => platform === "yandex_direct") ? "RUB" : "USD";
 }
 
 export function reportCurrencyHref(path: string, query: string, currency: ReportCurrency): string {
