@@ -5,11 +5,13 @@ import { AdPerformanceCharts } from "@/app/(dashboard)/analytics/meta/ad-perform
 import { AdResultsTable, type AdAccountResult } from "@/app/(dashboard)/analytics/meta/ad-results-table";
 import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
 import { ReportCurrencySwitch, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
+import { DashboardMetricGrid } from "@/app/(dashboard)/analytics/meta/dashboard-metric-grid";
 import { LinkMetaAccount } from "@/app/(dashboard)/analytics/meta/link-meta-account";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import type { Granularity } from "@/lib/ad-analytics";
 import type { AdSourceStatus } from "@/lib/ad-data-freshness";
-import { goalLabel, type CampaignGoal, type GoalKey } from "@/lib/ad-goals";
+import { goalLabel, goalsWithData, type CampaignGoal, type GoalKey } from "@/lib/ad-goals";
+import { buildDashboardMetrics, mandatoryMetricIds } from "@/lib/ad-dashboard-metrics";
 import type { FxRate } from "@/lib/fx-rates";
 import { prepareReportCurrency, type ReportCurrency } from "@/lib/ad-report-currency";
 import { buildGoalCards, goalDailyPoints, type GoalCard, type GoalSetting } from "@/lib/project-ad-goals";
@@ -116,17 +118,8 @@ function singleNative(accounts: AccountOption[]): string | null {
   return set.size === 1 ? [...set][0] : null;
 }
 
-function GoalCardView({ card, currency, main }: { card: GoalCard; currency: string | null; main: boolean }) {
-  const cpa = card.current.cpa;
-  return <Kpi main={main} label={card.label} value={integer(card.current.results)}
-    delta={card.extra || cpa === null ? percentChange(card.current.results, card.previous.results) : percentChange(cpa, card.previous.cpa)}
-    lowerIsBetter={!card.extra && cpa !== null}
-    footnote={card.extra ? "по всем кампаниям, без цены" : !currency ? "Цена недоступна в выбранной валюте" : cpa !== null ? `${money(cpa, currency)} за результат` : card.current.spend > 0 ? "результатов нет" : undefined}
-    info={card.extra ? "Дополнительная цель: считается по всем кампаниям проекта; отдельной цены у неё нет." : "Цена — расход только тех кампаний, которые оптимизированы на эту цель, делённый на их результаты."} />;
-}
-
 export function AdAnalyticsPanel({
-  current, accounts, campaigns, campaignGoals, goalSettings, customNames, fxRates, displayCurrency,
+  current, accounts, campaigns, campaignGoals, goalSettings, customNames, fxRates, displayCurrency, userId,
   granularity, tree, audience, audienceActions, hasMetaAccount, sourceStatus, metrics, conversions,
   previousMetrics, previousConversions, unlinkedMetaAccounts = [], audiencePerformanceRows, latestDate = null, goalSettingsForm,
 }: {
@@ -138,6 +131,7 @@ export function AdAnalyticsPanel({
   customNames?: Map<string, string>;
   fxRates: FxRate[];
   displayCurrency: ReportCurrency;
+  userId: string;
   granularity: Granularity;
   tree: AdTreeRow[];
   audience: MarketingAudience;
@@ -177,20 +171,35 @@ export function AdAnalyticsPanel({
   const summaryMetrics = display.current.metrics;
   const summaryPrevious = display.previous.metrics;
 
-  const cards = buildGoalCards({ selected: campaignIds, goals: campaignGoals, settings: goalSettings, metrics: summaryMetrics, conversions, previousMetrics: summaryPrevious, previousConversions, customNames }).map((card) => ({
+  const cardArgs = { selected: campaignIds, goals: campaignGoals, metrics: summaryMetrics, conversions, previousMetrics: summaryPrevious, previousConversions, customNames };
+  const withCurrency = (card: GoalCard): GoalCard => ({
     ...card,
     current: { ...card.current, cpa: currency ? card.current.cpa : null },
     previous: { ...card.previous, cpa: display.previous.currency ? card.previous.cpa : null },
-  }));
-  const selectedCard = cards.find((card) => card.key === current.goal) ?? cards.find((card) => !card.extra) ?? cards[0] ?? null;
+  });
+  const cards = buildGoalCards({ ...cardArgs, settings: goalSettings }).map(withCurrency);
+  const observedGoals = goalsWithData([...conversions, ...previousConversions].filter((row) => campaignIds.has(row.campaign_id)).map((row) => row.action_type));
+  const optionalSettings: GoalSetting[] = observedGoals.filter((key) => !goalSettings.some((item) => item.goal_key === key))
+    .map((key) => ({ goal_key: key, label: null, hidden: false, extra: true }));
+  const availableCards = buildGoalCards({ ...cardArgs, settings: [...goalSettings, ...optionalSettings], includeInactive: true }).map(withCurrency);
+  const selectedCard = availableCards.find((card) => card.key === current.goal) ?? cards.find((card) => !card.extra) ?? cards[0] ?? availableCards.find((card) => !card.extra) ?? null;
   const spendNow = summaryMetrics.reduce((sum, row) => sum + Number(row.spend), 0);
   const spendBefore = summaryPrevious.reduce((sum, row) => sum + Number(row.spend), 0);
   const noGoalSpend = summaryMetrics.filter((row) => !campaignGoals.get(row.campaign_id)).reduce((sum, row) => sum + Number(row.spend), 0);
   const totals = summarizeAdDashboard(metrics, conversions, campaignIds, null, false);
+  const previousTotals = summarizeAdDashboard(previousMetrics, previousConversions, campaignIds, null, false);
   const points = selectedCard
     ? aggregateAdDashboardPoints(fillAdDashboardDays(goalDailyPoints(summaryMetrics.length ? summaryMetrics : metrics, conversions, selectedCard, campaignGoals), current.from, current.to), granularity)
     : [];
-  const hasData = totals.spend > 0 || totals.impressions > 0;
+  const hasData = summaryMetrics.length > 0 || conversions.some((row) => campaignIds.has(row.campaign_id));
+  const defaultGoals = new Set(cards.map((card) => card.key));
+  if (selectedCard) defaultGoals.add(selectedCard.key);
+  const orderedCards = selectedCard ? [selectedCard, ...availableCards.filter((card) => card.key !== selectedCard.key)] : availableCards;
+  const dashboardMetrics = buildDashboardMetrics({
+    cards: orderedCards, defaultGoals, hasData, currency, previousCurrency: display.previous.currency,
+    spend: spendNow, previousSpend: spendBefore, impressions: totals.impressions,
+    previousImpressions: previousTotals.impressions, clicks: totals.clicks, previousClicks: previousTotals.clicks,
+  });
   const labelOf = (key: GoalKey) => goalSettings.find((item) => item.goal_key === key)?.label || goalLabel(key, customNames);
 
   // Table: native account currency; each campaign is measured by its own goal.
@@ -236,14 +245,15 @@ export function AdAnalyticsPanel({
       {!currency && hasData && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{display.mixedNative ? "У кабинетов разные валюты: суммы показаны раздельно. Для общей цены цели выберите USD или RUB, либо один кабинет." : `Валюта кабинета или курс на дату расхода недоступны — денежная сводка${displayCurrency === "native" ? "" : ` в ${displayCurrency}`} не рассчитана.`} Таблица ниже сохраняет исходные суммы.</p>}
       {currency && !display.previous.currency && hasData && <p className="px-1 text-xs text-neutral-500">Нет полного курса за предыдущий период — сравнение денежных показателей недоступно.</p>}
 
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:gap-3" aria-label="Ключевые показатели рекламы">
-        <Kpi main label="Расход" value={currency ? money(spendNow, currency) : display.mixedNative ? "Разные валюты" : "—"}
-          delta={currency && display.previous.currency ? percentChange(spendNow, spendBefore) : null} neutral
-          footnote={display.mixedNative ? display.nativeSpend.map((item) => item.currency ? money(item.spend, item.currency) : `${integer(item.spend)} · валюта не указана`).join(" · ") : currency && noGoalSpend > 0 ? `из них ${money(noGoalSpend, currency)} — без целевого действия` : undefined}
-          action={<ReportCurrencySwitch currency={displayCurrency} nativeCurrency={display.nativeCurrency} />}
-          info={displayCurrency === "native" ? "Исходный расход без пересчёта. Разные валюты кабинетов не складываются." : "Сумма расхода всех кабинетов без НДС, приведённая к выбранной валюте по курсу ЦБ на дату каждого дня."} />
-        {cards.map((card) => <GoalCardView key={card.key} card={card} currency={currency} main={false} />)}
-      </section>
+      <DashboardMetricGrid key={`${userId}:${current.project}`} userId={userId} projectId={current.project}
+        required={mandatoryMetricIds(selectedCard?.key ?? null)}
+        options={dashboardMetrics.map((metric) => ({ ...metric, content: <Kpi main={metric.id === "spend"}
+          label={metric.label}
+          value={metric.id === "spend" && display.mixedNative ? "Разные валюты" : metric.value === null ? "—" : metric.format === "money" ? money(metric.value, currency) : metric.format === "percent" ? `${formatAdNumber(metric.value, 2)}%` : integer(metric.value)}
+          delta={metric.delta} lowerIsBetter={metric.lowerIsBetter} neutral={metric.neutral}
+          footnote={metric.id === "spend" ? display.mixedNative ? display.nativeSpend.map((item) => item.currency ? money(item.spend, item.currency) : `${integer(item.spend)} · валюта не указана`).join(" · ") : currency && noGoalSpend > 0 ? `из них ${money(noGoalSpend, currency)} — без целевого действия` : undefined : metric.note}
+          action={metric.id === "spend" ? <ReportCurrencySwitch currency={displayCurrency} nativeCurrency={display.nativeCurrency} /> : undefined}
+          info={metric.info} /> }))} />
 
       <AdPerformanceCharts points={points} goalLabel={selectedCard?.label ?? null} currency={selectedCard && !selectedCard.extra ? currency : null} granularity={granularity} priceNote={selectedCard?.extra ? "У дополнительной цели нет отдельной цены" : undefined} />
 

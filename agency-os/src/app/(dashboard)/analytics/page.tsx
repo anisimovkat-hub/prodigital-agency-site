@@ -905,6 +905,7 @@ export default async function AnalyticsPage({
       adsPanel={
         <>
           <AdAnalyticsPanel
+            userId={user?.id ?? ""}
             current={currentAdsFilters}
             accounts={visibleAdAccountRows.map((account) => ({
               id: account.id,

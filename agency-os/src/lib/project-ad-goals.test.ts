@@ -46,6 +46,10 @@ describe("buildGoalCards", () => {
     const idle = buildGoalCards({ selected, goals, settings: [], metrics: metrics.filter((row) => row.campaign_id !== "lead"), conversions: conversions.filter((row) => row.campaign_id !== "lead"), previousMetrics: [], previousConversions: [] });
     expect(idle.map((card) => card.key)).not.toContain("leads");
   });
+  it("keeps an inactive goal available for saved dashboard cards when requested", () => {
+    const cards = buildGoalCards({ selected, goals, settings: [], metrics: [], conversions: [], previousMetrics: [], previousConversions: [], includeInactive: true });
+    expect(cards.find((card) => card.key === "leads")?.current).toEqual({ results: 0, spend: 0, cpa: null });
+  });
 });
 
 describe("goalDailyPoints", () => {

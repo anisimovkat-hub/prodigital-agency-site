@@ -40,7 +40,7 @@ function totals(metrics: AdMetricDay[], conversions: AdConversionDay[], campaign
  * (e.g. cart for a sales project) counts that action across all selected campaigns and has no
  * cost, because no campaign spends money on it alone.
  */
-export function buildGoalCards({ selected, goals, settings, metrics, conversions, previousMetrics, previousConversions, customNames }: {
+export function buildGoalCards({ selected, goals, settings, metrics, conversions, previousMetrics, previousConversions, customNames, includeInactive = false }: {
   selected: Set<string>;
   goals: Map<string, CampaignGoal>;
   settings: GoalSetting[];
@@ -49,6 +49,7 @@ export function buildGoalCards({ selected, goals, settings, metrics, conversions
   previousMetrics: AdMetricDay[];
   previousConversions: AdConversionDay[];
   customNames?: Map<string, string>;
+  includeInactive?: boolean;
 }): GoalCard[] {
   const setting = new Map(settings.map((item) => [item.goal_key, item]));
   const byGoal = new Map<GoalKey, Map<string, string>>();
@@ -68,7 +69,7 @@ export function buildGoalCards({ selected, goals, settings, metrics, conversions
     };
   })
     // A goal whose campaigns neither spent nor converted in the period is noise, not a zero result.
-    .filter((card) => card.current.spend > 0 || card.current.results > 0)
+    .filter((card) => includeInactive || card.current.spend > 0 || card.current.results > 0)
     .sort((a, b) => b.current.spend - a.current.spend);
 
   const allCounts = new Map<string, number>();

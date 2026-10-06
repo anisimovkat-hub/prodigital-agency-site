@@ -5,6 +5,7 @@ import { MarketingContentReport } from "@/components/marketing-content-report";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { AnalyticsTabs } from "@/app/(dashboard)/analytics/analytics-controls";
 import { ReportCurrencySwitch } from "@/app/(dashboard)/analytics/meta/ads-filters";
+import { DashboardMetricGrid } from "@/app/(dashboard)/analytics/meta/dashboard-metric-grid";
 import { contentReportData } from "@/lib/marketing-content";
 import type { MarketingPayload } from "@/lib/marketing-analytics";
 
@@ -61,6 +62,20 @@ describe("content data coverage", () => {
 });
 
 describe("unified report", () => {
+  it("renders three baseline cards and the accessible metric customization button", () => {
+    const options = [
+      { id: "spend", label: "Расход", group: "Основные", defaultVisible: true, content: <article>Расход</article> },
+      { id: "conversions", label: "Лиды", group: "Основные", defaultVisible: true, content: <article>Лиды</article> },
+      { id: "cpa", label: "Цена лида", group: "Основные", defaultVisible: true, content: <article>Цена лида</article> },
+      { id: "cpm", label: "CPM", group: "Трафик", defaultVisible: false, content: <article>CPM</article> },
+    ];
+    const html = renderToStaticMarkup(<DashboardMetricGrid userId="owner" projectId="p1" options={options} required={["spend", "conversions", "cpa"]} />);
+    expect(html).toContain("Добавить показатель");
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('data-metric-id="cpa"');
+    expect(html).not.toContain('data-metric-id="cpm"');
+    expect(html.match(/<article>/g)).toHaveLength(3);
+  });
   it("offers original account currency, USD and RUB in one compact selector", () => {
     const html = renderToStaticMarkup(<ReportCurrencySwitch currency="native" nativeCurrency="GBP" />);
     expect(html).toContain('aria-label="Валюта сводки"');
