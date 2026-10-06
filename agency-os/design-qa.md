@@ -1,5 +1,17 @@
 # Design QA — быстрое управление проектами
 
+## Яндекс-only: рубли по умолчанию — 2026-10-06
+
+- Production `3330124`: Vercel agency-os success, authenticated owner.
+- Колвика без `cur`: валюта сводки RUB после свежей загрузки, расход и цена
+  результата в рублях; USD доступен вручную и сохраняется после загрузки/смены вкладки.
+- Переход через выбор проекта в Контенте сбрасывает явную валюту прошлого проекта.
+  Talent Press без `cur` по-прежнему USD; возврат в Колвику — RUB.
+- Свежая консоль без warning/error. UI layout не менялся; screenshot только локально.
+- 318 tests /48files, TypeScript, lint, Webpack build, diff check passed.
+  RUB source-to-RUB identity проверен без FX; цели Яндекса пока агрегированы.
+  Нет миграций, новых зависимостей или изменений рекламы.
+
 ## Настраиваемые показатели рекламы — 2026-10-06
 
 - Production release: `b99461e`, Vercel agency-os success; authenticated owner.
