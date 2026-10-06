@@ -199,4 +199,9 @@ graphs, no errors/warnings; Enter activates Overview, Back restores Content, pro
 currency remain unchanged. Desktop CSS1837px / tablet800px / phone390px checked; phone
 document scroll width equals390px. Temporary viewport reset. No imports or settings writes.
 Expired saved Instagram thumbnails identified in production; a neutral icon fallback added,
-without refetching or inventing source data. Final fallback verification pending deployment.
+without refetching or inventing source data. Production `bf13e96`: seven post rows remain,
+expired previews resolve to icons, no broken images remain in the table; fresh reload console empty.
+Final screenshot: `/private/tmp/agency-os-content-final.png`. Production deployment succeeded,
+GitHub branch matches local HEAD. All styling refinements stay inside the existing report design.
+
+final result: passed
