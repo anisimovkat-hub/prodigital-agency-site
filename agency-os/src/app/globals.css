@@ -21,6 +21,14 @@ body {
 /* The owner's browser workspace switches to cards only on narrow screens. */
 .mobile-task-list { display: none; }
 
+/* A centre-column trigger must not push the calendar beyond tablet viewports. */
+@media (max-width: 1199px) {
+  .analytics-period-popover {
+    position: fixed; inset: 1rem 1rem auto; width: auto; max-width: 790px;
+    margin-inline: auto; max-height: calc(100dvh - 2rem); overflow-y: auto;
+  }
+}
+
 @media (max-width: 767px) {
   .owner-mobile .dashboard-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .owner-mobile .dashboard-main [class*="grid"] > * { min-width: 0; }

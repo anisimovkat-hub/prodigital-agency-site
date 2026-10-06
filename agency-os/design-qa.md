@@ -151,3 +151,47 @@ final result: passed
 3. Production: визуальное соответствие и все переходы подтверждены.
 
 final result: passed
+
+---
+
+# Analytics report design QA — 2026-10-06
+
+## Reference and scope
+
+Reference: approved production advertising report and the user's screenshot of its
+compact Overview / Content / Ads switcher. Extend that existing style, not a new concept.
+Reference capture: `/private/tmp/agency-os-analytics-style-reference.jpg`.
+Scope: internal project analytics tabs; public report metrics and scoped RPC are retained.
+
+## Verification checkpoints
+
+- Core production release `69e7207`: Team Trip, Talent Press, ALMA checked in logged-in Chrome.
+- All three tabs preserve project and dates. Browser Back/Forward updates active tab.
+- Period change in Content survives return to Ads. Currency change in Overview retains Overview.
+- Talent Press September: results and charts persist between Overview and Ads.
+- Team Trip / Talent Press September: organic missing-data state, not false zeroes.
+- ALMA historical range: partial coverage, real zeroes, line gaps and seven loaded posts.
+- Console: no errors or warnings observed during these flows.
+- Layout release `c9e72c7`: desktop / CSS 390px phone verified; aligned controls and compact KPIs passed.
+- Automated gate: 279 tests, ESLint, TypeScript in production build, Webpack build passed.
+
+## Fidelity and intentional differences
+
+- Same project logo/header, neutral compact tabs, filter pills, neutral white surfaces,
+  rounded-2xl KPI cards, 32px desktop values, blue chart lines and thin table dividers.
+- Content intentionally shows organic reach / interactions / publications rather than
+  advertising goals, spending and CPA; no paid audience data is presented as organic.
+- Missing historical metrics remain empty instead of plotting false advertising-derived zeroes.
+- Daily reach is explicitly a sum, not deduplicated unique people for a whole period.
+- Post metrics are captured lifetime snapshots, not falsely attributed to activity inside the window.
+- Identified drift: content date control was above adjacent labelled selects.
+  Corrected by reusing the advertising report's FilterSelect.
+- Mobile density refinement: main content KPI spans the row; two secondary KPIs share the next row.
+
+## Remaining final checks and finding
+
+Tablet calendar was clipped at CSS 800px (left -169px). Fix: viewport-anchored popup below 1200px, preserving the existing owner-mobile treatment. Final calendar re-check and screenshots pending.
+
+Final production desktop / tablet / mobile screenshots, aligned filters, populated and empty
+Content states, keyboard access, console and viewport reset. No data imports or settings writes
+are triggered by QA.
