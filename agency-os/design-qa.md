@@ -1,5 +1,28 @@
 # Design QA — быстрое управление проектами
 
+## Настраиваемые показатели рекламы — 2026-10-06
+
+- Production release: `b99461e`, Vercel agency-os success; authenticated owner.
+- Talent Press / сентябрь: расход, количество и отдельная цена лида в одной строке.
+  Количество и цена имеют независимые дельты; sampled price reconciles to goal spend/results.
+  Денежные KPI пересчитываются USD/RUB без изменения результатов или native-таблицы.
+- «Добавить показатель»: базовые checkboxes disabled; CPM/показы сохраняются после
+  reload. Закрытие снаружи отменяет неподтверждённый выбор; Escape возвращает фокус.
+  «По умолчанию» восстанавливает набор. Дополнительная подписка без своих кампаний
+  показывает количество и объяснение недоступной цены, без фиктивной CPA.
+- Единорожки: отдельные пары переписок/покупок; при нуле результатов цена «—».
+  Native IDR сохраняет исходные деньги; USD не меняет количество. Настройки разных
+  проектов независимы. Обзор и Реклама сохраняют карточки, даты и валюту.
+- Телефон390 CSS px: document width390, мобильный диалог в пределах экрана,
+  список прокручивается, сохранение и reset доступны, кнопки около44 CSS px.
+  CPC добавлен через мобильное окно; после проверки тестовые наборы сброшены.
+- Desktop: просмотрены реальные столбцы/линия графиков, три KPI и окно настройки;
+  clipping/overlap не обнаружены. Свежая production-консоль без warning/error.
+- TypeScript, lint, 315 tests /48files, Webpack production build, diff check passed.
+  Storage stores only IDs per user/project; no new dependencies, database or ad writes.
+- Скриншоты живых метрик остаются только в локальном временном каталоге/чате,
+  не включены в GitHub. Кодовый протокол не содержит production-сумм или чисел лидов.
+
 - Source visual truth:
   - `/var/folders/q_/sn0glqyj0zb8fnvz7dxlsm280000gn/T/TemporaryItems/NSIRD_screencaptureui_mxVY1h/Снимок экрана — 2026-08-10 в 21.01.26.png`
   - `/var/folders/q_/sn0glqyj0zb8fnvz7dxlsm280000gn/T/TemporaryItems/NSIRD_screencaptureui_lhzY6i/Снимок экрана — 2026-08-10 в 21.02.03.png`
