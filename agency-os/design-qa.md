@@ -205,3 +205,27 @@ Final screenshot: `/private/tmp/agency-os-content-final.png`. Production deploym
 GitHub branch matches local HEAD. All styling refinements stay inside the existing report design.
 
 final result: passed
+
+## Report currencies — 2026-10-06
+
+- Production `f00cdda` / Vercel agency-os succeeded. Default USD, native/USD/RUB
+  compact accessible select stays in the existing Spend card; no extra toolbar.
+- GBP account: native and USD spend/goal price checked, result count unchanged.
+  A separate click goal remains separate.
+- IDR account: native/USD/RUB checked; conversations unchanged.
+  Main-goal CPA uses its own campaigns only.
+- AED account: native/USD spend and goal price checked, result count unchanged.
+  Source table remains AED for reconciliation.
+- Switching native → RUB after opening Overview preserves section, dates and project.
+- Fresh production tab console: no errors/warnings. Mobile CSS390px: scroll width390,
+  currency select within viewport and touch-height44px; temporary viewport reset.
+- 295 tests / 47 files, TypeScript, ESLint and Webpack production build pass.
+- Native mixed-currency and unknown-rate totals cannot leak as a money total;
+  previous-only missing rates do not hide current data. No future rates used.
+- Existing owner local dev server has no Supabase URL/key available; browser data QA
+  performed on authenticated production instead, without changing its environment.
+- Existing node_modules620MB and .next1.0GB reused and retained; no new dependencies,
+  clones, downloads or separate build caches. Screenshot lives outside Git:
+  `/private/tmp/agency-os-currency-final.png`.
+
+Currency QA result: passed
