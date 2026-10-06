@@ -2,6 +2,7 @@ import { ArrowUpRight, Info } from "lucide-react";
 import { SiInstagram as Instagram } from "react-icons/si";
 import { formatCompact, formatMetricPercent, type MarketingPayload } from "@/lib/marketing-analytics";
 import { contentReportData, type ContentDay } from "@/lib/marketing-content";
+import { InstagramPostThumbnail } from "@/components/instagram-post-thumbnail";
 
 const surface = "min-w-0 rounded-2xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
 const shortDate = (date: string) => date.slice(5).split("-").reverse().join(".");
@@ -66,9 +67,7 @@ export function MarketingContentReport({ payload, compact = false }: { payload: 
           <thead className="border-y border-neutral-100 bg-neutral-50/50 text-left text-neutral-400"><tr><th className="px-5 py-2.5 font-medium">Публикация</th><th className="px-3 py-2.5 font-medium">Дата</th>{["Охват", "Просмотры", "Реакции", "Сохранения", "Репосты"].map((name) => <th key={name} className="px-3 py-2.5 text-right font-medium">{name}</th>)}</tr></thead>
           <tbody className="divide-y divide-neutral-100">{posts.map((post, index) => <tr key={`${post.publishedAt}-${index}`} className="hover:bg-neutral-50/50">
             <td className="max-w-[300px] px-5 py-3"><div className="flex items-center gap-2.5">
-              {post.imageUrl ? /* Meta CDN URLs are temporary, so load them directly. */
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={post.imageUrl} alt="" loading="lazy" decoding="async" className="size-9 shrink-0 rounded-lg bg-neutral-100 object-cover" /> : <Instagram className="size-5 shrink-0 text-neutral-300" />}
+              <InstagramPostThumbnail src={post.imageUrl} />
               <div className="min-w-0"><p className="truncate font-medium text-neutral-900" title={post.caption ?? undefined}>{post.caption || "Публикация без подписи"}</p>{post.permalink ? <a href={post.permalink} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-blue-600">{post.mediaType || "Публикация"}<ArrowUpRight className="size-3" /></a> : <p className="text-[11px] text-neutral-400">{post.mediaType || "Публикация"}</p>}</div>
             </div></td><td className="px-3 py-3 whitespace-nowrap text-neutral-500">{shortDate(post.publishedAt.slice(0, 10))}</td>
             {[post.reach, post.views, post.engagements, post.saved, post.shares].map((value, metric) => <td key={metric} className="px-3 py-3 text-right text-neutral-700 tabular-nums">{formatCompact(value)}</td>)}

@@ -194,6 +194,9 @@ Tablet calendar was clipped at CSS 800px (left -169px). Fix: viewport-anchored p
 
 Populated Content initial load exposed React hydration #418. Isolated local development reproduced the exact SVG title mismatch: multiple JSX children are unsupported inside `<title>`. A single interpolated string fixes it. Fresh local browser console is empty; regression SSR test added. Disposable route/config changes reverted and 208MB isolated QA cache removed; existing user dev server preserved.
 
-Final production desktop / tablet / mobile screenshots, aligned filters, populated and empty
-Content states, keyboard access, console and viewport reset. No data imports or settings writes
-are triggered by QA.
+Production `bd8bbc4` verified in a fresh logged-in Chrome tab: Content loads with populated
+graphs, no errors/warnings; Enter activates Overview, Back restores Content, project/dates/
+currency remain unchanged. Desktop CSS1837px / tablet800px / phone390px checked; phone
+document scroll width equals390px. Temporary viewport reset. No imports or settings writes.
+Expired saved Instagram thumbnails identified in production; a neutral icon fallback added,
+without refetching or inventing source data. Final fallback verification pending deployment.
