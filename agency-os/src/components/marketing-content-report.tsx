@@ -35,7 +35,7 @@ function ContentChart({ days, metric, title }: { days: ContentDay[]; metric: "re
       <svg viewBox="0 0 550 184" role="img" aria-label={title} className="mt-3 h-44 w-full">
         {[0, 0.5, 1].map((part) => <g key={part}><line x1="48" x2="522" y1={y(max * part)} y2={y(max * part)} stroke="#f0f0f0" /><text x="40" y={y(max * part) + 4} textAnchor="end" fill="#a3a3a3" fontSize="10">{formatCompact(max * part)}</text></g>)}
         {segments.map((points, index) => <polyline key={index} points={points} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />)}
-        {days.map((day, index) => day[metric] !== null && <circle key={day.date} cx={x(index)} cy={y(day[metric]!)} r="2.5" fill="#3b82f6"><title>{shortDate(day.date)}: {formatCompact(day[metric]!)}</title></circle>)}
+        {days.map((day, index) => day[metric] !== null && <circle key={day.date} cx={x(index)} cy={y(day[metric]!)} r="2.5" fill="#3b82f6"><title>{`${shortDate(day.date)}: ${formatCompact(day[metric]!)}`}</title></circle>)}
         <text x="48" y="175" fill="#a3a3a3" fontSize="10">{shortDate(days[0].date)}</text><text x="522" y="175" textAnchor="end" fill="#a3a3a3" fontSize="10">{shortDate(days.at(-1)!.date)}</text>
       </svg>}
   </section>;

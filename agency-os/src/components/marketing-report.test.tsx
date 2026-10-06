@@ -1,4 +1,4 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { MarketingContentReport } from "@/components/marketing-content-report";
@@ -60,6 +60,11 @@ describe("content data coverage", () => {
 });
 
 describe("unified report", () => {
+  it("renders SVG tooltip titles as one text node for safe hydration", () => {
+    const html = renderToString(<MarketingContentReport payload={fixture()} />);
+    expect(html).toContain("<title>01.09: 10</title>");
+    expect(html).not.toMatch(/<title>[^<]*<!--/);
+  });
   it.each(["overview", "content", "ads"] as const)("uses the same header and compact tabs in %s", (section) => {
     const html = renderToStaticMarkup(<MarketingDashboard payload={fixture()} section={section} adsPanel={<div>new-ad-report</div>} filters={<AnalyticsTabs section={section} />} />);
     expect(html).toContain("Аналитика / ");

@@ -171,9 +171,9 @@ Scope: internal project analytics tabs; public report metrics and scoped RPC are
 - Talent Press September: results and charts persist between Overview and Ads.
 - Team Trip / Talent Press September: organic missing-data state, not false zeroes.
 - ALMA historical range: partial coverage, real zeroes, line gaps and seven loaded posts.
-- Console: no errors or warnings observed during these flows.
+- Initial empty-state flows showed no console errors. Populated Content reload later exposed React #418; see resolved finding below.
 - Layout release `c9e72c7`: desktop / CSS 390px phone verified; aligned controls and compact KPIs passed.
-- Automated gate: 279 tests, ESLint, TypeScript in production build, Webpack build passed.
+- Automated gate: 280 tests, ESLint, TypeScript in production build, Webpack build passed.
 
 ## Fidelity and intentional differences
 
@@ -190,7 +190,9 @@ Scope: internal project analytics tabs; public report metrics and scoped RPC are
 
 ## Remaining final checks and finding
 
-Tablet calendar was clipped at CSS 800px (left -169px). Fix: viewport-anchored popup below 1200px, preserving the existing owner-mobile treatment. Final calendar re-check and screenshots pending.
+Tablet calendar was clipped at CSS 800px (left -169px). Fix: viewport-anchored popup below 1200px, preserving the existing owner-mobile treatment. Production `1f480b8`: popup left 16px, right 784px at 800px, all presets and actions visible.
+
+Populated Content initial load exposed React hydration #418. Isolated local development reproduced the exact SVG title mismatch: multiple JSX children are unsupported inside `<title>`. A single interpolated string fixes it. Fresh local browser console is empty; regression SSR test added. Disposable route/config changes reverted and 208MB isolated QA cache removed; existing user dev server preserved.
 
 Final production desktop / tablet / mobile screenshots, aligned filters, populated and empty
 Content states, keyboard access, console and viewport reset. No data imports or settings writes
