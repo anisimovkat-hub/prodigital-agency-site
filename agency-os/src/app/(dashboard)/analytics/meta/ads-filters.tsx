@@ -10,6 +10,17 @@ import { Select } from "@/components/ui/select";
 import { GRANULARITIES } from "@/lib/ad-analytics";
 import { AnalyticsPeriodPicker } from "@/app/(dashboard)/analytics/analytics-period-picker";
 
+export function ReportCurrencySwitch({ currency }: { currency: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  return <span className="flex rounded-md bg-neutral-100 p-0.5 text-[11px] font-semibold">{[["USD", "$"], ["RUB", "₽"]].map(([code, sign]) => <button type="button" key={code} aria-label={`Сводка в ${code}`} aria-pressed={currency === code} onClick={() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("cur", code);
+    router.push(`${pathname}?${params}`, { scroll: false });
+  }} className={`rounded px-1.5 py-0.5 ${currency === code ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}>{sign}</button>)}</span>;
+}
+
 type Option = { id: string; name: string };
 type AccountOption = Option & { project_id: string | null };
 type CampaignOption = Option & {

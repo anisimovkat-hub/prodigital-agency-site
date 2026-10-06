@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 
 import {
-  AudienceSyncAction,
   AnalyticsFilters,
   AnalyticsTabs,
   ClientReportAction,
@@ -15,7 +15,7 @@ import {
   MarketingDashboard,
 } from "@/components/marketing-dashboard";
 import type { MarketingPayload } from "@/lib/marketing-analytics";
-import type { MarketingSection } from "@/lib/marketing-sections";
+import { marketingSection, type MarketingSection } from "@/lib/marketing-sections";
 
 export function AnalyticsShell({
   payload,
@@ -42,7 +42,9 @@ export function AnalyticsShell({
   dataWarnings?: string[];
   portfolioOverview?: ReactNode;
 }) {
-  const [section, setSection] = useState<MarketingSection>(initialSection);
+  const searchParams = useSearchParams();
+  // URL is the single source of truth, including browser Back/Forward.
+  const section = marketingSection(searchParams.get("section") ?? initialSection, searchParams.get("view"));
 
   return (
     <>
@@ -58,18 +60,16 @@ export function AnalyticsShell({
         payload={payload}
         section={section}
         controls={<ClientReportAction projectId={params.project} />}
-        contentActions={<><InstagramSyncAction />{contentSettings}</>}
+        contentActions={<details className="rounded-2xl border border-neutral-200 bg-white px-4 py-3"><summary className="cursor-pointer text-sm font-medium text-neutral-700">Источники и обновление Instagram</summary><div className="mt-3 space-y-3"><InstagramSyncAction />{contentSettings}</div></details>}
         adsPanel={adsPanel}
         mediaPlan={mediaPlan}
-        audienceActions={<AudienceSyncAction projectId={params.project} />}
         filters={
-          section === "ads" && adsFilters ? <div className="space-y-3"><AnalyticsTabs section={section} onSectionChange={setSection} />{adsFilters}</div> : <AnalyticsFilters
+          <div className="space-y-3"><AnalyticsTabs section={section} />{section !== "content" && adsFilters ? adsFilters : <AnalyticsFilters
             params={params}
             projects={projects}
             socialAccounts={socialAccounts}
             section={section}
-            onSectionChange={setSection}
-          />
+          />}</div>
         }
       />}
     </>

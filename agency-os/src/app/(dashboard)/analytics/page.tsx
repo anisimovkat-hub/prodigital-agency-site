@@ -665,6 +665,7 @@ export default async function AnalyticsPage({
     period: { from, to },
     organic: {
       connected: selectedSocial.length > 0,
+      metricDates: [...new Set(organicRows.map((row) => row.date))].sort(),
       accountName: selectedSocial[0]?.username ?? selectedSocial[0]?.name ?? null,
       followers: selectedSocial.reduce((sum, account) => sum + Number(account.followers_count), 0),
       followerGrowth: organicRows.reduce((sum, row) => sum + Number(row.follower_growth), 0),
@@ -850,7 +851,7 @@ export default async function AnalyticsPage({
 
   return (
     <AnalyticsShell
-      key={`${projectId}:${section}`}
+      key={projectId}
       payload={payload}
       initialSection={section}
       params={params}

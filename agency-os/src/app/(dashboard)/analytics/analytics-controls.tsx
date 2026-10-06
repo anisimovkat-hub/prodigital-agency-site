@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AnalyticsPeriodPicker } from "@/app/(dashboard)/analytics/analytics-period-picker";
-import type { MarketingSection } from "@/lib/marketing-sections";
+import { analyticsSectionHref, type MarketingSection } from "@/lib/marketing-sections";
 import { cn } from "@/lib/utils";
 
 type AnalyticsParams = {
@@ -128,50 +128,21 @@ export function InstagramAccountAssignment({
 
 export function AnalyticsTabs({
   section,
-  onSectionChange,
 }: {
   section: MarketingSection;
-  onSectionChange: (section: MarketingSection) => void;
 }) {
   const tabs = [
-    {
-      value: "overview" as const,
-      label: "Обзор",
-      hint: "Главные показатели",
-      icon: ChartNoAxesCombined,
-      base: "border-sky-200 bg-sky-50/80 text-sky-950 hover:bg-sky-100",
-      active: "border-sky-400 bg-sky-100 shadow-sm ring-1 ring-sky-300",
-      iconStyle: "bg-sky-200/70 text-sky-700",
-    },
-    {
-      value: "content" as const,
-      label: "Контент",
-      hint: "Публикации и органика",
-      icon: Images,
-      base: "border-violet-200 bg-violet-50/80 text-violet-950 hover:bg-violet-100",
-      active: "border-violet-400 bg-violet-100 shadow-sm ring-1 ring-violet-300",
-      iconStyle: "bg-violet-200/70 text-violet-700",
-    },
-    {
-      value: "ads" as const,
-      label: "Реклама",
-      hint: "Кампании и объявления",
-      icon: Megaphone,
-      base: "border-amber-200 bg-amber-50/80 text-amber-950 hover:bg-amber-100",
-      active: "border-amber-400 bg-amber-100 shadow-sm ring-1 ring-amber-300",
-      iconStyle: "bg-amber-200/70 text-amber-700",
-    },
+    { value: "overview" as const, label: "Обзор", icon: ChartNoAxesCombined },
+    { value: "content" as const, label: "Контент", icon: Images },
+    { value: "ads" as const, label: "Реклама", icon: Megaphone },
   ];
 
   function select(nextSection: MarketingSection) {
-    onSectionChange(nextSection);
-    const search = new URLSearchParams(window.location.search);
-    search.set("section", nextSection);
-    search.delete("view");
-    window.history.replaceState(null, "", `/analytics?${search.toString()}`);
+    if (nextSection === section) return;
+    window.history.pushState(null, "", analyticsSectionHref(window.location.search, nextSection));
   }
 
-  if (section === "ads") return (
+  return (
     <div className="flex w-full rounded-xl bg-neutral-100 p-1 sm:inline-flex sm:w-auto" role="tablist" aria-label="Раздел аналитики">
       {tabs.map((tab) => (
         <button type="button" key={tab.value} onClick={() => select(tab.value)} role="tab" aria-selected={section === tab.value}
@@ -183,33 +154,6 @@ export function AnalyticsTabs({
     </div>
   );
 
-  return (
-    <div className={"grid w-full gap-2 sm:grid-cols-3 xl:max-w-3xl"} role="tablist" aria-label="Раздел аналитики">
-      {tabs.map((tab) => (
-        <button
-          type="button"
-          key={tab.value}
-          onClick={() => select(tab.value)}
-          role="tab"
-          aria-selected={section === tab.value}
-          className={cn(
-            "flex min-w-0 items-center rounded-lg border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2",
-            "gap-3 px-3.5 py-3",
-            tab.base,
-            section === tab.value && tab.active,
-          )}
-        >
-          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", tab.iconStyle)}>
-            <tab.icon className="h-4.5 w-4.5" aria-hidden="true" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold">{tab.label}</span>
-            <span className="block truncate text-[11px] opacity-65">{tab.hint}</span>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export function AnalyticsFilters({
@@ -217,13 +161,11 @@ export function AnalyticsFilters({
   projects,
   socialAccounts,
   section,
-  onSectionChange,
 }: {
   params: AnalyticsParams;
   projects: { id: string; name: string }[];
   socialAccounts: SocialAccountOption[];
   section: MarketingSection;
-  onSectionChange: (section: MarketingSection) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -244,29 +186,24 @@ export function AnalyticsFilters({
   }
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-3">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-        <div className={cn("grid gap-3", section === "ads" ? "sm:min-w-[300px]" : "sm:grid-cols-2 xl:min-w-[620px]")}>
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-3">
+        <div className="order-last md:order-none">
           <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Проект
-          <Select value={project} onChange={(event) => navigate({ project: event.target.value, social: "", account: "", campaign: "", goal: "" })}>
+          <Select className="h-10 rounded-xl shadow-sm md:h-12" value={project} onChange={(event) => navigate({ project: event.target.value, social: "", account: "", campaign: "", goal: "" })}>
             <option value="">Все проекты</option>
             {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </Select>
         </label>
+        </div>
+        <div className="order-first md:order-none"><AnalyticsPeriodPicker compact key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} /></div>
         {section !== "ads" && <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
           Instagram-аккаунт
-          <Select value={params.social} onChange={(event) => navigate({ social: event.target.value })}>
+          <Select className="h-10 rounded-xl shadow-sm md:h-12" value={params.social} onChange={(event) => navigate({ social: event.target.value })}>
             <option value="">Все аккаунты</option>
             {visibleSocialAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </Select>
         </label>}
-        </div>
-        <AnalyticsPeriodPicker key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} />
-      </div>
-      <div className={cn("border-t border-neutral-100", section === "ads" ? "mt-2 pt-2" : "mt-3 pt-3")}>
-        <AnalyticsTabs section={section} onSectionChange={onSectionChange} />
-      </div>
     </div>
   );
 }

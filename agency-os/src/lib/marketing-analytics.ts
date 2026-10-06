@@ -75,6 +75,8 @@ export type MarketingPayload = {
   period: { from: string; to: string };
   organic: {
     connected: boolean;
+    /** Dates with actual Instagram metrics; missing dates must not become zeroes. */
+    metricDates?: string[];
     accountName: string | null;
     followers: number;
     followerGrowth: number;

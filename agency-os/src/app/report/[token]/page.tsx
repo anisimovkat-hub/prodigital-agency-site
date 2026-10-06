@@ -118,6 +118,7 @@ function parsePayload(value: unknown): MarketingPayload | null {
     },
     organic: {
       connected: Boolean(account.username || account.name),
+      metricDates: list(organic.daily).flatMap((row) => string(row.date) ? [string(row.date)!] : []),
       accountName: string(account.username) || string(account.name),
       followers: number(account.followers_count),
       followerGrowth: number(organicTotals.follower_growth),

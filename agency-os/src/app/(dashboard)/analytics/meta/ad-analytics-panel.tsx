@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { AlertTriangle, ArrowDown, ArrowUp, Info } from "lucide-react";
 
 import { AdPerformanceCharts } from "@/app/(dashboard)/analytics/meta/ad-performance-charts";
 import { AdResultsTable, type AdAccountResult } from "@/app/(dashboard)/analytics/meta/ad-results-table";
 import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
-import type { AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
+import { ReportCurrencySwitch, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { LinkMetaAccount } from "@/app/(dashboard)/analytics/meta/link-meta-account";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import type { Granularity } from "@/lib/ad-analytics";
@@ -114,15 +113,6 @@ function GoalBreakdown({ title, items, fallback, currency }: {
 function singleNative(accounts: AccountOption[]): string | null {
   const set = new Set(accounts.map((account) => account.currency));
   return set.size === 1 ? [...set][0] : null;
-}
-
-const CURRENCY_CHOICES = [["USD", "$"], ["RUB", "₽"]] as const;
-
-/** Link to the same report in another summary currency. */
-function currencyHref(current: AdsFilterValues, currency: string) {
-  const params = new URLSearchParams({ section: "ads", project: current.project, from: current.from, to: current.to, cur: currency });
-  for (const key of ["gran", "account", "campaign", "goal"] as const) if (current[key]) params.set(key, current[key]);
-  return `/analytics?${params}`;
 }
 
 function GoalCardView({ card, currency, main }: { card: GoalCard; currency: string | null; main: boolean }) {
@@ -247,7 +237,7 @@ export function AdAnalyticsPanel({
         <Kpi main label="Расход" value={currency ? money(spendNow, currency) : "—"}
           delta={currency ? percentChange(spendNow, spendBefore) : null} neutral
           footnote={currency && noGoalSpend > 0 ? `из них ${money(noGoalSpend, currency)} — без целевого действия` : undefined}
-          action={<span className="flex rounded-md bg-neutral-100 p-0.5 text-[11px] font-semibold">{CURRENCY_CHOICES.map(([code, sign]) => <Link key={code} href={currencyHref(current, code)} scroll={false} aria-label={`Сводка в ${code}`} className={`rounded px-1.5 py-0.5 ${displayCurrency === code ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}>{sign}</Link>)}</span>}
+          action={<ReportCurrencySwitch currency={displayCurrency} />}
           info="Сумма расхода всех кабинетов без НДС, приведённая к одной валюте по курсу ЦБ на дату каждого дня." />
         {cards.map((card) => <GoalCardView key={card.key} card={card} currency={currency} main={false} />)}
       </section>
