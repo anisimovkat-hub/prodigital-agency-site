@@ -20,4 +20,13 @@ describe("makeConverter", () => {
     expect(makeConverter(rates, "USD")(7, "USD", "2026-10-03")).toBe(7);
     expect(makeConverter(rates, "USD")(7, "XYZ", "2026-10-03")).toBeNull();
   });
+  it("never looks forward for a missing historical rate", () => {
+    expect(makeConverter(rates, "USD")(100, "AED", "2026-10-02")).toBeNull();
+    expect(makeConverter(rates, "RUB")(1, "USD", "2026-10-01")).toBeNull();
+  });
+  it("ignores zero, negative and non-finite exchange rates", () => {
+    for (const rub_per_unit of [0, -1, NaN, Infinity]) {
+      expect(makeConverter([{ date: "2026-10-01", currency: "USD", rub_per_unit }], "USD")(80, "RUB", "2026-10-02")).toBeNull();
+    }
+  });
 });

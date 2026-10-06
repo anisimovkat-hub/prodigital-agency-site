@@ -9,16 +9,27 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { GRANULARITIES } from "@/lib/ad-analytics";
 import { AnalyticsPeriodPicker } from "@/app/(dashboard)/analytics/analytics-period-picker";
+import { reportCurrencyHref, type ReportCurrency } from "@/lib/ad-report-currency";
 
-export function ReportCurrencySwitch({ currency }: { currency: string }) {
+export function ReportCurrencySwitch({ currency, nativeCurrency }: { currency: ReportCurrency; nativeCurrency: string | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  return <span className="flex rounded-md bg-neutral-100 p-0.5 text-[11px] font-semibold">{[["USD", "$"], ["RUB", "₽"]].map(([code, sign]) => <button type="button" key={code} aria-label={`Сводка в ${code}`} aria-pressed={currency === code} onClick={() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("cur", code);
-    router.push(`${pathname}?${params}`, { scroll: false });
-  }} className={`rounded px-1.5 py-0.5 ${currency === code ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500 hover:text-neutral-900"}`}>{sign}</button>)}</span>;
+  const [pending, startTransition] = useTransition();
+  return <label className="relative flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-1 text-[11px] font-semibold text-neutral-700">
+    <span>{currency === "native" ? nativeCurrency ?? "Кабинет" : currency}</span>
+    <ChevronDown className="size-3" aria-hidden="true" />
+    <select aria-label="Валюта сводки" value={currency} disabled={pending}
+      className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-wait"
+      onChange={(event) => {
+        const next = event.target.value as ReportCurrency;
+        startTransition(() => router.push(reportCurrencyHref(pathname, searchParams.toString(), next), { scroll: false }));
+      }}>
+      <option value="native">Валюта кабинета{nativeCurrency ? ` · ${nativeCurrency}` : " · раздельно"}</option>
+      <option value="USD">Доллары · USD</option>
+      <option value="RUB">Рубли · RUB</option>
+    </select>
+  </label>;
 }
 
 type Option = { id: string; name: string };

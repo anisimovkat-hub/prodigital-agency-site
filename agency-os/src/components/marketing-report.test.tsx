@@ -4,6 +4,7 @@ import { MarketingDashboard } from "@/components/marketing-dashboard";
 import { MarketingContentReport } from "@/components/marketing-content-report";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { AnalyticsTabs } from "@/app/(dashboard)/analytics/analytics-controls";
+import { ReportCurrencySwitch } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { contentReportData } from "@/lib/marketing-content";
 import type { MarketingPayload } from "@/lib/marketing-analytics";
 
@@ -60,6 +61,14 @@ describe("content data coverage", () => {
 });
 
 describe("unified report", () => {
+  it("offers original account currency, USD and RUB in one compact selector", () => {
+    const html = renderToStaticMarkup(<ReportCurrencySwitch currency="native" nativeCurrency="GBP" />);
+    expect(html).toContain('aria-label="Валюта сводки"');
+    expect(html).toContain('value="native" selected=""');
+    expect(html).toContain("Валюта кабинета · GBP");
+    expect(html).toContain("Доллары · USD");
+    expect(html).toContain("Рубли · RUB");
+  });
   it("renders SVG tooltip titles as one text node for safe hydration", () => {
     const html = renderToString(<MarketingContentReport payload={fixture()} />);
     expect(html).toContain("<title>01.09: 10</title>");

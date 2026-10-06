@@ -10,7 +10,8 @@ import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analyti
 import type { Granularity } from "@/lib/ad-analytics";
 import type { AdSourceStatus } from "@/lib/ad-data-freshness";
 import { goalLabel, type CampaignGoal, type GoalKey } from "@/lib/ad-goals";
-import { makeConverter, type FxRate } from "@/lib/fx-rates";
+import type { FxRate } from "@/lib/fx-rates";
+import { prepareReportCurrency, type ReportCurrency } from "@/lib/ad-report-currency";
 import { buildGoalCards, goalDailyPoints, type GoalCard, type GoalSetting } from "@/lib/project-ad-goals";
 import { summarizeAudienceGoal, type AudienceGoalRow } from "@/lib/audience-goal-performance";
 import { formatCompact, type MarketingAudience, type MarketingAudienceItem } from "@/lib/marketing-analytics";
@@ -120,7 +121,7 @@ function GoalCardView({ card, currency, main }: { card: GoalCard; currency: stri
   return <Kpi main={main} label={card.label} value={integer(card.current.results)}
     delta={card.extra || cpa === null ? percentChange(card.current.results, card.previous.results) : percentChange(cpa, card.previous.cpa)}
     lowerIsBetter={!card.extra && cpa !== null}
-    footnote={card.extra ? "по всем кампаниям, без цены" : cpa !== null && currency ? `${money(cpa, currency)} за результат` : card.current.spend > 0 ? "результатов нет" : undefined}
+    footnote={card.extra ? "по всем кампаниям, без цены" : !currency ? "Цена недоступна в выбранной валюте" : cpa !== null ? `${money(cpa, currency)} за результат` : card.current.spend > 0 ? "результатов нет" : undefined}
     info={card.extra ? "Дополнительная цель: считается по всем кампаниям проекта; отдельной цены у неё нет." : "Цена — расход только тех кампаний, которые оптимизированы на эту цель, делённый на их результаты."} />;
 }
 
@@ -136,7 +137,7 @@ export function AdAnalyticsPanel({
   goalSettings: GoalSetting[];
   customNames?: Map<string, string>;
   fxRates: FxRate[];
-  displayCurrency: string;
+  displayCurrency: ReportCurrency;
   granularity: Granularity;
   tree: AdTreeRow[];
   audience: MarketingAudience;
@@ -158,28 +159,29 @@ export function AdAnalyticsPanel({
     (!current.campaign || campaign.id === current.campaign),
   );
   const campaignIds = new Set(selectedCampaigns.map((campaign) => campaign.id));
-  const selectedAccounts = accounts.filter((account) => !current.account || account.id === current.account);
+  const selectedAccounts = accounts.filter((account) =>
+    (!current.project || account.project_id === current.project) &&
+    (!current.account || account.id === current.account) &&
+    (!current.campaign || selectedCampaigns.some((campaign) => campaign.account_id === account.id)),
+  );
   const accountCurrency = new Map(accounts.map((account) => [account.id, account.currency]));
   const campaignCurrency = new Map(campaigns.map((campaign) => [campaign.id, accountCurrency.get(campaign.account_id) ?? null]));
 
-  // Summary in one currency: every day converted at that day's Bank of Russia rate.
-  const convert = makeConverter(fxRates, displayCurrency);
-  const toDisplay = (rows: AdMetricDay[]) => {
-    let complete = true;
-    const converted = rows.filter((row) => campaignIds.has(row.campaign_id)).map((row) => {
-      const spend = convert(Number(row.spend), campaignCurrency.get(row.campaign_id) ?? null, row.date);
-      if (spend === null) complete = false;
-      return { ...row, spend: spend ?? 0 };
-    });
-    return { converted, complete };
-  };
-  const currentDisplay = toDisplay(metrics);
-  const previousDisplay = toDisplay(previousMetrics);
-  const currency = currentDisplay.complete && previousDisplay.complete ? displayCurrency : null;
-  const summaryMetrics = currency ? currentDisplay.converted : [];
-  const summaryPrevious = currency ? previousDisplay.converted : [];
+  const display = prepareReportCurrency({
+    mode: displayCurrency, rates: fxRates,
+    metrics: metrics.filter((row) => campaignIds.has(row.campaign_id)),
+    previousMetrics: previousMetrics.filter((row) => campaignIds.has(row.campaign_id)),
+    campaignCurrencies: campaignCurrency, fallbackCurrencies: selectedAccounts.map((account) => account.currency),
+  });
+  const currency = display.current.currency;
+  const summaryMetrics = display.current.metrics;
+  const summaryPrevious = display.previous.metrics;
 
-  const cards = buildGoalCards({ selected: campaignIds, goals: campaignGoals, settings: goalSettings, metrics: summaryMetrics, conversions, previousMetrics: summaryPrevious, previousConversions, customNames });
+  const cards = buildGoalCards({ selected: campaignIds, goals: campaignGoals, settings: goalSettings, metrics: summaryMetrics, conversions, previousMetrics: summaryPrevious, previousConversions, customNames }).map((card) => ({
+    ...card,
+    current: { ...card.current, cpa: currency ? card.current.cpa : null },
+    previous: { ...card.previous, cpa: display.previous.currency ? card.previous.cpa : null },
+  }));
   const selectedCard = cards.find((card) => card.key === current.goal) ?? cards.find((card) => !card.extra) ?? cards[0] ?? null;
   const spendNow = summaryMetrics.reduce((sum, row) => sum + Number(row.spend), 0);
   const spendBefore = summaryPrevious.reduce((sum, row) => sum + Number(row.spend), 0);
@@ -231,14 +233,15 @@ export function AdAnalyticsPanel({
         <LinkMetaAccount projectId={current.project} accounts={unlinkedMetaAccounts} />
       </section>}
       {sourceStatus?.message && <p className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${sourceStatus.state === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>{sourceStatus.state === "error" ? <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" /> : <Info className="size-3.5 shrink-0" aria-hidden="true" />}{sourceStatus.message}</p>}
-      {!currency && hasData && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Нет курса для одной из валют кабинетов — общая сводка в {displayCurrency} недоступна. Таблица ниже показывает суммы в валютах кабинетов.</p>}
+      {!currency && hasData && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{display.mixedNative ? "У кабинетов разные валюты: суммы показаны раздельно. Для общей цены цели выберите USD или RUB, либо один кабинет." : `Валюта кабинета или курс на дату расхода недоступны — денежная сводка${displayCurrency === "native" ? "" : ` в ${displayCurrency}`} не рассчитана.`} Таблица ниже сохраняет исходные суммы.</p>}
+      {currency && !display.previous.currency && hasData && <p className="px-1 text-xs text-neutral-500">Нет полного курса за предыдущий период — сравнение денежных показателей недоступно.</p>}
 
       <section className="grid grid-cols-2 gap-2 md:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:gap-3" aria-label="Ключевые показатели рекламы">
-        <Kpi main label="Расход" value={currency ? money(spendNow, currency) : "—"}
-          delta={currency ? percentChange(spendNow, spendBefore) : null} neutral
-          footnote={currency && noGoalSpend > 0 ? `из них ${money(noGoalSpend, currency)} — без целевого действия` : undefined}
-          action={<ReportCurrencySwitch currency={displayCurrency} />}
-          info="Сумма расхода всех кабинетов без НДС, приведённая к одной валюте по курсу ЦБ на дату каждого дня." />
+        <Kpi main label="Расход" value={currency ? money(spendNow, currency) : display.mixedNative ? "Разные валюты" : "—"}
+          delta={currency && display.previous.currency ? percentChange(spendNow, spendBefore) : null} neutral
+          footnote={display.mixedNative ? display.nativeSpend.map((item) => item.currency ? money(item.spend, item.currency) : `${integer(item.spend)} · валюта не указана`).join(" · ") : currency && noGoalSpend > 0 ? `из них ${money(noGoalSpend, currency)} — без целевого действия` : undefined}
+          action={<ReportCurrencySwitch currency={displayCurrency} nativeCurrency={display.nativeCurrency} />}
+          info={displayCurrency === "native" ? "Исходный расход без пересчёта. Разные валюты кабинетов не складываются." : "Сумма расхода всех кабинетов без НДС, приведённая к выбранной валюте по курсу ЦБ на дату каждого дня."} />
         {cards.map((card) => <GoalCardView key={card.key} card={card} currency={currency} main={false} />)}
       </section>
 

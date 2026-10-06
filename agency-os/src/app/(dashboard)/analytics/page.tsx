@@ -23,6 +23,7 @@ import { describeAdSourceStatus } from "@/lib/ad-data-freshness";
 import { attributeCampaignGoals, buildGoalCards, type GoalSetting } from "@/lib/project-ad-goals";
 import { goalLabel, goalsWithData, type GoalKey } from "@/lib/ad-goals";
 import type { FxRate } from "@/lib/fx-rates";
+import { reportCurrency } from "@/lib/ad-report-currency";
 import { fetchCompleteQuery } from "@/lib/complete-query";
 import type {
   MarketingAdDetail,
@@ -804,7 +805,7 @@ export default async function AnalyticsPage({
     const setting = goalSettings.find((item) => item.goal_key === key);
     return { key, defaultLabel: goalLabel(key, customNames), label: setting?.label ?? null, hidden: setting?.hidden ?? false, extra: setting?.extra ?? false, isMain: mainGoalKeys.has(key) };
   }).sort((a, b) => Number(b.isMain) - Number(a.isMain) || a.defaultLabel.localeCompare(b.defaultLabel, "ru"));
-  const displayCurrency = raw.cur === "RUB" ? "RUB" : "USD";
+  const displayCurrency = reportCurrency(raw.cur);
   if (fxRatesResult.error) dataWarnings.push(`Не удалось загрузить курсы валют: ${fxRatesResult.error.message}`);
 
   const currentAdsFilters: AdsFilterValues = {

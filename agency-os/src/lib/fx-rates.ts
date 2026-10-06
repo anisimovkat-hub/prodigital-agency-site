@@ -24,6 +24,7 @@ export async function fetchCbrRates(date: string): Promise<FxRate[] | null> {
 export function makeConverter(rates: FxRate[], display: string) {
   const byCurrency = new Map<string, { date: string; rub: number }[]>();
   for (const rate of rates) {
+    if (!Number.isFinite(Number(rate.rub_per_unit)) || Number(rate.rub_per_unit) <= 0) continue;
     const list = byCurrency.get(rate.currency) ?? [];
     list.push({ date: rate.date, rub: Number(rate.rub_per_unit) });
     byCurrency.set(rate.currency, list);
@@ -33,7 +34,7 @@ export function makeConverter(rates: FxRate[], display: string) {
     if (currency === "RUB") return 1;
     const list = byCurrency.get(currency);
     if (!list?.length) return null;
-    let found = list[0].rub;
+    let found: number | null = null;
     for (const item of list) {
       if (item.date > date) break;
       found = item.rub;
