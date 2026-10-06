@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+# Generated local UI verification; screenshots are kept in the system temp directory.
+/design-qa.md
 
 # next.js
 /.next/

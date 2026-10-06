@@ -39,7 +39,7 @@ export type AdsFilterValues = {
 };
 
 /** A native select dressed as the report's filter pill; the browser keeps keyboard access. */
-function FilterSelect({ icon, prefix, label, value, onChange, children }: {
+export function FilterSelect({ icon, prefix, label, value, onChange, children }: {
   icon?: ReactNode; prefix?: string; label: string; value: string; onChange: (value: string) => void; children: ReactNode;
 }) {
   return <label className="relative flex h-10 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 text-sm md:h-12 md:px-4 text-neutral-900 shadow-sm transition focus-within:ring-2 focus-within:ring-neutral-500 hover:border-neutral-400">

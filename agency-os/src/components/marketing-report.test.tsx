@@ -86,4 +86,11 @@ describe("unified report", () => {
     query = "project=p1&section=ads";
     expect(render()).not.toContain("Сводка контента");
   });
+  it("preserves existing result metrics in the scoped public report", () => {
+    const html = renderToStaticMarkup(<MarketingDashboard payload={fixture()} section="ads" publicReport />);
+    expect(html).toContain("Основные результаты");
+    expect(html).toContain("Стоимость результата");
+    expect(html).toContain("CTR");
+    expect(html).toContain("4</p>");
+  });
 });

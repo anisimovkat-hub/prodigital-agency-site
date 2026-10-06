@@ -120,13 +120,16 @@ function PaidReportFallback({ payload, audienceActions, publicReport }: { payloa
   const currency = payload.paid.currencies.length === 1 ? payload.paid.currencies[0] : null;
   const hasData = payload.daily.some((day) => day.paidReach > 0 || day.spend > 0) || payload.paid.campaigns.length > 0;
   return <div className="space-y-3">
-    <section className="grid gap-3 sm:grid-cols-3" aria-label="Ключевые показатели рекламы">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Ключевые показатели рекламы">
       {[
         ["Расход", hasData && currency ? money(payload.paid.spend, currency) : "—"],
-        ["Показы", hasData ? formatCompact(payload.paid.impressions) : "—"],
-        ["Клики", hasData ? formatCompact(payload.paid.clicks) : "—"],
+        ["Основные результаты", hasData ? formatCompact(payload.paid.conversions) : "—"],
+        ["Стоимость результата", hasData && currency && payload.paid.cpa !== null ? money(payload.paid.cpa, currency) : "—"],
+        ["CTR", hasData ? formatMetricPercent(payload.paid.ctr) : "—"],
+        ["ROAS", hasData && currency && payload.paid.roas !== null ? `${payload.paid.roas.toFixed(2)}×` : "—"],
       ].map(([label, value]) => <article key={label} className="min-w-0 rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"><p className="text-sm text-neutral-700">{label}</p><p className="mt-2 text-[32px] font-bold tracking-tight text-neutral-950 tabular-nums">{value}</p><p className="mt-2 text-xs text-neutral-400">{label === "Расход" && !currency && payload.paid.currencies.length > 1 ? "Суммы разных валют показаны отдельно ниже" : "За выбранный период"}</p></article>)}
     </section>
+    {hasData && <p className="px-1 text-xs text-neutral-400">Показы {formatCompact(payload.paid.impressions)} · Клики {formatCompact(payload.paid.clicks)} · Результаты из сохранённого клиентского отчёта</p>}
     {!hasData && <p className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 text-sm text-neutral-500">За выбранный период нет рекламных данных.</p>}
     <CampaignGoals payload={payload} />
     <AdDetailTable title="Группы объявлений" subtitle="Исходные цели и валюта каждой группы" rows={payload.paid.adSets} />

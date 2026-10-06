@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AnalyticsPeriodPicker } from "@/app/(dashboard)/analytics/analytics-period-picker";
+import { FilterSelect } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { analyticsSectionHref, type MarketingSection } from "@/lib/marketing-sections";
 import { cn } from "@/lib/utils";
 
@@ -186,24 +187,16 @@ export function AnalyticsFilters({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-3">
-        <div className="order-last md:order-none">
-          <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
-          Проект
-          <Select className="h-10 rounded-xl shadow-sm md:h-12" value={project} onChange={(event) => navigate({ project: event.target.value, social: "", account: "", campaign: "", goal: "" })}>
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
+          <FilterSelect prefix="Проект:" label={projects.find((item) => item.id === project)?.name ?? "Все проекты"} value={project} onChange={(value) => navigate({ project: value, social: "", account: "", campaign: "", goal: "" })}>
             <option value="">Все проекты</option>
             {projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </Select>
-        </label>
-        </div>
-        <div className="order-first md:order-none"><AnalyticsPeriodPicker compact key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} /></div>
-        {section !== "ads" && <label className="flex flex-col gap-1 text-xs font-medium text-neutral-500">
-          Instagram-аккаунт
-          <Select className="h-10 rounded-xl shadow-sm md:h-12" value={params.social} onChange={(event) => navigate({ social: event.target.value })}>
+          </FilterSelect>
+        <div className="order-first col-span-2 md:order-none md:col-span-1"><AnalyticsPeriodPicker compact key={`${params.from}-${params.to}`} period={{ from: params.from, to: params.to }} onApply={(period) => navigate(period)} /></div>
+        {section !== "ads" && <FilterSelect icon={<Images className="size-4" />} prefix="Instagram:" label={visibleSocialAccounts.find((account) => account.id === params.social)?.name ?? "Все аккаунты"} value={params.social} onChange={(value) => navigate({ social: value })}>
             <option value="">Все аккаунты</option>
             {visibleSocialAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </Select>
-        </label>}
+          </FilterSelect>}
     </div>
   );
 }

@@ -6,10 +6,10 @@ import { contentReportData, type ContentDay } from "@/lib/marketing-content";
 const surface = "min-w-0 rounded-2xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]";
 const shortDate = (date: string) => date.slice(5).split("-").reverse().join(".");
 
-function ContentMetric({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return <article className={`${surface} px-4 py-3 md:px-5 md:py-4`}>
+function ContentMetric({ label, value, hint, main = false }: { label: string; value: string; hint: string; main?: boolean }) {
+  return <article className={`${surface} px-4 py-3 md:px-5 md:py-4 ${main ? "col-span-2 sm:col-span-1" : ""}`}>
     <p className="text-xs font-medium text-neutral-600 md:text-sm md:text-neutral-700">{label}</p>
-    <p className="mt-2 text-[28px] font-bold leading-tight tracking-tight text-neutral-950 tabular-nums md:text-[32px]">{value}</p>
+    <p className={`mt-2 font-bold leading-tight tracking-tight text-neutral-950 tabular-nums md:text-[32px] ${main ? "text-[28px]" : "text-xl"}`}>{value}</p>
     <p className="mt-2 text-xs text-neutral-400">{hint}</p>
   </article>;
 }
@@ -53,8 +53,8 @@ export function MarketingContentReport({ payload, compact = false }: { payload: 
     {!organic.connected || !hasMetrics ? <div className="flex items-start gap-2 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-600" role="status">
       <Info className="size-4 shrink-0" aria-hidden="true" /><p>{!organic.connected ? "Instagram-аккаунт не подключён к этому проекту." : "За выбранный период нет загруженной ежедневной статистики Instagram. Это не означает нулевой охват. Выберите другой период или обновите источник."}</p>
     </div> : !complete && <p className="rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-neutral-500" role="status">Данные Instagram загружены за {reportedDays} из {days.length} дней. Итоги неполные; пропуски на графиках не заменены нулями.</p>}
-    <section className="grid grid-cols-1 gap-2 sm:grid-cols-3 md:gap-3" aria-label="Ключевые показатели контента">
-      <ContentMetric label="Охват контента" value={stat(organic.reach)} hint="Сумма дневных охватов, не уникальные люди за период" />
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:gap-3" aria-label="Ключевые показатели контента">
+      <ContentMetric main label="Охват контента" value={stat(organic.reach)} hint="Сумма дневных охватов, не уникальные люди за период" />
       <ContentMetric label="Взаимодействия" value={stat(organic.engagements)} hint={hasMetrics ? `ER ${formatMetricPercent(organic.engagementRate)} · взаимодействия / охват` : "Нет ежедневных метрик за выбранные даты"} />
       <ContentMetric label="Публикации" value={posts.length ? formatCompact(posts.length) : "—"} hint="Загруженные публикации, вышедшие в выбранный период" />
     </section>
