@@ -4,6 +4,8 @@ vi.mock("server-only", () => ({}));
 
 import { fetchYandexCampaignReport, fetchYandexClient, fetchYandexGoalReport, fetchYandexGoals, fetchYandexCampaignInfo, parseYandexCampaignReport, readYandexGoalCounters } from "@/lib/yandex-direct";
 
+import { buildGoalCards } from "@/lib/project-ad-goals";
+
 const fetchMock = vi.fn();
 
 function response(data: unknown, ok = true): Response {
@@ -39,7 +41,25 @@ describe("parseYandexCampaignReport", () => {
     const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t739\t2\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t90\t--\t--';
     const rows = parseYandexCampaignReport(tsv, ['42','43']);
     expect(rows[0].goals).toEqual({ '42': 2, '43': 0 });
-    expect(rows[1].goals).toEqual({ '42': null, '43': null });
+    expect(rows[1].goals).toEqual({ '42': 0, '43': 0 });
+  });
+  it('keeps empty and truncated goal cells unknown, not zero', () => {
+    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t\n2026-10-02\t101\tПоиск\t100\t4\t200\t--';
+    const rows = parseYandexCampaignReport(tsv, ['42', '43']);
+    expect(rows[0].goals).toEqual({ '42': null, '43': null });
+    expect(rows[1].goals).toEqual({ '42': 0, '43': null });
+  });
+  it('keeps a period complete across zero-conversion days without combining its goals', () => {
+    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t2\t1\n2026-10-02\t101\tПоиск\t100\t4\t200\t--\t--';
+    const rows = parseYandexCampaignReport(tsv, ['42', '43']);
+    const metrics = rows.map((row) => ({ campaign_id: row.campaignId, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks }));
+    const conversions = rows.flatMap((row) => Object.entries(row.goals!).map(([id, count]) => ({ campaign_id: row.campaignId, date: row.date, action_type: `yandex_goal:${id}:LC`, count: count ?? 0, is_measured: count !== null })));
+    const cards = buildGoalCards({ selected: new Set(['101']), goals: new Map(), settings: [], metrics, conversions, previousMetrics: [], previousConversions: [], yandexGoals: ['42', '43'].map((id) => ({ id, name: id, domain: 'example.test', counterId: '123', campaignIds: ['101'] })) });
+    expect(cards.map((card) => card.current)).toEqual([
+      { results: 2, spend: 400, cpa: 200, complete: true },
+      { results: 1, spend: 400, cpa: 400, complete: true },
+    ]);
+    expect(cards.every((card) => card.previous.complete === false)).toBe(true);
   });
   it('rejects a missing requested goal column and invalid metric values', () => {
     const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\n2026-10-01\t101\tПоиск\t100\t4\t200';

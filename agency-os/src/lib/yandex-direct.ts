@@ -73,7 +73,7 @@ export type YandexCampaignDay = {
 
 const REPORT_FIELDS = ["Date", "CampaignId", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"] as const;
 
-/** Parses a Reports TSV without header/summary rows; "--" means "not measured". */
+/** Parses a Reports TSV. Missing cells are unknown; an explicit goal count "--" is zero. */
 export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): YandexCampaignDay[] {
   const lines = tsv.split("\n").map((line) => line.replace(/\r$/, "")).filter(Boolean);
   if (lines.length === 0) return [];
@@ -107,7 +107,9 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
       clicks: number(cells[columns.Clicks]),
       cost: number(cells[columns.Cost]),
       conversions: conversions === undefined || conversions === "--" || conversions === "" ? null : number(conversions),
-      ...(goalIds.length ? { goals: Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])) } : {}),
+      // A successful explicit Conversions_<goal>_LC column uses "--" for no
+      // conversions. Missing columns/cells and failed imports remain unknown.
+      ...(goalIds.length ? { goals: Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])) } : {}),
     };
   });
 }
