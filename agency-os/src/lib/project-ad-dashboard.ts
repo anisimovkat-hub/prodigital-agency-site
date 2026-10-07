@@ -9,6 +9,7 @@ export type AdMetricDay = {
 };
 
 export type AdConversionDay = {
+  is_measured?: boolean;
   campaign_id: string;
   date: string;
   action_type: string;
@@ -32,7 +33,10 @@ export function summarizeAdDashboard(
 ): AdDashboardTotals {
   const selectedMetrics = metrics.filter((row) => campaignIds.has(row.campaign_id));
   const spend = selectedMetrics.reduce((total, row) => total + Number(row.spend), 0);
-  const count = goal
+  const goalRows = conversions.filter((row) => campaignIds.has(row.campaign_id) && row.action_type === goal);
+  const measuredDays = new Set(goalRows.filter((row) => row.is_measured !== false).map((row) => `${row.campaign_id}:${row.date}`));
+  const measured = !goal?.startsWith('yandex_goal:') || (goalRows.length > 0 && goalRows.every((row) => row.is_measured !== false) && selectedMetrics.every((row) => measuredDays.has(`${row.campaign_id}:${row.date}`)));
+  const count = goal && measured
     ? conversions.filter((row) => campaignIds.has(row.campaign_id) && row.action_type === goal)
       .reduce((total, row) => total + Number(row.count), 0)
     : null;

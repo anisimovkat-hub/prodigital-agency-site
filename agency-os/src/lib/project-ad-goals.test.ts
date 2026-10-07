@@ -23,6 +23,26 @@ const goals = attributeCampaignGoals(campaigns, conversions);
 const selected = new Set(campaigns.map((campaign) => campaign.id));
 
 describe("buildGoalCards", () => {
+  it('does not attribute Yandex by whichever technical goal is largest', () => {
+    expect(attributeCampaignGoals([{ id: 'ya', platform: 'yandex_direct', objective: null, optimization_goal: null }], [{ campaign_id: 'ya', date: '2026-10-01', action_type: 'yandex:conversions', count: 739 }]).get('ya')).toBeNull();
+  });
+  it('separates explicit Yandex goals and preserves zero versus missing data', () => {
+    const args = { selected: new Set(['lead']), goals: new Map(), settings: [], metrics: [metrics[0]], conversions: [
+      { campaign_id: 'lead', date: '2026-10-01', action_type: 'yandex_goal:42:LC', count: 2, is_measured: true },
+      { campaign_id: 'lead', date: '2026-10-01', action_type: 'yandex_goal:43:LC', count: 0, is_measured: true },
+      { campaign_id: 'lead', date: '2026-10-01', action_type: 'yandex:conversions', count: 739 },
+    ], previousMetrics: [metrics[0]], previousConversions: [], yandexGoals: [
+      { id: '42', name: 'Спасибо', domain: 'site.ru', counterId: '123', campaignIds: ['lead'] },
+      { id: '43', name: 'Звонок', domain: 'site.ru', counterId: '123', campaignIds: ['lead'] },
+    ] };
+    const cards = buildGoalCards(args);
+    expect(cards[0].current).toEqual({ results: 2, spend: 100, cpa: 50, complete: true });
+    expect(cards[1].current).toEqual({ results: 0, spend: 100, cpa: null, complete: true });
+    expect(cards[0].previous.complete).toBe(false);
+    expect(goalDailyPoints(args.metrics, args.conversions, cards[0], args.goals)[0].conversions).toBe(2);
+    const incomplete = buildGoalCards({ ...args, metrics: [...args.metrics, { ...metrics[0], date: '2026-10-02' }] });
+    expect(incomplete[0].current).toMatchObject({ complete: false, cpa: null });
+  });
   it("prices each goal only by the spend of its own campaigns", () => {
     const cards = buildGoalCards({ selected, goals, settings: [], metrics, conversions, previousMetrics: [], previousConversions: [] });
     expect(cards.map((card) => [card.label, card.current.results, card.current.spend, card.current.cpa])).toEqual([

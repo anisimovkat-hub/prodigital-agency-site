@@ -6,7 +6,8 @@ import type { AnalyticsPeriod } from "@/lib/analytics-period";
 import type { Database } from "@/lib/supabase/types";
 import { fetchTelegramAdDays, fetchTonRubRates } from "@/lib/telegram-ads";
 import { ensureVkToken, fetchVkCampaignDays, type VkCredential } from "@/lib/vk-ads";
-import { fetchYandexCampaignReport } from "@/lib/yandex-direct";
+import { fetchYandexCampaignInfo, fetchYandexGoalReport, fetchYandexGoals, readYandexGoalCounters } from "@/lib/yandex-direct";
+import { parseYandexGoals, yandexGoalAction } from "@/lib/yandex-goals";
 
 /** Service-role client: credentials are readable only by the server. */
 type Service = SupabaseClient<Database>;
@@ -19,7 +20,7 @@ export type YandexSecret = { token: string; clientLogin?: string };
 export type ConnectedSecret = TelegramSecret | VkCredential | YandexSecret;
 
 /** One normalized day of one campaign, ready for the shared ad tables. */
-export type CampaignDay = { campaignId: string; name: string; date: string; spend: number; impressions: number; clicks: number; results: number | null; actionType: string };
+export type CampaignDay = { campaignId: string; name: string; date: string; spend: number; impressions: number; clicks: number; results: number | null; actionType: string; goalResults?: { action: string; count: number | null }[]; counterIds?: string[]; status?: string };
 
 export async function saveSecret(client: Service, accountId: string, secret: ConnectedSecret, userId: string) {
   const { error } = await client.rpc("save_ad_account_secret", { p_account_id: accountId, p_secret: JSON.stringify(secret), p_user_id: userId });
@@ -51,8 +52,21 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     return days.map((day) => ({ campaignId: day.campaignId, name: day.name, date: day.date, spend: day.spend, impressions: day.impressions, clicks: day.clicks, results: day.goals, actionType: "vk:Цели VK Рекламы" }));
   }
   const secret = await readSecret<YandexSecret>(client, account.id);
-  const rows = await fetchYandexCampaignReport(secret, period.from, period.to);
-  return rows.map((row) => ({ campaignId: row.campaignId, name: row.campaignName, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks, results: row.conversions, actionType: "yandex:conversions" }));
+  const [discovered, info, stored] = await Promise.all([fetchYandexGoals(secret), fetchYandexCampaignInfo(secret), client.from('ad_accounts').select('yandex_goals').eq('id', account.id).single()]);
+  if (stored.error) throw new Error(stored.error.message);
+  // Preserve explicitly verified counter IDs: Live 4 returns a domain, not a counter ID.
+  const counters = new Map(parseYandexGoals(stored.data.yandex_goals).map((goal) => [goal.id, goal.counterId]));
+  const knownCounters = await readYandexGoalCounters(secret, info.flatMap((c) => c.counterIds));
+  for (const [id, counter] of knownCounters) counters.set(id, counter);
+  const goals = discovered.map((goal) => ({ ...goal, counterId: counters.get(goal.id) ?? null }));
+  const rows = await fetchYandexGoalReport(secret, period.from, period.to, goals);
+  const { error } = await client.from('ad_accounts').update({ yandex_goals: goals }).eq('id', account.id);
+  if (error) throw new Error(error.message);
+  const byId = new Map(info.map((campaign) => [campaign.id, campaign]));
+  return rows.map((row) => ({ campaignId: row.campaignId, name: row.campaignName, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks, results: null, actionType: "yandex:conversions",
+    counterIds: byId.get(row.campaignId)?.counterIds ?? [], status: byId.get(row.campaignId)?.status,
+    goalResults: Object.entries(row.goals ?? {}).map(([id, count]) => ({ action: yandexGoalAction(id), count })),
+  }));
 }
 
 async function inBatches<T>(rows: T[], write: (batch: T[]) => PromiseLike<{ error: { message: string } | null }>) {
@@ -63,17 +77,20 @@ async function inBatches<T>(rows: T[], write: (batch: T[]) => PromiseLike<{ erro
 }
 
 export async function storeCampaignDays(client: Service, account: { id: string; project_id: string }, days: CampaignDay[]) {
-  const campaigns = [...new Map(days.map((day) => [day.campaignId, day.name])).entries()];
+  const campaigns = [...new Map(days.map((day) => [day.campaignId, day])).entries()];
   if (!campaigns.length) return;
   const { data, error } = await client.from("ad_campaigns").upsert(
-    campaigns.map(([externalId, name]) => ({ ad_account_id: account.id, external_id: externalId, name, project_id: account.project_id })),
+    campaigns.map(([externalId, day]) => ({ ad_account_id: account.id, external_id: externalId, name: day.name, project_id: account.project_id,
+      ...(day.counterIds ? { metrika_counter_ids: day.counterIds } : {}), ...(day.status ? { status: day.status } : {}),
+    })),
     { onConflict: "ad_account_id,external_id" },
   ).select("id,external_id");
   if (error) throw new Error(error.message);
   const ids = new Map((data ?? []).map((row) => [row.external_id, row.id]));
   await inBatches(days.map((day) => ({ campaign_id: ids.get(day.campaignId)!, date: day.date, spend: day.spend, impressions: day.impressions, clicks: day.clicks, reach: 0 })),
     (batch) => client.from("ad_campaign_metrics").upsert(batch, { onConflict: "campaign_id,date" }));
-  await inBatches(days.filter((day) => day.results !== null).map((day) => ({ campaign_id: ids.get(day.campaignId)!, date: day.date, action_type: day.actionType, count: day.results!, value: 0 })),
+  await inBatches(days.flatMap((day) => (day.goalResults ?? (day.results !== null ? [{ action: day.actionType, count: day.results }] : []))
+    .map((goal) => ({ campaign_id: ids.get(day.campaignId)!, date: day.date, action_type: goal.action, count: goal.count ?? 0, is_measured: goal.count !== null, value: 0 }))),
     (batch) => client.from("ad_conversions").upsert(batch, { onConflict: "campaign_id,date,action_type" }));
 }
 

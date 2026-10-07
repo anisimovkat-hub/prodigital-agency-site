@@ -11,6 +11,7 @@ export type CampaignMetricRow = {
 };
 
 export type ConversionRow = {
+  is_measured?: boolean;
   campaign_id: string;
   action_type: string;
   count: number;
@@ -141,7 +142,8 @@ export function actionTypeLabel(
   const known = ACTION_TYPE_LABEL[actionType];
   if (known) return known;
   if (actionType === "telegram:joins") return "Вступления в Telegram";
-  if (actionType === "yandex:conversions") return "Конверсии Яндекс.Директа";
+  if (actionType === "yandex:conversions") return "Все цели Яндекса (старый агрегат)";
+  if (actionType.startsWith('yandex_goal:')) return customNames?.get(`yandex:${actionType.split(':')[1]}`) ?? `Цель Яндекса ${actionType.split(':')[1]}`;
   if (actionType.startsWith("vk:")) return actionType.slice(3);
   const custom = /^offsite_conversion\.custom\.(.+)$/.exec(actionType);
   if (custom) {
@@ -155,7 +157,7 @@ export function isGoalAction(actionType: string): boolean {
   return (
     GOAL_PRIORITY.has(actionType) ||
     actionType === "telegram:joins" ||
-    actionType.startsWith("yandex:") ||
+    /^yandex_goal:\d+:LC$/.test(actionType) ||
     actionType.startsWith("vk:") ||
     actionType === "offsite_conversion.custom" ||
     actionType.startsWith("offsite_conversion.custom.")

@@ -63,19 +63,19 @@ export function buildDashboardMetrics({ cards, defaultGoals, hasData, currency, 
     const price = currency && !card.extra && hasData ? card.current.cpa : null;
     metrics.push({
       id: goalMetricId(card.key, "results"), label: card.label, group: card.label,
-      value: hasData ? card.current.results : null, delta: hasData ? percentChange(card.current.results, card.previous.results) : null,
+      value: hasData && card.current.complete !== false ? card.current.results : null, delta: hasData && card.current.complete !== false && card.previous.complete !== false ? percentChange(card.current.results, card.previous.results) : null,
       format: "number", defaultVisible,
-      info: card.extra ? "Действия по этой цели во всех выбранных кампаниях; не складываются с другими целями." : "Результаты только кампаний, работающих на эту цель. Изменение сравнивает количество, а не цену.",
-      note: card.extra ? "Дополнительная цель · по всем кампаниям" : undefined,
+      info: card.key.startsWith('yandex:') ? "Целевые визиты по конкретной цели Яндекса в выбранных кампаниях. Атрибуция: последний переход (LC). Это не сумма автоцелей и не уникальные лиды." : card.extra ? "Действия по этой цели во всех выбранных кампаниях; не складываются с другими целями." : "Результаты только кампаний, работающих на эту цель. Изменение сравнивает количество, а не цену.",
+      note: card.current.complete === false ? "Данные этой цели за период не загружены полностью" : card.extra ? "Дополнительная цель · по всем кампаниям" : card.key.startsWith('yandex:') ? "Атрибуция: последний переход · целевые визиты" : undefined,
     }, {
       id: goalMetricId(card.key, "price"), label: goalPriceLabel(card), group: card.label,
       value: price, delta: previousCurrency ? percentChange(price, card.previous.cpa) : null,
       format: "money", lowerIsBetter: true, defaultVisible: defaultVisible && !card.extra,
-      info: "Расход кампаний, оптимизированных на эту цель, делённый на их результаты. Снижение цены — улучшение.",
-      note: card.extra ? "Нет кампаний на эту цель — отдельной цены нет" : !currency ? "Нет общей валюты или курса" : card.current.results === 0 ? "Нет результатов для расчёта цены" : undefined,
+      info: card.key.startsWith('yandex:') ? "Расход выбранных кампаний / целевые визиты по этой цели (LC). Для направления учитываются только привязанные к нему кампании." : "Расход кампаний, оптимизированных на эту цель, делённый на их результаты. Снижение цены — улучшение.",
+      note: card.current.complete === false ? "Данные этой цели за период не загружены полностью" : card.extra ? "Нет кампаний на эту цель — отдельной цены нет" : !currency ? "Нет общей валюты или курса" : card.current.results === 0 ? "Нет результатов для расчёта цены" : undefined,
     });
   }
-  if (!cards.length) metrics.push(...["conversions", "cpa"].map((id): DashboardMetric => ({
+  if (!cards.length || !defaultGoals.size) metrics.push(...["conversions", "cpa"].map((id): DashboardMetric => ({
     id, label: id === "cpa" ? "Цена конверсии" : "Конверсии", group: "Основные",
     value: null, delta: null, format: id === "cpa" ? "money" : "number", defaultVisible: true,
     info: "Выберите цель с доступными данными. Разные цели не суммируются.", note: "Нет доступной цели за этот период",

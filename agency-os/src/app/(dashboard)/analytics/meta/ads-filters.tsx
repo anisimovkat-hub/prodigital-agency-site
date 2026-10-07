@@ -47,6 +47,7 @@ export type AdsFilterValues = {
   account: string;
   campaign: string;
   goal: string;
+  direction?: string;
 };
 
 /** A native select dressed as the report's filter pill; the browser keeps keyboard access. */
@@ -110,7 +111,7 @@ export function AdsFilters({
   // кабинета — кампанию и цель. Иначе от прошлого проекта осталась бы
   // несовместимая цель/кампания.
   function onProjectChange(value: string) {
-    apply({ project: value, account: "", campaign: "", goal: "", cur: "" });
+    apply({ project: value, account: "", campaign: "", goal: "", cur: "", direction: "" });
   }
   function onAccountChange(value: string) {
     apply({ account: value, campaign: "", goal: "" });

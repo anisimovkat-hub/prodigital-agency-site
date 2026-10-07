@@ -938,6 +938,7 @@ export type Database = {
       };
       ad_accounts: {
         Row: {
+          yandex_goals: Json;
           id: string;
           platform: string;
           external_id: string;
@@ -950,6 +951,7 @@ export type Database = {
           last_sync_error: string | null;
         };
         Insert: {
+          yandex_goals?: Json;
           id?: string;
           platform?: string;
           external_id: string;
@@ -962,6 +964,7 @@ export type Database = {
           last_sync_error?: string | null;
         };
         Update: {
+          yandex_goals?: Json;
           id?: string;
           platform?: string;
           external_id?: string;
@@ -1026,6 +1029,7 @@ export type Database = {
       };
       ad_campaigns: {
         Row: {
+          metrika_counter_ids: string[];
           id: string;
           ad_account_id: string;
           external_id: string;
@@ -1037,6 +1041,7 @@ export type Database = {
           created_at: string | null;
         };
         Insert: {
+          metrika_counter_ids?: string[];
           id?: string;
           ad_account_id: string;
           external_id: string;
@@ -1048,6 +1053,7 @@ export type Database = {
           created_at?: string | null;
         };
         Update: {
+          metrika_counter_ids?: string[];
           id?: string;
           ad_account_id?: string;
           external_id?: string;
@@ -1118,6 +1124,7 @@ export type Database = {
       };
       ad_conversions: {
         Row: {
+          is_measured: boolean;
           id: string;
           campaign_id: string;
           date: string;
@@ -1127,6 +1134,7 @@ export type Database = {
           created_at: string | null;
         };
         Insert: {
+          is_measured?: boolean;
           id?: string;
           campaign_id: string;
           date: string;
@@ -1136,6 +1144,7 @@ export type Database = {
           created_at?: string | null;
         };
         Update: {
+          is_measured?: boolean;
           id?: string;
           campaign_id?: string;
           date?: string;
@@ -1421,9 +1430,15 @@ export type Database = {
         Relationships: [];
       };
       project_ad_goal_settings: {
-        Row: { project_id: string; goal_key: string; label: string | null; hidden: boolean; extra: boolean; updated_at: string };
-        Insert: { project_id: string; goal_key: string; label?: string | null; hidden?: boolean; extra?: boolean; updated_at?: string };
-        Update: { project_id?: string; goal_key?: string; label?: string | null; hidden?: boolean; extra?: boolean; updated_at?: string };
+        Row: { project_id: string; goal_key: string; label: string | null; hidden: boolean; extra: boolean; is_primary: boolean; updated_at: string };
+        Insert: { project_id: string; goal_key: string; label?: string | null; hidden?: boolean; extra?: boolean; is_primary?: boolean; updated_at?: string };
+        Update: { project_id?: string; goal_key?: string; label?: string | null; hidden?: boolean; extra?: boolean; is_primary?: boolean; updated_at?: string };
+        Relationships: [];
+      };
+      project_ad_directions: {
+        Row: { id: string; project_id: string; name: string; counter_ids: string[]; websites: string[]; campaign_ids: string[]; primary_goal: string | null; is_active: boolean; updated_at: string };
+        Insert: { id?: string; project_id: string; name: string; counter_ids?: string[]; websites?: string[]; campaign_ids?: string[]; primary_goal?: string | null; is_active?: boolean; updated_at?: string };
+        Update: { id?: string; project_id?: string; name?: string; counter_ids?: string[]; websites?: string[]; campaign_ids?: string[]; primary_goal?: string | null; is_active?: boolean; updated_at?: string };
         Relationships: [];
       };
       ad_account_credentials: {
@@ -1856,6 +1871,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      save_project_ad_goals: {
+        Args: { p_project_id: string; p_rows: Json };
+        Returns: undefined;
+      };
       save_ad_account_secret: {
         Args: { p_account_id: string; p_secret: string; p_user_id: string | null };
         Returns: undefined;

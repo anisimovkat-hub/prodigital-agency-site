@@ -1,9 +1,11 @@
-import { candidateGoals, extraGoalAction, goalLabel, resolveCampaignGoal, type CampaignGoal, type GoalKey } from "@/lib/ad-goals";
+import { candidateGoals, extraGoalAction, goalActions, goalLabel, resolveCampaignGoal, type CampaignGoal, type GoalKey } from "@/lib/ad-goals";
+import { yandexGoalKey, yandexGoalAction, type YandexGoal } from "@/lib/yandex-goals";
 import type { AdConversionDay, AdMetricDay } from "@/lib/project-ad-dashboard";
 import type { TimeseriesPoint } from "@/lib/ad-analytics";
 
 export type GoalCampaign = { id: string; platform: string; objective: string | null; optimization_goal: string | null };
-export type GoalSetting = { goal_key: string; label: string | null; hidden: boolean; extra: boolean };
+export type GoalSetting = { goal_key: string; label: string | null; hidden: boolean; extra: boolean; is_primary?: boolean };
+export type ScopedYandexGoal = YandexGoal & { campaignIds: string[] };
 
 /** The goal each campaign works for, from its platform settings and the actions it actually reports. */
 export function attributeCampaignGoals(campaigns: GoalCampaign[], conversions: AdConversionDay[]): Map<string, CampaignGoal> {
@@ -19,7 +21,7 @@ export function attributeCampaignGoals(campaigns: GoalCampaign[], conversions: A
   )]));
 }
 
-export type GoalTotals = { results: number; spend: number; cpa: number | null };
+export type GoalTotals = { results: number; spend: number; cpa: number | null; complete?: boolean };
 export type GoalCard = {
   key: GoalKey;
   label: string;
@@ -35,12 +37,22 @@ function totals(metrics: AdMetricDay[], conversions: AdConversionDay[], campaign
   return { results, spend, cpa: spendCampaigns && results > 0 ? spend / results : null };
 }
 
+/** A missing/null goal column is not an honest zero. Only imported goal-day rows prove coverage. */
+function yandexTotals(metrics: AdMetricDay[], conversions: AdConversionDay[], ids: Set<string>, action: string): GoalTotals {
+  const rows = conversions.filter((row) => ids.has(row.campaign_id) && row.action_type === action);
+  const measuredDays = new Set(rows.filter((row) => row.is_measured !== false).map((row) => `${row.campaign_id}:${row.date}`));
+  const metricRows = metrics.filter((row) => ids.has(row.campaign_id));
+  const complete = rows.length > 0 && rows.every((row) => row.is_measured !== false) && metricRows.every((row) => measuredDays.has(`${row.campaign_id}:${row.date}`));
+  const result = totals(metrics, rows, new Map([...ids].map((id) => [id, action])), ids);
+  return { ...result, complete, cpa: complete ? result.cpa : null };
+}
+
 /**
  * One card per goal. A main goal counts only its own campaigns and their spend; an extra goal
  * (e.g. cart for a sales project) counts that action across all selected campaigns and has no
  * cost, because no campaign spends money on it alone.
  */
-export function buildGoalCards({ selected, goals, settings, metrics, conversions, previousMetrics, previousConversions, customNames, includeInactive = false }: {
+export function buildGoalCards({ selected, goals, settings, metrics, conversions, previousMetrics, previousConversions, customNames, includeInactive = false, yandexGoals = [] }: {
   selected: Set<string>;
   goals: Map<string, CampaignGoal>;
   settings: GoalSetting[];
@@ -50,12 +62,13 @@ export function buildGoalCards({ selected, goals, settings, metrics, conversions
   previousConversions: AdConversionDay[];
   customNames?: Map<string, string>;
   includeInactive?: boolean;
+  yandexGoals?: ScopedYandexGoal[];
 }): GoalCard[] {
   const setting = new Map(settings.map((item) => [item.goal_key, item]));
   const byGoal = new Map<GoalKey, Map<string, string>>();
   for (const id of selected) {
     const goal = goals.get(id);
-    if (!goal) continue;
+    if (!goal || goal.key.startsWith('yandex:')) continue;
     const actions = byGoal.get(goal.key) ?? new Map<string, string>();
     actions.set(id, goal.action);
     byGoal.set(goal.key, actions);
@@ -72,11 +85,21 @@ export function buildGoalCards({ selected, goals, settings, metrics, conversions
     .filter((card) => includeInactive || card.current.spend > 0 || card.current.results > 0)
     .sort((a, b) => b.current.spend - a.current.spend);
 
+  for (const goal of yandexGoals) {
+    const key = yandexGoalKey(goal.id);
+    if (setting.get(key)?.hidden) continue;
+    const ids = new Set(goal.campaignIds.filter((id) => selected.has(id)));
+    if (!ids.size) continue;
+    cards.push({ key, label: setting.get(key)?.label || goalLabel(key, customNames), extra: false, campaignIds: ids,
+      current: yandexTotals(metrics, conversions, ids, yandexGoalAction(goal.id)),
+      previous: yandexTotals(previousMetrics, previousConversions, ids, yandexGoalAction(goal.id)),
+    });
+  }
   const allCounts = new Map<string, number>();
   for (const row of conversions) if (selected.has(row.campaign_id)) allCounts.set(row.action_type, (allCounts.get(row.action_type) ?? 0) + Number(row.count));
   for (const item of settings) {
     const key = item.goal_key as GoalKey;
-    if (!item.extra || item.hidden || byGoal.has(key)) continue;
+    if (!item.extra || item.hidden || byGoal.has(key) || key.startsWith('yandex:')) continue;
     const action = extraGoalAction(key, allCounts);
     const actions = new Map([...selected].map((id) => [id, action]));
     cards.push({
@@ -102,7 +125,7 @@ export function goalDailyPoints(metrics: AdMetricDay[], conversions: AdConversio
   const extraAction = card.extra ? extraGoalAction(card.key, new Map(conversions.filter((row) => card.campaignIds.has(row.campaign_id)).map((row) => [row.action_type, Number(row.count)]))) : null;
   for (const row of conversions) {
     if (!card.campaignIds.has(row.campaign_id)) continue;
-    const action = extraAction ?? goals.get(row.campaign_id)?.action;
+    const action = card.key.startsWith('yandex:') ? goalActions(card.key)[0] : extraAction ?? goals.get(row.campaign_id)?.action;
     if (row.action_type === action) day(row.date).conversions += Number(row.count);
   }
   return [...days.values()].sort((a, b) => a.bucket.localeCompare(b.bucket));

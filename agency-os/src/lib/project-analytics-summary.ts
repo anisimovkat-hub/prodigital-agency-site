@@ -1,10 +1,11 @@
 import { actionTypeLabel, isGoalAction, type ConversionRow } from "@/lib/ad-analytics";
 import { describeAdSourceStatus, type AdSourceStatus } from "@/lib/ad-data-freshness";
+import { yandexGoalAction } from "@/lib/yandex-goals";
 
 type ProjectRow = { id: string; name: string; brand_color?: string | null; started_at?: string | null };
 type CampaignRow = { id: string; project_id: string | null; ad_account_id: string; status?: string | null };
 type AccountRow = { id: string; currency: string | null; project_id?: string | null; platform?: string; last_sync_at?: string | null; last_sync_error?: string | null };
-type MetricRow = { campaign_id: string; spend: number; impressions: number; clicks: number };
+type MetricRow = { campaign_id: string; date?: string; spend: number; impressions: number; clicks: number };
 type DatedConversionRow = ConversionRow & { date: string };
 
 export type ProjectAnalyticsSummary = {
@@ -57,15 +58,21 @@ function primaryConversions(rows: DatedConversionRow[]): DatedConversionRow[] {
   return [...selected.values()];
 }
 
-function calculateMetrics({ projectCampaigns, accountCurrency, metrics, conversions }: {
+function calculateMetrics({ projectCampaigns, accountCurrency, metrics, conversions, primaryGoal, goalNames }: {
   projectCampaigns: CampaignRow[];
   accountCurrency: Map<string, string | null>;
   metrics: MetricRow[];
   conversions: DatedConversionRow[];
+  primaryGoal?: string;
+  goalNames?: Map<string, string>;
 }): CalculatedMetrics {
   const campaignIds = new Set(projectCampaigns.map((campaign) => campaign.id));
   const projectMetrics = metrics.filter((row) => campaignIds.has(row.campaign_id));
-  const primaryGoals = primaryConversions(conversions.filter((row) => campaignIds.has(row.campaign_id)));
+  const action = primaryGoal?.startsWith('yandex:') ? yandexGoalAction(primaryGoal.slice(7)) : null;
+  const available = conversions.filter((row) => campaignIds.has(row.campaign_id) && row.is_measured !== false && (!row.action_type.startsWith('yandex_goal:') || row.action_type === action));
+  const measuredDays = new Set(available.filter((row) => row.action_type === action).map((row) => `${row.campaign_id}:${row.date}`));
+  const yandexComplete = !action || projectMetrics.every((row) => !row.date || measuredDays.has(`${row.campaign_id}:${row.date}`));
+  const primaryGoals = primaryConversions(available);
   const currencies = [...new Set(projectCampaigns.map((campaign) => accountCurrency.get(campaign.ad_account_id)).filter((currency): currency is string => Boolean(currency)))];
   const spend = projectMetrics.reduce((total, row) => total + Number(row.spend ?? 0), 0);
   const impressions = projectMetrics.reduce((total, row) => total + Number(row.impressions ?? 0), 0);
@@ -87,9 +94,9 @@ function calculateMetrics({ projectCampaigns, accountCurrency, metrics, conversi
     impressions,
     clicks,
     conversions: conversionsCount,
-    goalLabel: goalActionType ? actionTypeLabel(goalActionType) : null,
+    goalLabel: goalActionType ? actionTypeLabel(goalActionType, goalNames) : null,
     goalActionType,
-    costPerGoal: comparableMoney && goalActionType && conversionsCount > 0 ? spend / conversionsCount : null,
+    costPerGoal: yandexComplete && comparableMoney && goalActionType && conversionsCount > 0 ? spend / conversionsCount : null,
     costPerLead: comparableMoney && leadCount > 0 ? leadSpend / leadCount : null,
     hasMultipleGoalTypes: goalTypes.size > 1,
   };
@@ -104,6 +111,7 @@ function percentDelta(current: number | null, previous: number | null): number |
 export function summarizeProjectAnalytics({
   projects, campaigns, accounts, metrics, conversions, previousMetrics = [], previousConversions = [],
   latestMetricDates = [],
+  primaryGoals = [], goalNames,
 }: {
   projects: ProjectRow[];
   campaigns: CampaignRow[];
@@ -113,6 +121,8 @@ export function summarizeProjectAnalytics({
   previousMetrics?: MetricRow[];
   previousConversions?: DatedConversionRow[];
   latestMetricDates?: { campaign_id: string; date: string }[];
+  primaryGoals?: { project_id: string; goal_key: string }[];
+  goalNames?: Map<string, string>;
   from: string;
   to: string;
 }): ProjectAnalyticsSummary[] {
@@ -121,8 +131,9 @@ export function summarizeProjectAnalytics({
   return projects.map((project) => {
     const projectCampaigns = campaigns.filter((campaign) => campaign.project_id === project.id);
     const campaignIds = new Set(projectCampaigns.map((campaign) => campaign.id));
-    const current = calculateMetrics({ projectCampaigns, accountCurrency, metrics, conversions });
-    const previous = calculateMetrics({ projectCampaigns, accountCurrency, metrics: previousMetrics, conversions: previousConversions });
+    const primaryGoal = primaryGoals.find((goal) => goal.project_id === project.id)?.goal_key;
+    const current = calculateMetrics({ projectCampaigns, accountCurrency, metrics, conversions, primaryGoal, goalNames });
+    const previous = calculateMetrics({ projectCampaigns, accountCurrency, metrics: previousMetrics, conversions: previousConversions, primaryGoal, goalNames });
     const latestDate = latestMetricDates.filter((row) => campaignIds.has(row.campaign_id)).reduce<string | null>((latest, row) => !latest || row.date > latest ? row.date : latest, null);
     const hasConnectedAccount = accounts.some((account) => account.project_id === project.id);
     const comparableGoal = current.goalActionType !== null && current.goalActionType === previous.goalActionType;

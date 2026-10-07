@@ -17,6 +17,8 @@ import {
   parseAnalyticsPeriod,
 } from "@/lib/analytics-period";
 import { createClient } from "@/lib/supabase/server";
+import { GOALS } from "@/lib/ad-goals";
+import { parseYandexGoals, yandexGoalKey } from "@/lib/yandex-goals";
 
 export type SyncMetaState = { ok: boolean; message: string } | undefined;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -399,16 +401,23 @@ export async function saveGoalSettings(_state: GoalSettingsState, formData: Form
   if (!user) return { ok: false, message: "Войдите в аккаунт владельца." };
   const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (profile?.role !== "owner") return { ok: false, message: "Настраивать цели может владелец." };
-  const keys = formData.getAll("goal_key").map(String).filter((key) => /^[a-z_]+$|^custom:\d+$/.test(key)).slice(0, 50);
+  const keys = [...new Set(formData.getAll("goal_key").map(String))];
+  const { data: accounts, error: catalogError } = await supabase.from('ad_accounts').select('yandex_goals').eq('project_id', projectId).eq('platform', 'yandex_direct');
+  if (catalogError) return { ok: false, message: 'Не удалось проверить цели проекта.' };
+  const yandexKeys = new Set((accounts ?? []).flatMap((a) => parseYandexGoals(a.yandex_goals).map((g) => yandexGoalKey(g.id))));
+  if (keys.length > 300 || keys.some((key) => !(key in GOALS) && !/^custom:\d+$/.test(key) && !yandexKeys.has(key as `yandex:${string}`))) return { ok: false, message: 'В настройках есть неизвестная цель.' };
+  const primary = String(formData.get('primary_goal') ?? '');
+  if (primary && (!keys.includes(primary) || formData.get(`show:${primary}`) !== 'on')) return { ok: false, message: 'Основная цель должна быть включена.' };
   const rows = keys.map((key) => ({
     project_id: projectId,
     goal_key: key,
     label: String(formData.get(`label:${key}`) ?? "").trim().slice(0, 60) || null,
     hidden: formData.get(`show:${key}`) !== "on",
     extra: formData.get(`extra:${key}`) === "on",
+    is_primary: primary === key,
     updated_at: new Date().toISOString(),
   }));
-  const { error } = await supabase.from("project_ad_goal_settings").upsert(rows, { onConflict: "project_id,goal_key" });
+  const { error } = await supabase.rpc('save_project_ad_goals', { p_project_id: projectId, p_rows: rows });
   if (error) return { ok: false, message: `Не удалось сохранить: ${error.message}` };
   revalidatePath("/analytics");
   return { ok: true, message: "Цели проекта сохранены." };
