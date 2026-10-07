@@ -36,10 +36,11 @@ describe("fetchYandexClient", () => {
 
 describe("parseYandexCampaignReport", () => {
   it('uses the exact LC goal column, never the aggregate', () => {
-    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t739\t2\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t90\t--\t--';
+    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t739\t2\t0\t300\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t90\t--\t--\t--\t--';
     const rows = parseYandexCampaignReport(tsv, ['42','43']);
     expect(rows[0].goals).toEqual({ '42': 2, '43': 0 });
     expect(rows[1].goals).toEqual({ '42': null, '43': null });
+    expect(rows[0].goalValues).toEqual({ '42': 300, '43': 0 });
   });
   it('rejects a missing requested goal column and invalid metric values', () => {
     const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\n2026-10-01\t101\tПоиск\t100\t4\t200';
@@ -80,7 +81,7 @@ describe("fetchYandexCampaignReport", () => {
     await expect(pending).resolves.toEqual([]);
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["Client-Login"]).toBe("client-a");
-    expect(JSON.parse(init.body).params.IncludeVAT).toBe("NO");
+    expect(JSON.parse(init.body).params.IncludeVAT).toBe("YES");
     vi.useRealTimers();
   });
 });
@@ -109,7 +110,7 @@ describe('Yandex goal discovery and goal reports', () => {
   it('merges eleven goals in batches of ten without doubling spend', async () => {
     fetchMock.mockImplementation(async (_url, init) => {
       const goals = JSON.parse(init.body).params.Goals as string[];
-      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${goals.map((id) => `Conversions_${id}_LC`).join('\t')}\n2026-10-01\t101\tПоиск\t100\t4\t200\t${goals.map(() => '1').join('\t')}` } as Response;
+      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${goals.map((id) => `Conversions_${id}_LC`).join('\t')}\t${goals.map((id) => `Revenue_${id}_LC`).join('\t')}\n2026-10-01\t101\tПоиск\t100\t4\t200\t${goals.map(() => '1').join('\t')}\t${goals.map(() => '0').join('\t')}` } as Response;
     });
     const goals = Array.from({ length: 11 }, (_, i) => ({ id: String(i+1), name: 'Цель', domain: 'site.ru', counterId: null }));
     const result = await fetchYandexGoalReport({ token: 't' }, '2026-10-01', '2026-10-01', goals);
@@ -124,7 +125,7 @@ describe('Yandex goal discovery and goal reports', () => {
     let calls = 0;
     fetchMock.mockImplementation(async (_url, init) => {
       const ids = JSON.parse(init.body).params.Goals as string[];
-      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${ids.map((id) => `Conversions_${id}_LC`).join('\t')}\n2026-10-07\t101\tПоиск\t${100 + calls++}\t4\t200\t${ids.map(() => '1').join('\t')}` } as Response;
+      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${ids.map((id) => `Conversions_${id}_LC`).join('\t')}\t${ids.map((id) => `Revenue_${id}_LC`).join('\t')}\n2026-10-07\t101\tПоиск\t${100 + calls++}\t4\t200\t${ids.map(() => '1').join('\t')}\t${ids.map(() => '0').join('\t')}` } as Response;
     });
     try {
       const rows = await fetchYandexGoalReport({ token: 't' }, '2026-10-07', '2026-10-07', Array.from({length:11},(_,i)=>({id:String(i+1),name:'Цель',domain:'',counterId:null})));

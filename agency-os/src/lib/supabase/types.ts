@@ -488,6 +488,30 @@ export type Database = {
           },
         ];
       };
+      telegram_weekly_status_scenarios: {
+        Row: { id: string; project_id: string; name: string; channel: string; recipient_chat_id: string; timezone: string; schedule: string; template_key: string; report_url: string | null; fallback_source: Json; is_active: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; project_id: string; name: string; channel: string; recipient_chat_id: string; timezone?: string; schedule?: string; template_key?: string; report_url?: string | null; fallback_source?: Json; is_active?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; project_id?: string; name?: string; channel?: string; recipient_chat_id?: string; timezone?: string; schedule?: string; template_key?: string; report_url?: string | null; fallback_source?: Json; is_active?: boolean; created_at?: string; updated_at?: string };
+        Relationships: [{ foreignKeyName: "telegram_weekly_status_scenarios_project_id_fkey"; columns: ["project_id"]; isOneToOne: false; referencedRelation: "projects"; referencedColumns: ["id"] }];
+      };
+      telegram_weekly_status_directions: {
+        Row: { id: string; scenario_id: string; project_direction_id: string | null; name: string; channel: string; counter_id: string; fallback_match: Json; sort_order: number; is_active: boolean };
+        Insert: { id?: string; scenario_id: string; project_direction_id?: string | null; name: string; channel: string; counter_id: string; fallback_match?: Json; sort_order?: number; is_active?: boolean };
+        Update: { id?: string; scenario_id?: string; project_direction_id?: string | null; name?: string; channel?: string; counter_id?: string; fallback_match?: Json; sort_order?: number; is_active?: boolean };
+        Relationships: [{ foreignKeyName: "telegram_weekly_status_directions_scenario_id_fkey"; columns: ["scenario_id"]; isOneToOne: false; referencedRelation: "telegram_weekly_status_scenarios"; referencedColumns: ["id"] }, { foreignKeyName: "telegram_weekly_status_directions_project_direction_id_fkey"; columns: ["project_direction_id"]; isOneToOne: false; referencedRelation: "project_ad_directions"; referencedColumns: ["id"] }];
+      };
+      telegram_weekly_status_goals: {
+        Row: { id: string; direction_id: string; goal_id: string; action_type: string; business_label: string; metric_kind: string; value_label: string | null; include_in_contact_cpa: boolean; sort_order: number; is_active: boolean };
+        Insert: { id?: string; direction_id: string; goal_id: string; action_type: string; business_label: string; metric_kind: string; value_label?: string | null; include_in_contact_cpa?: boolean; sort_order?: number; is_active?: boolean };
+        Update: { id?: string; direction_id?: string; goal_id?: string; action_type?: string; business_label?: string; metric_kind?: string; value_label?: string | null; include_in_contact_cpa?: boolean; sort_order?: number; is_active?: boolean };
+        Relationships: [{ foreignKeyName: "telegram_weekly_status_goals_direction_id_fkey"; columns: ["direction_id"]; isOneToOne: false; referencedRelation: "telegram_weekly_status_directions"; referencedColumns: ["id"] }];
+      };
+      telegram_weekly_status_deliveries: {
+        Row: { id: string; scenario_id: string; period_from: string; period_to: string; message_text: string; status: string; sent_at: string | null; sent_message_id: number | null; last_error: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; scenario_id: string; period_from: string; period_to: string; message_text: string; status?: string; sent_at?: string | null; sent_message_id?: number | null; last_error?: string | null; created_at?: string; updated_at?: string };
+        Update: { id?: string; scenario_id?: string; period_from?: string; period_to?: string; message_text?: string; status?: string; sent_at?: string | null; sent_message_id?: number | null; last_error?: string | null; created_at?: string; updated_at?: string };
+        Relationships: [{ foreignKeyName: "telegram_weekly_status_deliveries_scenario_id_fkey"; columns: ["scenario_id"]; isOneToOne: false; referencedRelation: "telegram_weekly_status_scenarios"; referencedColumns: ["id"] }];
+      };
       telegram_task_drafts: {
         Row: {
           id: string;
@@ -1090,6 +1114,7 @@ export type Database = {
           impressions: number;
           clicks: number;
           reach: number;
+          spend_includes_vat: boolean;
           created_at: string | null;
         };
         Insert: {
@@ -1100,6 +1125,7 @@ export type Database = {
           impressions?: number;
           clicks?: number;
           reach?: number;
+          spend_includes_vat?: boolean;
           created_at?: string | null;
         };
         Update: {
@@ -1110,6 +1136,7 @@ export type Database = {
           impressions?: number;
           clicks?: number;
           reach?: number;
+          spend_includes_vat?: boolean;
           created_at?: string | null;
         };
         Relationships: [
@@ -1125,6 +1152,7 @@ export type Database = {
       ad_conversions: {
         Row: {
           is_measured: boolean;
+          value_is_measured: boolean;
           id: string;
           campaign_id: string;
           date: string;
@@ -1135,6 +1163,7 @@ export type Database = {
         };
         Insert: {
           is_measured?: boolean;
+          value_is_measured?: boolean;
           id?: string;
           campaign_id: string;
           date: string;
@@ -1145,6 +1174,7 @@ export type Database = {
         };
         Update: {
           is_measured?: boolean;
+          value_is_measured?: boolean;
           id?: string;
           campaign_id?: string;
           date?: string;

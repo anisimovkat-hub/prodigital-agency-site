@@ -69,6 +69,7 @@ export type YandexCampaignDay = {
   cost: number;
   conversions: number | null;
   goals?: Record<string, number | null>;
+  goalValues?: Record<string, number | null>;
 };
 
 const REPORT_FIELDS = ["Date", "CampaignId", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"] as const;
@@ -96,6 +97,11 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
     if (index < 0) throw new Error(`Яндекс не вернул запрошенную цель ${id}. Данные не заменены нулями.`);
     return { id, index };
   });
+  const goalValueColumns = goalIds.map((id) => {
+    const index = header.indexOf(`Revenue_${id}_LC`);
+    if (index < 0) throw new Error(`Яндекс не вернул ценность запрошенной цели ${id}. Данные не заменены нулями.`);
+    return { id, index };
+  });
   return lines.slice(1).map((line) => {
     const cells = line.split("\t");
     const conversions = columns.Conversions < 0 ? undefined : cells[columns.Conversions];
@@ -107,7 +113,10 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
       clicks: number(cells[columns.Clicks]),
       cost: number(cells[columns.Cost]),
       conversions: conversions === undefined || conversions === "--" || conversions === "" ? null : number(conversions),
-      ...(goalIds.length ? { goals: Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])) } : {}),
+      ...(goalIds.length ? {
+        goals: Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])),
+        goalValues: Object.fromEntries(goalValueColumns.map(({ id, index }) => [id, cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])),
+      } : {}),
     };
   });
 }
@@ -128,14 +137,14 @@ export async function fetchYandexCampaignReport(
   const body = JSON.stringify({
     params: {
       SelectionCriteria: { DateFrom: from, DateTo: to },
-      FieldNames: REPORT_FIELDS,
+      FieldNames: [...REPORT_FIELDS, ...goalIds.map((id) => `Revenue_${id}_LC`)],
       ...(goalIds.length ? { Goals: goalIds, AttributionModels: ["LC"] } : {}),
       // Yandex caches reports by name; a fresh name returns today's numbers, not a cached copy.
       ReportName: `agency-os ${auth.clientLogin ?? "self"} ${from} ${to} ${goalIds.join('-')} ${Date.now()}`,
       ReportType: "CUSTOM_REPORT",
       DateRangeType: "CUSTOM_DATE",
       Format: "TSV",
-      IncludeVAT: "NO",
+      IncludeVAT: "YES",
     },
   });
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -231,7 +240,7 @@ export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: 
       if (previous && row.date !== today && (previous.cost !== row.cost || previous.clicks !== row.clicks || previous.impressions !== row.impressions)) throw new Error(`Метрики за ${row.date} изменились между пакетами целей. Повторите загрузку.`);
       // Today is an unfinished day. Keep ONE traffic/money snapshot; later goal batches
       // can see new events while the account is spending, but must not add its spend again.
-      days.set(key, { ...(previous ?? row), conversions: null, goals: { ...previous?.goals, ...row.goals } });
+      days.set(key, { ...(previous ?? row), conversions: null, goals: { ...previous?.goals, ...row.goals }, goalValues: { ...previous?.goalValues, ...row.goalValues } });
     }
   }
   return [...days.values()];
