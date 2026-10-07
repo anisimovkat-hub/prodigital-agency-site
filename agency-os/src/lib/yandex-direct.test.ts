@@ -38,19 +38,20 @@ describe("fetchYandexClient", () => {
 
 describe("parseYandexCampaignReport", () => {
   it('uses the exact LC goal column, never the aggregate', () => {
-    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t739\t2\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t90\t--\t--';
+    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t739\t2\t0\t300\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t90\t--\t--\t--\t--';
     const rows = parseYandexCampaignReport(tsv, ['42','43']);
     expect(rows[0].goals).toEqual({ '42': 2, '43': 0 });
     expect(rows[1].goals).toEqual({ '42': 0, '43': 0 });
+    expect(rows[0].goalValues).toEqual({ '42': 300, '43': 0 });
   });
   it('keeps empty and truncated goal cells unknown, not zero', () => {
-    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t\n2026-10-02\t101\tПоиск\t100\t4\t200\t--';
+    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t\n2026-10-02\t101\tПоиск\t100\t4\t200\t--';
     const rows = parseYandexCampaignReport(tsv, ['42', '43']);
     expect(rows[0].goals).toEqual({ '42': null, '43': null });
     expect(rows[1].goals).toEqual({ '42': 0, '43': null });
   });
   it('keeps a period complete across zero-conversion days without combining its goals', () => {
-    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t2\t1\n2026-10-02\t101\tПоиск\t100\t4\t200\t--\t--';
+    const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t2\t1\t0\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t--\t--\t--\t--';
     const rows = parseYandexCampaignReport(tsv, ['42', '43']);
     const metrics = rows.map((row) => ({ campaign_id: row.campaignId, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks }));
     const conversions = rows.flatMap((row) => Object.entries(row.goals!).map(([id, count]) => ({ campaign_id: row.campaignId, date: row.date, action_type: `yandex_goal:${id}:LC`, count: count ?? 0, is_measured: count !== null })));
@@ -90,7 +91,7 @@ describe("fetchYandexCampaignReport", () => {
     vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("waits for an offline report and sends Client-Login without VAT", async () => {
+  it("waits for an offline report and sends Client-Login including VAT", async () => {
     vi.useFakeTimers();
     fetchMock
       .mockResolvedValueOnce({ status: 201, headers: new Headers({ retryIn: "1" }) } as Response)
@@ -100,7 +101,7 @@ describe("fetchYandexCampaignReport", () => {
     await expect(pending).resolves.toEqual([]);
     const [, init] = fetchMock.mock.calls[0];
     expect(init.headers["Client-Login"]).toBe("client-a");
-    expect(JSON.parse(init.body).params.IncludeVAT).toBe("NO");
+    expect(JSON.parse(init.body).params.IncludeVAT).toBe("YES");
     vi.useRealTimers();
   });
 });
@@ -129,7 +130,7 @@ describe('Yandex goal discovery and goal reports', () => {
   it('merges eleven goals in batches of ten without doubling spend', async () => {
     fetchMock.mockImplementation(async (_url, init) => {
       const goals = JSON.parse(init.body).params.Goals as string[];
-      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${goals.map((id) => `Conversions_${id}_LC`).join('\t')}\n2026-10-01\t101\tПоиск\t100\t4\t200\t${goals.map(() => '1').join('\t')}` } as Response;
+      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${goals.map((id) => `Conversions_${id}_LC`).join('\t')}\t${goals.map((id) => `Revenue_${id}_LC`).join('\t')}\n2026-10-01\t101\tПоиск\t100\t4\t200\t${goals.map(() => '1').join('\t')}\t${goals.map(() => '0').join('\t')}` } as Response;
     });
     const goals = Array.from({ length: 11 }, (_, i) => ({ id: String(i+1), name: 'Цель', domain: 'site.ru', counterId: null }));
     const result = await fetchYandexGoalReport({ token: 't' }, '2026-10-01', '2026-10-01', goals);
@@ -138,13 +139,14 @@ describe('Yandex goal discovery and goal reports', () => {
     expect(Object.keys(result[0].goals!)).toHaveLength(11);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).params.AttributionModels).toEqual(['LC']);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).params.FieldNames).toEqual(['Date', 'CampaignId', 'CampaignName', 'Impressions', 'Clicks', 'Cost', 'Conversions', 'Revenue']);
   });
   it('keeps one spend snapshot when the unfinished current day changes between goal batches', async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T10:00:00Z'));
     let calls = 0;
     fetchMock.mockImplementation(async (_url, init) => {
       const ids = JSON.parse(init.body).params.Goals as string[];
-      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${ids.map((id) => `Conversions_${id}_LC`).join('\t')}\n2026-10-07\t101\tПоиск\t${100 + calls++}\t4\t200\t${ids.map(() => '1').join('\t')}` } as Response;
+      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${ids.map((id) => `Conversions_${id}_LC`).join('\t')}\t${ids.map((id) => `Revenue_${id}_LC`).join('\t')}\n2026-10-07\t101\tПоиск\t${100 + calls++}\t4\t200\t${ids.map(() => '1').join('\t')}\t${ids.map(() => '0').join('\t')}` } as Response;
     });
     try {
       const rows = await fetchYandexGoalReport({ token: 't' }, '2026-10-07', '2026-10-07', Array.from({length:11},(_,i)=>({id:String(i+1),name:'Цель',domain:'',counterId:null})));

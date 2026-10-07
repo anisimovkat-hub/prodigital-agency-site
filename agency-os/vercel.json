@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/telegram-scheduled-messages",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/telegram-weekly-ad-statuses",
+      "schedule": "0 7 * * 1"
     }
   ]
 }
