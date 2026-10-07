@@ -24,5 +24,5 @@ export function directionCampaigns(direction: AdDirection, campaigns: { id: stri
 }
 
 export function yandexGoalLabel(goal: YandexGoal): string {
-  return `${goal.name} · ${goal.counterId ? `№ ${goal.counterId}` : goal.domain || `цель ${goal.id}`}`;
+  return `${goal.name} · ${goal.counterId ? `№ ${goal.counterId}` : `${goal.domain ? `${goal.domain} · ` : ''}цель ${goal.id}`}`;
 }

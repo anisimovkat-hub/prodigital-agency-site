@@ -119,4 +119,17 @@ describe('Yandex goal discovery and goal reports', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).params.AttributionModels).toEqual(['LC']);
   });
+  it('keeps one spend snapshot when the unfinished current day changes between goal batches', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T10:00:00Z'));
+    let calls = 0;
+    fetchMock.mockImplementation(async (_url, init) => {
+      const ids = JSON.parse(init.body).params.Goals as string[];
+      return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${ids.map((id) => `Conversions_${id}_LC`).join('\t')}\n2026-10-07\t101\tПоиск\t${100 + calls++}\t4\t200\t${ids.map(() => '1').join('\t')}` } as Response;
+    });
+    try {
+      const rows = await fetchYandexGoalReport({ token: 't' }, '2026-10-07', '2026-10-07', Array.from({length:11},(_,i)=>({id:String(i+1),name:'Цель',domain:'',counterId:null})));
+      expect(rows[0]).toMatchObject({ impressions: 100, cost: 200 });
+      expect(Object.keys(rows[0].goals!)).toHaveLength(11);
+    } finally { vi.useRealTimers(); }
+  });
 });

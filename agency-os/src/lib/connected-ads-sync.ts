@@ -52,16 +52,21 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     return days.map((day) => ({ campaignId: day.campaignId, name: day.name, date: day.date, spend: day.spend, impressions: day.impressions, clicks: day.clicks, results: day.goals, actionType: "vk:Цели VK Рекламы" }));
   }
   const secret = await readSecret<YandexSecret>(client, account.id);
-  const [discovered, info, stored] = await Promise.all([fetchYandexGoals(secret), fetchYandexCampaignInfo(secret), client.from('ad_accounts').select('yandex_goals').eq('id', account.id).single()]);
+  const [discovered, info, stored] = await Promise.all([fetchYandexGoals(secret), fetchYandexCampaignInfo(secret), client.from('ad_accounts').select('yandex_goals,project_id').eq('id', account.id).single()]);
   if (stored.error) throw new Error(stored.error.message);
+  if (!stored.data.project_id) throw new Error('Кабинет не привязан к проекту.');
   // Preserve explicitly verified counter IDs: Live 4 returns a domain, not a counter ID.
   const counters = new Map(parseYandexGoals(stored.data.yandex_goals).map((goal) => [goal.id, goal.counterId]));
   const knownCounters = await readYandexGoalCounters(secret, info.flatMap((c) => c.counterIds));
   for (const [id, counter] of knownCounters) counters.set(id, counter);
   const goals = discovered.map((goal) => ({ ...goal, counterId: counters.get(goal.id) ?? null }));
-  const rows = await fetchYandexGoalReport(secret, period.from, period.to, goals);
   const { error } = await client.from('ad_accounts').update({ yandex_goals: goals }).eq('id', account.id);
   if (error) throw new Error(error.message);
+  if (info.length) {
+    const { error: campaignError } = await client.from('ad_campaigns').upsert(info.map((c) => ({ ad_account_id: account.id, external_id: c.id, project_id: stored.data.project_id, name: c.name, status: c.status, metrika_counter_ids: c.counterIds })), { onConflict: 'ad_account_id,external_id' });
+    if (campaignError) throw new Error(campaignError.message);
+  }
+  const rows = await fetchYandexGoalReport(secret, period.from, period.to, goals);
   const byId = new Map(info.map((campaign) => [campaign.id, campaign]));
   return rows.map((row) => ({ campaignId: row.campaignId, name: row.campaignName, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks, results: null, actionType: "yandex:conversions",
     counterIds: byId.get(row.campaignId)?.counterIds ?? [], status: byId.get(row.campaignId)?.status,

@@ -227,8 +227,11 @@ export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: 
     for (const row of rows) {
       const key = `${row.campaignId}:${row.date}`;
       const previous = days.get(key);
-      if (previous && (previous.cost !== row.cost || previous.clicks !== row.clicks || previous.impressions !== row.impressions)) throw new Error("Метрики изменились между пакетами целей. Повторите загрузку.");
-      days.set(key, { ...row, conversions: null, goals: { ...previous?.goals, ...row.goals } });
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+      if (previous && row.date !== today && (previous.cost !== row.cost || previous.clicks !== row.clicks || previous.impressions !== row.impressions)) throw new Error(`Метрики за ${row.date} изменились между пакетами целей. Повторите загрузку.`);
+      // Today is an unfinished day. Keep ONE traffic/money snapshot; later goal batches
+      // can see new events while the account is spending, but must not add its spend again.
+      days.set(key, { ...(previous ?? row), conversions: null, goals: { ...previous?.goals, ...row.goals } });
     }
   }
   return [...days.values()];
