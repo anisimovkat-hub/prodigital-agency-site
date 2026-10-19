@@ -104,6 +104,18 @@ describe("fetchYandexCampaignReport", () => {
     expect(JSON.parse(init.body).params.IncludeVAT).toBe("YES");
     vi.useRealTimers();
   });
+
+  it("retries a method-rate-limit response without treating it as missing data", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce({ status: 400, json: async () => ({ error: { error_string: "Превышен лимит запросов метода", error_detail: "не чаще чем 1 раз в 10 секунд" } }) } as Response)
+      .mockResolvedValueOnce({ status: 200, text: async () => "Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\n" } as Response);
+    try {
+      const pending = fetchYandexCampaignReport({ token: "t" }, "2026-10-01", "2026-10-07");
+      await vi.advanceTimersByTimeAsync(11_000);
+      await expect(pending).resolves.toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
 });
 
 describe('Yandex goal discovery and goal reports', () => {
@@ -116,6 +128,16 @@ describe('Yandex goal discovery and goal reports', () => {
     ] }));
     expect(await fetchYandexGoals({ token: 't', clientLogin: 'client' })).toEqual([{ id: '42', name: 'Спасибо', domain: 'site.ru', counterId: null }]);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).param).toEqual({ Logins: ['client'] });
+  });
+  it('retries a rate-limited goal catalog request once after the cooldown', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(response({ error_str: 'Превышен лимит запросов метода — не чаще чем 1 раз в 10 секунд' }, false))
+      .mockResolvedValueOnce(response({ data: [{ GoalID: 559741388, Name: 'Страница «Спасибо»', GoalDomain: 'inom.su', Type: 'goal' }] }));
+    try {
+      const pending = fetchYandexGoals({ token: 't' });
+      await vi.advanceTimersByTimeAsync(11_000);
+      await expect(pending).resolves.toMatchObject([{ id: '559741388' }]);
+    } finally { vi.useRealTimers(); }
   });
   it('reads real counter IDs from campaign types, including paginated results', async () => {
     fetchMock.mockResolvedValueOnce(response({ result: { Campaigns: [{ Id: 1, Name: 'Поиск', State: 'ON', TextCampaign: { CounterIds: { Items: [123] } } }], LimitedBy: 1 } }))

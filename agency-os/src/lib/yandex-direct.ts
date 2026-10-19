@@ -124,6 +124,7 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
 }
 
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const isMethodRateLimit = (message: string) => /лимит запросов метода|method.*request.*limit|not more often than once/i.test(message);
 
 /**
  * Daily campaign statistics through the Reports service, cost including VAT.
@@ -174,6 +175,10 @@ export async function fetchYandexCampaignReport(
       const json = (await response.json()) as YandexDirectResponse;
       message = errorMessage(json, response.status);
     } catch { /* non-JSON error body */ }
+    if (isMethodRateLimit(message) && attempt + 1 < maxAttempts) {
+      await sleep(11_000);
+      continue;
+    }
     throw new Error(message);
   }
   throw new Error("Отчёт Яндекс.Директа не успел сформироваться, повторите позже.");
@@ -181,14 +186,18 @@ export async function fetchYandexCampaignReport(
 
 /** Read-only Live 4 catalog. Segments are not conversion goals. Token never leaves the server. */
 export async function fetchYandexGoals(auth: YandexAuth): Promise<YandexGoal[]> {
-  const response = await fetch("https://api.direct.yandex.ru/live/v4/json/", {
-    method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ method: "GetRetargetingGoals", token: auth.token, locale: "ru", param: auth.clientLogin ? { Logins: [auth.clientLogin] } : {} }),
-  });
-  const json = await response.json() as { data?: { GoalID: number; Name: string; GoalDomain: string; Type: string; Login?: string }[]; error_str?: string };
-  if (!response.ok || json.error_str || !Array.isArray(json.data)) throw new Error("Не удалось получить список целей Яндекса. Проверьте доступ к счётчикам.");
-  return [...new Map(json.data.filter((row) => row.Type === "goal" && Number.isSafeInteger(row.GoalID) && row.GoalID > 0 && (!auth.clientLogin || !row.Login || row.Login.toLowerCase() === auth.clientLogin.toLowerCase()))
-    .map((row) => [String(row.GoalID), { id: String(row.GoalID), name: row.Name, domain: row.GoalDomain ?? "", counterId: null }])).values()];
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const response = await fetch("https://api.direct.yandex.ru/live/v4/json/", {
+      method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ method: "GetRetargetingGoals", token: auth.token, locale: "ru", param: auth.clientLogin ? { Logins: [auth.clientLogin] } : {} }),
+    });
+    const json = await response.json() as { data?: { GoalID: number; Name: string; GoalDomain: string; Type: string; Login?: string }[]; error_str?: string };
+    if (response.ok && !json.error_str && Array.isArray(json.data)) return [...new Map(json.data.filter((row) => row.Type === "goal" && Number.isSafeInteger(row.GoalID) && row.GoalID > 0 && (!auth.clientLogin || !row.Login || row.Login.toLowerCase() === auth.clientLogin.toLowerCase()))
+      .map((row) => [String(row.GoalID), { id: String(row.GoalID), name: row.Name, domain: row.GoalDomain ?? "", counterId: null }])).values()];
+    if (isMethodRateLimit(json.error_str ?? "") && attempt < 2) { await sleep(11_000); continue; }
+    throw new Error(json.error_str ? `Яндекс.Директ: ${json.error_str}` : "Не удалось получить список целей Яндекса. Проверьте доступ к счётчикам.");
+  }
+  throw new Error("Не удалось получить список целей Яндекса.");
 }
 
 /** Read existing Metrika permissions only. A Direct-only token simply leaves the counter unknown. */
@@ -212,11 +221,18 @@ export async function fetchYandexCampaignInfo(auth: YandexAuth): Promise<YandexC
   const campaigns: YandexCampaignInfo[] = [];
   let offset = 0;
   for (let page = 0; page < 100; page++) {
-    const response = await fetch(`${API}/campaigns`, { method: "POST", cache: "no-store", headers: headers(auth), body: JSON.stringify({ method: "get", params: {
-      SelectionCriteria: {}, FieldNames: ["Id", "Name", "State"], TextCampaignFieldNames: ["CounterIds"], UnifiedCampaignFieldNames: ["CounterIds"], CpmBannerCampaignFieldNames: ["CounterIds"], Page: { Limit: 1000, Offset: offset },
-    } }) });
-    const json = await response.json() as { error?: YandexDirectResponse['error']; result?: { Campaigns?: { Id: number; Name: string; State: string; TextCampaign?: CounterContainer; UnifiedCampaign?: CounterContainer; CpmBannerCampaign?: CounterContainer }[]; LimitedBy?: number } };
-    if (!response.ok || json.error) throw new Error(errorMessage(json, response.status));
+    type CampaignsResponse = { error?: YandexDirectResponse['error']; result?: { Campaigns?: { Id: number; Name: string; State: string; TextCampaign?: CounterContainer; UnifiedCampaign?: CounterContainer; CpmBannerCampaign?: CounterContainer }[]; LimitedBy?: number } };
+    let json: CampaignsResponse = {};
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(`${API}/campaigns`, { method: "POST", cache: "no-store", headers: headers(auth), body: JSON.stringify({ method: "get", params: {
+        SelectionCriteria: {}, FieldNames: ["Id", "Name", "State"], TextCampaignFieldNames: ["CounterIds"], UnifiedCampaignFieldNames: ["CounterIds"], CpmBannerCampaignFieldNames: ["CounterIds"], Page: { Limit: 1000, Offset: offset },
+      } }) });
+      json = await response.json() as CampaignsResponse;
+      if (response.ok && !json.error) break;
+      const message = errorMessage(json, response.status);
+      if (isMethodRateLimit(message) && attempt < 2) { await sleep(11_000); continue; }
+      throw new Error(message);
+    }
     campaigns.push(...(json.result?.Campaigns ?? []).map((row) => ({ id: String(row.Id), name: row.Name, status: row.State,
       counterIds: [...new Set([row.TextCampaign, row.UnifiedCampaign, row.CpmBannerCampaign].flatMap((item) => item?.CounterIds?.Items ?? []).map(String))] })));
     if (!json.result?.LimitedBy) return campaigns;
