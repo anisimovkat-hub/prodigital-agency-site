@@ -2,11 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { directionCampaignIds, formatWeeklyStatusMessage, previousFullMoscowWeek, type WeeklyStatusReport } from "./telegram-weekly-statuses";
+import { directionCampaignIds, formatWeeklyStatusMessage, previousFullMoscowWeek, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
 
 describe("telegram weekly advertising statuses", () => {
   it("uses the completed Moscow Monday–Sunday week", () => {
     expect(previousFullMoscowWeek(new Date("2026-10-05T07:00:00.000Z"))).toEqual({ from: "2026-09-28", to: "2026-10-04" });
+  });
+
+  it("keeps the owner's 08:00 Moscow slot separate from staff's 10:00 slot", () => {
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:00:00.000Z"))).toBe(true);
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:03:00.000Z"))).toBe(true);
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:15:00.000Z"))).toBe(false);
+    expect(weeklyScheduleMatches("0 7 * * 1", new Date("2026-10-26T05:00:00.000Z"))).toBe(false);
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T07:00:00.000Z"))).toBe(false);
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-27T05:00:00.000Z"))).toBe(false);
   });
 
   it("formats one safe project post without inventing a missing value", () => {
@@ -41,14 +50,25 @@ describe("telegram weekly advertising statuses", () => {
     expect(formatWeeklyStatusMessage(report)).not.toContain("<b>ИНОМ</b>");
   });
 
+  it("shows a dash, not missing data, for zero verified contacts", () => {
+    const report: WeeklyStatusReport = {
+      projectName: "Kolvika", reportUrl: null, period: { from: "2026-10-12", to: "2026-10-18" }, errors: [],
+      directions: [{ name: "AI-лендинги", spend: 100, impressions: 1000, clicks: 20, ctr: 2, contactCpa: null,
+        contactCpaMissing: false, goals: [{ label: "Отправка формы", metricKind: "form", count: 0, cpa: null, dates: [], value: null, valueLabel: null, includeInContactCpa: true }] }],
+    };
+    expect(formatWeeklyStatusMessage(report)).toContain("CPA обращений: —");
+  });
+
   it("does not mix advertiser accounts or unrelated counters", () => {
     const campaigns = [
       { id: "a", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270"] },
       { id: "b", ad_account_id: "fortilda26", metrika_counter_ids: [] },
       { id: "c", ad_account_id: "other", metrika_counter_ids: ["109204270"] },
       { id: "d", ad_account_id: "fortilda26", metrika_counter_ids: ["999"] },
+      { id: "e", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270", "999"] },
     ];
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: true }, campaigns)]).toEqual(["a", "b"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns)]).toEqual(["a"]);
+    expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns, new Set(["a", "d"]))]).toEqual(["a"]);
   });
 });

@@ -20,6 +20,10 @@
     {
       "path": "/api/cron/telegram-weekly-ad-statuses",
       "schedule": "0 7 * * 1"
+    },
+    {
+      "path": "/api/cron/telegram-weekly-ad-statuses-early",
+      "schedule": "0 5 * * 1"
     }
   ]
 }
