@@ -7,11 +7,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export default async function ClientsPage() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: clients }, { data: projects }] = await Promise.all([
+  const [{ data: clients }, { data: projects }, { data: profile }] = await Promise.all([
     supabase.from("clients").select("*").order("name"),
     supabase.from("projects").select("id,name,logo_url,client_id,stage"),
+    supabase.from("profiles").select("role").eq("id", user?.id ?? "").maybeSingle(),
   ]);
+  const canEditStatus = profile?.role === "owner";
 
   const activeProjectsByClient = new Map<string, number>();
   const representativeProjectByClient = new Map<
@@ -78,6 +81,7 @@ export default async function ClientsPage() {
       <ClientsTable
         rows={clientRows(currentClients)}
         storageKey="agency-os:clients-column-order"
+        canEditStatus={canEditStatus}
       />
 
       {finishedClients.length > 0 && (
@@ -89,6 +93,7 @@ export default async function ClientsPage() {
             <ClientsTable
               rows={clientRows(finishedClients)}
               storageKey="agency-os:clients-column-order"
+              canEditStatus={canEditStatus}
             />
           </div>
         </details>

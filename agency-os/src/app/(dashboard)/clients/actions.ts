@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createClientSchema, flattenZodErrors } from "@/lib/validation";
+import {
+  createClientSchema,
+  flattenZodErrors,
+  updateClientStatusSchema,
+} from "@/lib/validation";
 import { createClient } from "@/lib/supabase/server";
 import type { Tables } from "@/lib/supabase/types";
 
@@ -30,6 +34,48 @@ export type ClientEditFormState =
       client: SavedClientFormValues;
     }
   | undefined;
+
+export type ClientStatusFormState =
+  | { error: string; success?: false }
+  | {
+      error?: undefined;
+      success: true;
+      client: Pick<Tables<"clients">, "id" | "status">;
+    }
+  | undefined;
+
+export async function updateClientStatus(
+  _prevState: ClientStatusFormState,
+  formData: FormData,
+): Promise<ClientStatusFormState> {
+  const parsed = updateClientStatusSchema.safeParse({
+    id: formData.get("id"),
+    status: formData.get("status"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Некорректный статус" };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Нет авторизации. Войдите снова." };
+
+  const { data: client, error } = await supabase
+    .from("clients")
+    .update({ status: parsed.data.status })
+    .eq("id", parsed.data.id)
+    .select("id,status")
+    .maybeSingle();
+
+  if (error) return { error: error.message };
+  if (!client) return { error: "Клиент не изменён: проверьте права доступа" };
+
+  revalidatePath("/clients");
+  revalidatePath(`/clients/${client.id}`);
+  revalidatePath("/");
+
+  return { success: true, client };
+}
 
 export async function addClient(
   _prevState: CreateClientFormState,

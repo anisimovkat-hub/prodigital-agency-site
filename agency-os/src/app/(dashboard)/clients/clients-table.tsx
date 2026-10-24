@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 
+import { ClientStatusSelect } from "@/app/(dashboard)/clients/client-status-select";
 import { ClientStatusBadge } from "@/components/badges";
 import {
   FilterableReorderableTable,
@@ -29,7 +31,7 @@ type ClientColumnId =
   | "active_projects"
   | "contacts";
 
-const COLUMNS: FilterableTableColumn<ClientListRow, ClientColumnId>[] = [
+const clientColumns = (canEditStatus: boolean): FilterableTableColumn<ClientListRow, ClientColumnId>[] => [
   {
     id: "client",
     label: "Клиент",
@@ -54,7 +56,13 @@ const COLUMNS: FilterableTableColumn<ClientListRow, ClientColumnId>[] = [
     label: "Статус",
     sortValue: (client) => client.status ?? null,
     filterValue: (client) => client.status ? CLIENT_STATUS_LABEL[client.status] : null,
-    cell: (client) => <ClientStatusBadge status={client.status ?? "active"} />,
+    cell: (client) => canEditStatus ? (
+      <ClientStatusSelect
+        clientId={client.id}
+        clientName={client.name}
+        value={client.status ?? "active"}
+      />
+    ) : <ClientStatusBadge status={client.status ?? "active"} />,
   },
   {
     id: "budget",
@@ -84,13 +92,17 @@ const COLUMNS: FilterableTableColumn<ClientListRow, ClientColumnId>[] = [
 export function ClientsTable({
   rows,
   storageKey,
+  canEditStatus = false,
 }: {
   rows: ClientListRow[];
   storageKey: string;
+  canEditStatus?: boolean;
 }) {
+  const columns = useMemo(() => clientColumns(canEditStatus), [canEditStatus]);
+
   return (
     <FilterableReorderableTable
-      columns={COLUMNS}
+      columns={columns}
       rows={rows}
       rowKey={(client) => client.id}
       storageKey={storageKey}

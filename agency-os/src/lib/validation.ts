@@ -258,6 +258,11 @@ export const taskAttachmentSchema = z.object({
 
 export const CLIENT_STATUS_VALUES = ["active", "paused", "churned"] as const;
 
+export const updateClientStatusSchema = z.object({
+  id: z.string().uuid("Некорректный клиент"),
+  status: z.enum(CLIENT_STATUS_VALUES),
+});
+
 const optionalEmail = z.preprocess((value) => {
   if (value === "" || value === null || value === undefined) return undefined;
   return value;
