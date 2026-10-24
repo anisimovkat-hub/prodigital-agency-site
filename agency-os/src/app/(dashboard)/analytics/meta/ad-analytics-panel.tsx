@@ -249,7 +249,7 @@ export function AdAnalyticsPanel({
       {yandexGoals.length > 0 && !selectedCard && <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">Выберите конкретную цель Яндекса выше. Общая сумма всех целей больше не выдаётся за количество заявок. Основную цель можно сохранить в «Цели проекта».</p>}
       {selectedCard?.current.complete === false && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Статистика выбранной цели за этот период не загружена полностью. Обновите кабинеты на странице проекта; пропуски не считаются нулевыми конверсиями.</p>}
 
-      <DashboardMetricGrid key={`${userId}:${current.project}`} userId={userId} projectId={current.project}
+      <DashboardMetricGrid key={`${userId}:${current.project}:${current.direction ?? ''}`} userId={userId} projectId={current.direction ? `${current.project}:${current.direction}` : current.project}
         required={mandatoryMetricIds(selectedCard?.key ?? null)}
         options={dashboardMetrics.map((metric) => ({ ...metric, content: <Kpi main={metric.id === "spend"}
           label={metric.label}

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import {
   createClientSchema,
@@ -97,7 +98,7 @@ export async function addClient(
 
   const supabase = await createClient();
 
-  const { error } = await supabase.from("clients").insert({
+  const { data: client, error } = await supabase.from("clients").insert({
     name: parsed.data.name,
     status: parsed.data.status,
     budget: parsed.data.budget ?? null,
@@ -105,16 +106,16 @@ export async function addClient(
     email: parsed.data.email || null,
     telegram: parsed.data.telegram || null,
     notes: parsed.data.notes || null,
-  });
+  }).select("id").maybeSingle();
 
-  if (error) {
-    return { errors: { name: [error.message] } };
+  if (error || !client) {
+    return { errors: { name: [error?.message ?? "Не удалось создать клиента"] } };
   }
 
   revalidatePath("/clients");
   revalidatePath("/");
 
-  return undefined;
+  redirect(`/clients/${client.id}?new=1`);
 }
 
 export async function updateClient(

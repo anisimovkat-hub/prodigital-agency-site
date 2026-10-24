@@ -7,6 +7,22 @@ export type AdDirection = {
 export const yandexGoalKey = (id: string) => `yandex:${id}` as const;
 export const yandexGoalAction = (id: string) => `yandex_goal:${id}:LC`;
 
+/** A stable, independently bookmarkable report; account data stays stored once. */
+export function directionReportHref(direction: Pick<AdDirection, "id" | "project_id">): string {
+  return `/analytics?${new URLSearchParams({ project: direction.project_id, direction: direction.id, section: "ads" })}`;
+}
+
+/** A verified counter wins over a hostname shared by several products. */
+export function directionHasGoal(direction: AdDirection, goal: YandexGoal): boolean {
+  if (goal.counterId) return direction.counter_ids.includes(goal.counterId);
+  const hostname = (value: string) => {
+    try { return new URL(value.includes("://") ? value : `https://${value}`).hostname.toLowerCase(); }
+    catch { return null; }
+  };
+  const domain = hostname(goal.domain);
+  return Boolean(domain && direction.websites.some((url) => hostname(url) === domain)) || direction.primary_goal === yandexGoalKey(goal.id);
+}
+
 export function parseYandexGoals(value: unknown): YandexGoal[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {

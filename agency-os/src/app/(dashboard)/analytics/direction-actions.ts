@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { parseYandexGoals, yandexGoalKey } from "@/lib/yandex-goals";
+import { directionHasGoal, parseYandexGoals, yandexGoalKey } from "@/lib/yandex-goals";
 
 export type DirectionState = { ok: boolean; message: string } | undefined;
 const schema = z.object({
@@ -41,11 +41,16 @@ export async function saveAdDirection(_state: DirectionState, form: FormData): P
   if (duplicate) return { ok: false, message: `Кампания уже относится к направлению «${duplicate.name}». Расход нельзя учитывать дважды.` };
   const keys = new Set((accounts.data ?? []).flatMap((a) => parseYandexGoals(a.yandex_goals).map((g) => yandexGoalKey(g.id))));
   if (row.primary_goal && !keys.has(row.primary_goal as `yandex:${string}`)) return { ok: false, message: 'Цель не найдена в подключённых кабинетах проекта.' };
+  if (row.primary_goal) {
+    const goal = (accounts.data ?? []).flatMap((account) => parseYandexGoals(account.yandex_goals)).find((goal) => yandexGoalKey(goal.id) === row.primary_goal);
+    if (goal && !directionHasGoal({ ...row, id: row.id ?? '' }, goal)) return { ok: false, message: 'Основная цель относится к другому счётчику. Проверьте счётчики направления.' };
+  }
   const values = { ...row, counter_ids: [...new Set(row.counter_ids)], campaign_ids: [...new Set(row.campaign_ids)], updated_at: new Date().toISOString() };
   const result = row.id
     ? await supabase.from('project_ad_directions').update(values).eq('id', row.id).eq('project_id', row.project_id).select('id').maybeSingle()
     : await supabase.from('project_ad_directions').insert(values).select('id').single();
   if (result.error || !result.data) return { ok: false, message: `Не удалось сохранить: ${result.error?.message ?? 'нет доступа'}` };
   revalidatePath('/analytics');
+  revalidatePath('/clients', 'layout');
   return { ok: true, message: 'Направление сохранено. Выберите его над отчётом.' };
 }

@@ -18,6 +18,8 @@ export type CreateProjectFormState =
       errors?: undefined;
       success: true;
       project?: SavedProjectFormValues;
+      createdProject?: { id: string; name: string };
+      warning?: string | null;
     }
   | undefined;
 
@@ -50,14 +52,16 @@ async function syncClientStatus(
   supabase: Awaited<ReturnType<typeof createClient>>,
   clientId: string,
 ) {
-  const { data: clientProjects } = await supabase
+  const { data: clientProjects, error: projectsError } = await supabase
     .from("projects")
     .select("stage")
     .eq("client_id", clientId);
+  if (projectsError) return projectsError.message;
   const status = clientStatusFromProjectStages(
     (clientProjects ?? []).map((project) => project.stage),
   );
-  await supabase.from("clients").update({ status }).eq("id", clientId);
+  const { data, error } = await supabase.from("clients").update({ status }).eq("id", clientId).select("id").maybeSingle();
+  return error?.message ?? (data ? null : "Не удалось обновить статус клиента");
 }
 
 async function pauseProjectWork(
@@ -134,11 +138,20 @@ export async function addProject(
     }
   }
 
+  const syncError = parsed.data.client_id
+    ? await syncClientStatus(supabase, parsed.data.client_id)
+    : null;
+
   revalidatePath("/projects");
   revalidatePath("/");
   revalidatePath("/clients");
+  if (parsed.data.client_id) revalidatePath(`/clients/${parsed.data.client_id}`);
 
-  return undefined;
+  return {
+    success: true,
+    createdProject: { id: createdProject.id, name: parsed.data.name },
+    warning: syncError ? `Проект создан, но статус клиента не обновлён: ${syncError}` : null,
+  };
 }
 
 export async function updateProject(

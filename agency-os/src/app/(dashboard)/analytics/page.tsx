@@ -8,7 +8,8 @@ import {
 } from "@/app/(dashboard)/analytics/analytics-controls";
 import { GoalSettingsForm, type GoalSettingOption } from "@/app/(dashboard)/analytics/meta/goal-settings";
 import { AdDirections } from "@/app/(dashboard)/analytics/ad-directions";
-import { directionCampaigns, parseYandexGoals, yandexGoalAction, yandexGoalKey, yandexGoalLabel, type AdDirection } from "@/lib/yandex-goals";
+import { directionCampaigns, directionHasGoal, parseYandexGoals, yandexGoalAction, yandexGoalKey, yandexGoalLabel, type AdDirection } from "@/lib/yandex-goals";
+import { notFound } from "next/navigation";
 import { formatAdMoney } from "@/lib/project-ad-dashboard";
 import { AnalyticsShell } from "@/app/(dashboard)/analytics/analytics-shell";
 import { MediaPlanPanel } from "@/app/(dashboard)/analytics/media-plan-panel";
@@ -198,7 +199,7 @@ export default async function AnalyticsPage({
   ] = await Promise.all([
     supabase
       .from("projects")
-      .select("id,name,logo_url,stage,started_at,brand_color")
+      .select("id,name,client_id,logo_url,stage,started_at,brand_color")
       .in("stage", ["launching", "active"]),
     supabase
       .from("social_accounts")
@@ -250,7 +251,12 @@ export default async function AnalyticsPage({
   const projectRows = sortProjectsForDisplay(projects ?? []);
   const currentProjectIds = new Set(projectRows.map((project) => project.id));
   if (projectId && !currentProjectIds.has(projectId)) projectId = "";
-  if (!projectId) mediaPlans = [];
+  const directions = (directionsResult.data ?? []) as AdDirection[];
+  const selectedDirection = directions.find((direction) => direction.project_id === projectId && direction.id === raw.direction);
+  // An unknown direction must never broaden a bookmarked report to the whole account.
+  if (raw.direction && !selectedDirection) notFound();
+  const directionIds = selectedDirection ? directionCampaigns(selectedDirection, campaigns ?? []) : null;
+  if (!projectId || selectedDirection) mediaPlans = [];
   const accountRows = (socialAccounts ?? []).filter(
     (account) => !account.project_id || currentProjectIds.has(account.project_id),
   );
@@ -259,6 +265,7 @@ export default async function AnalyticsPage({
   }
   const selectedSocial = accountRows.filter(
     (account) =>
+      !selectedDirection &&
       (!projectId || account.project_id === projectId) &&
       (!socialId || account.id === socialId),
   );
@@ -270,11 +277,12 @@ export default async function AnalyticsPage({
     (account) => !account.project_id || currentProjectIds.has(account.project_id),
   );
   const visibleAdAccountRows = currentAdAccountRows.filter(
-    (account) => !projectId || account.project_id === projectId,
+    (account) => (!projectId || account.project_id === projectId) &&
+      (!directionIds || (campaigns ?? []).some((campaign) => campaign.ad_account_id === account.id && directionIds.has(campaign.id))),
   );
   if (accountFilter && !visibleAdAccountRows.some((account) => account.id === accountFilter)) accountFilter = "";
-  if (campaignFilter && !allCampaignRows.some((campaign) => campaign.id === campaignFilter && (!projectId || campaign.project_id === projectId) && (!accountFilter || campaign.ad_account_id === accountFilter))) campaignFilter = "";
-  const campaignRows = allCampaignRows.filter((campaign) => !projectId || campaign.project_id === projectId);
+  if (campaignFilter && !allCampaignRows.some((campaign) => campaign.id === campaignFilter && (!projectId || campaign.project_id === projectId) && (!accountFilter || campaign.ad_account_id === accountFilter) && (!directionIds || directionIds.has(campaign.id)))) campaignFilter = "";
+  const campaignRows = allCampaignRows.filter((campaign) => (!projectId || campaign.project_id === projectId) && (!directionIds || directionIds.has(campaign.id)));
   const campaignIds = new Set(campaignRows.map((campaign) => campaign.id));
   const campaignIdList = [...campaignIds];
   const approvedPlans = mediaPlans.filter((plan) => plan.status === "approved");
@@ -458,8 +466,9 @@ export default async function AnalyticsPage({
     : []));
 
   const organicRows = (socialMetrics ?? []) as SocialMetricRow[];
-  const goalSettings = (goalSettingsResult.data ?? []).filter((s) => s.project_id === projectId) as GoalSetting[];
-  const projectPrimaryGoal = goalSettings.find((s) => s.is_primary && !s.hidden)?.goal_key;
+  const directionGoalKeys = selectedDirection ? new Set(visibleAdAccountRows.flatMap((account) => parseYandexGoals(account.yandex_goals)).filter((goal) => directionHasGoal(selectedDirection, goal)).map((goal) => yandexGoalKey(goal.id) as string)) : null;
+  const goalSettings = (goalSettingsResult.data ?? []).filter((s) => s.project_id === projectId && (!directionGoalKeys || directionGoalKeys.has(s.goal_key))) as GoalSetting[];
+  const projectPrimaryGoal = selectedDirection?.primary_goal ?? goalSettings.find((s) => s.is_primary && !s.hidden)?.goal_key;
   const paidRows = ((paidMetrics ?? []) as CampaignMetricRow[]).filter((row) => campaignIds.has(row.campaign_id));
   const allGoalConversions = ((conversions ?? []) as ConversionRow[]).filter(
     (row) => campaignIds.has(row.campaign_id) && isGoalAction(row.action_type) && row.is_measured !== false &&
@@ -541,15 +550,12 @@ export default async function AnalyticsPage({
   );
   const yandexCatalog = visibleAdAccountRows.filter((a) => a.platform === 'yandex_direct').flatMap((a) => parseYandexGoals(a.yandex_goals).map((goal) => ({ ...goal, accountId: a.id })));
   for (const goal of yandexCatalog) customNames.set(yandexGoalKey(goal.id), yandexGoalLabel(goal));
-  const directions = (directionsResult.data ?? []) as AdDirection[];
-  const selectedDirection = directions.find((d) => d.id === raw.direction);
-  const directionIds = selectedDirection ? directionCampaigns(selectedDirection, allCampaignRows) : null;
   const scopedYandexGoals = [...new Set(yandexCatalog.map((g) => g.id))].map((id) => {
     const goals = yandexCatalog.filter((g) => g.id === id);
     const first = goals[0];
     const accounts = new Set(goals.map((g) => g.accountId));
     return { ...first, campaignIds: allCampaignRows.filter((c) => accounts.has(c.ad_account_id) && (!first.counterId || !c.metrika_counter_ids.length || c.metrika_counter_ids.includes(first.counterId))).map((c) => c.id) };
-  }).filter((goal) => !selectedDirection || (goal.counterId ? selectedDirection.counter_ids.includes(goal.counterId) : selectedDirection.websites.some((url) => { try { return new URL(url).hostname === goal.domain.replace(/^https?:\/\//, '').split('/')[0]; } catch { return false; } })) || selectedDirection.primary_goal === yandexGoalKey(goal.id));
+  }).filter((goal) => !selectedDirection || directionHasGoal(selectedDirection, goal));
   const accountCurrency = new Map(
     currentAdAccountRows.map((account) => [account.id, account.currency]),
   );
@@ -835,7 +841,7 @@ export default async function AnalyticsPage({
   if (fxRatesResult.error) dataWarnings.push(`Не удалось загрузить курсы валют: ${fxRatesResult.error.message}`);
 
   const primaryGoal = selectedDirection?.primary_goal ?? goalSettings.find((s) => s.is_primary && !s.hidden)?.goal_key;
-  const effectiveGoal = goalChoices.some((choice) => choice.value === goalFilter) ? goalFilter : goalChoices.some((choice) => choice.value === primaryGoal) ? primaryGoal! : goalChoices.find((g) => !g.value.startsWith('yandex:'))?.value ?? '';
+  const effectiveGoal = goalChoices.some((choice) => choice.value === goalFilter) ? goalFilter : goalChoices.some((choice) => choice.value === primaryGoal) ? primaryGoal! : goalChoices.find((g) => !g.value.startsWith('yandex:'))?.value ?? (selectedDirection ? goalChoices[0]?.value : '') ?? '';
   // The Yandex table uses the explicitly selected goal, never the historical all-goals aggregate.
   if (effectiveGoal.startsWith('yandex:')) for (const goal of scopedYandexGoals.filter((g) => yandexGoalKey(g.id) === effectiveGoal)) for (const id of goal.campaignIds) if (filteredCampaignIds.has(id)) campaignGoals.set(id, { key: effectiveGoal as GoalKey, action: yandexGoalAction(goal.id) });
   const currentAdsFilters: AdsFilterValues = {
@@ -887,6 +893,11 @@ export default async function AnalyticsPage({
       payload={payload}
       initialSection={section}
       params={params}
+      directionReport={selectedDirection ? {
+        name: selectedDirection.name,
+        websites: selectedDirection.websites,
+        clientHref: selectedProject?.client_id ? `/clients/${selectedProject.client_id}` : `/projects/${projectId}`,
+      } : undefined}
       projects={projectRows}
       socialAccounts={accountRows.map((account) => ({
         id: account.id,
@@ -894,7 +905,7 @@ export default async function AnalyticsPage({
         name: `@${account.username || account.name || account.id}`,
       }))}
       contentSettings={contentSettings}
-      adsFilters={<div className="space-y-3"><AdsFilters report projects={projectRows} accounts={visibleAdAccountRows.map((account) => ({ id: account.id, name: account.name ?? account.external_id, project_id: account.project_id }))} campaigns={directionCampaignRows.map((campaign) => ({ id: campaign.id, name: campaign.name ?? "Без названия", project_id: campaign.project_id, account_id: campaign.ad_account_id }))} goals={goalChoices} current={currentAdsFilters} />{projectId && visibleAdAccountRows.some((a) => a.platform === 'yandex_direct') && <AdDirections projectId={projectId} directions={directions} current={selectedDirection?.id ?? ''} campaigns={campaignRows.filter((c) => accountPlatform.get(c.ad_account_id) === 'yandex_direct').map((c) => ({ id: c.id, name: c.name ?? 'Без названия', counters: c.metrika_counter_ids }))} goals={[...new Map(yandexCatalog.map((g) => [g.id, { key: yandexGoalKey(g.id), label: yandexGoalLabel(g) }])).values()]} summaries={directions.map((d) => {
+      adsFilters={<div className="space-y-3"><AdsFilters report projects={projectRows} accounts={visibleAdAccountRows.map((account) => ({ id: account.id, name: account.name ?? account.external_id, project_id: account.project_id }))} campaigns={directionCampaignRows.map((campaign) => ({ id: campaign.id, name: campaign.name ?? "Без названия", project_id: campaign.project_id, account_id: campaign.ad_account_id }))} goals={goalChoices} current={currentAdsFilters} />{projectId && visibleAdAccountRows.some((a) => a.platform === 'yandex_direct') && <AdDirections clientHref={selectedProject?.client_id ? `/clients/${selectedProject.client_id}` : undefined} projectId={projectId} directions={directions} current={selectedDirection?.id ?? ''} campaigns={allCampaignRows.filter((c) => c.project_id === projectId && accountPlatform.get(c.ad_account_id) === 'yandex_direct').map((c) => ({ id: c.id, name: c.name ?? 'Без названия', counters: c.metrika_counter_ids }))} goals={[...new Map(yandexCatalog.map((g) => [g.id, { key: yandexGoalKey(g.id), label: yandexGoalLabel(g) }])).values()]} summaries={directions.map((d) => {
         const ids = directionCampaigns(d, campaignRows);
         const rows = paidRows.filter((r) => ids.has(r.campaign_id));
         const currencies = new Set(campaignRows.filter((c) => ids.has(c.id)).map((c) => accountCurrency.get(c.ad_account_id)));
@@ -977,7 +988,7 @@ export default async function AnalyticsPage({
             conversions={projectConversions}
             previousMetrics={(portfolioPreviousMetrics ?? []) as CampaignMetricRow[]}
             previousConversions={previousProjectConversions}
-            goalSettingsForm={projectId ? <GoalSettingsForm projectId={projectId} goals={goalSettingsOptions} /> : undefined}
+            goalSettingsForm={projectId && !selectedDirection ? <GoalSettingsForm projectId={projectId} goals={goalSettingsOptions} /> : undefined}
           />
         </>
       }
