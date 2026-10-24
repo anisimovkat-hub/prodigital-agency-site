@@ -52,10 +52,13 @@ const LINK_LABELS: Record<string, string> = {
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ ad_platform?: string }>;
 }) {
   const { id } = await params;
+  const { ad_platform: initialAdPlatform } = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const now = new Date();
@@ -276,7 +279,7 @@ export default async function ProjectDetailPage({
         </Card>
       </div>
 
-      <AdAccountsSection projectId={id} isOwner={isOwner} accounts={adAccountsData.accounts} unlinkedMeta={adAccountsData.unlinkedMeta} />
+      <AdAccountsSection projectId={id} isOwner={isOwner} accounts={adAccountsData.accounts} unlinkedMeta={adAccountsData.unlinkedMeta} initialPlatform={initialAdPlatform} />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-neutral-900">KPI</h2>

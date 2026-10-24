@@ -980,7 +980,6 @@ export default async function AnalyticsPage({
             audience={audience}
             audiencePerformanceRows={((audienceMetrics ?? []) as AudienceRow[]).filter((row) => filteredCampaignIds.has(row.campaign_id))}
             hasMetaAccount={visibleAdAccountRows.some((account) => account.platform === "meta")}
-            unlinkedMetaAccounts={currentAdAccountRows.filter((account) => account.platform === "meta" && !account.project_id).map((account) => ({ id: account.id, name: account.name ?? account.external_id }))}
             audienceActions={visibleAdAccountRows.some((account) => account.platform === "meta") ? <AudienceSyncAction projectId={projectId} /> : undefined}
             sourceStatus={sourceStatus}
             latestDate={latestPaidMetric?.date ?? null}

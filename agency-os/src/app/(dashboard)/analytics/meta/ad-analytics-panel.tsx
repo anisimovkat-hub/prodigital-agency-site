@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Info } from "lucide-react";
+import Link from "next/link";
 
 import { AdPerformanceCharts } from "@/app/(dashboard)/analytics/meta/ad-performance-charts";
 import { AdResultsTable, type AdAccountResult } from "@/app/(dashboard)/analytics/meta/ad-results-table";
 import { AdTreeTable, type AdTreeRow } from "@/app/(dashboard)/analytics/meta/ad-tree-table";
 import { ReportCurrencySwitch, type AdsFilterValues } from "@/app/(dashboard)/analytics/meta/ads-filters";
 import { DashboardMetricGrid } from "@/app/(dashboard)/analytics/meta/dashboard-metric-grid";
-import { LinkMetaAccount } from "@/app/(dashboard)/analytics/meta/link-meta-account";
 import { SyncMetaButton, SyncMetaDetailsButton } from "@/app/(dashboard)/analytics/meta/sync-button";
 import type { Granularity } from "@/lib/ad-analytics";
 import type { AdSourceStatus } from "@/lib/ad-data-freshness";
@@ -121,7 +121,7 @@ function singleNative(accounts: AccountOption[]): string | null {
 export function AdAnalyticsPanel({
   current, accounts, campaigns, campaignGoals, goalSettings, customNames, fxRates, displayCurrency, userId, yandexGoals = [],
   granularity, tree, audience, audienceActions, hasMetaAccount, sourceStatus, metrics, conversions,
-  previousMetrics, previousConversions, unlinkedMetaAccounts = [], audiencePerformanceRows, latestDate = null, goalSettingsForm,
+  previousMetrics, previousConversions, audiencePerformanceRows, latestDate = null, goalSettingsForm,
 }: {
   current: AdsFilterValues;
   accounts: AccountOption[];
@@ -144,7 +144,6 @@ export function AdAnalyticsPanel({
   previousMetrics: AdMetricDay[];
   previousConversions: AdConversionDay[];
   audiencePerformanceRows: AudienceGoalRow[];
-  unlinkedMetaAccounts?: { id: string; name: string }[];
   latestDate?: string | null;
   goalSettingsForm?: ReactNode;
 }) {
@@ -239,9 +238,15 @@ export function AdAnalyticsPanel({
   return (
     <div className="space-y-3">
       {!selectedAccounts.length && current.project && <section className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-        <div><h3 className="text-sm font-semibold text-neutral-950">Рекламный кабинет ещё не подключён</h3><p className="mt-1 text-xs leading-relaxed text-neutral-600">Кабинеты Яндекса, ВК и Telegram подключаются на странице проекта. Для Meta проверьте кабинеты и привяжите нужный.</p></div>
-        <SyncMetaButton period={{ from: current.from, to: current.to }} projectId={current.project} label="Найти кабинеты Meta" />
-        <LinkMetaAccount projectId={current.project} accounts={unlinkedMetaAccounts} />
+        <div>
+          <h3 className="text-sm font-semibold text-neutral-950">Подключите рекламный кабинет</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-neutral-600">Для Яндекс.Директа добавьте логин кабинета и OAuth-токен. Meta, VK и Telegram можно подключить позже — они не требуются для работы с Яндексом.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/projects/${current.project}?ad_platform=yandex_direct#ad-accounts`} className="inline-flex h-9 items-center rounded-md bg-neutral-950 px-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800">Подключить Яндекс.Директ</Link>
+          <Link href={`/projects/${current.project}#ad-accounts`} className="inline-flex h-9 items-center rounded-md border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-800 transition-colors hover:bg-neutral-50">Другие площадки</Link>
+        </div>
+        <p className="text-[11px] leading-relaxed text-neutral-500">Agency OS только читает статистику: кампании, ставки, бюджеты и настройки рекламы не меняются.</p>
       </section>}
       {sourceStatus?.message && <p className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${sourceStatus.state === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-neutral-200 bg-neutral-50 text-neutral-600"}`}>{sourceStatus.state === "error" ? <AlertTriangle className="size-3.5 shrink-0" aria-hidden="true" /> : <Info className="size-3.5 shrink-0" aria-hidden="true" />}{sourceStatus.message}</p>}
       {!currency && hasData && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{display.mixedNative ? "У кабинетов разные валюты: суммы показаны раздельно. Для общей цены цели выберите USD или RUB, либо один кабинет." : `Валюта кабинета или курс на дату расхода недоступны — денежная сводка${displayCurrency === "native" ? "" : ` в ${displayCurrency}`} не рассчитана.`} Таблица ниже сохраняет исходные суммы.</p>}

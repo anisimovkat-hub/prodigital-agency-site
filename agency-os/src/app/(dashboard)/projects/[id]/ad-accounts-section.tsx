@@ -72,20 +72,24 @@ function ReplaceKey({ projectId, account }: { projectId: string; account: Projec
   </form>;
 }
 
-export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta }: {
+export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta, initialPlatform }: {
   projectId: string;
   isOwner: boolean;
   accounts: ProjectAdAccount[];
   unlinkedMeta: { id: string; name: string }[];
+  initialPlatform?: string;
 }) {
-  const [adding, setAdding] = useState(accounts.length === 0);
-  const [platform, setPlatform] = useState("");
+  // Analytics can link straight here for a platform that has not been connected yet.
+  // The value only controls the initial form state; the server action still validates it.
+  const initial = AD_PLATFORMS.some((item) => item.value === initialPlatform) ? initialPlatform : "";
+  const [adding, setAdding] = useState(accounts.length === 0 || Boolean(initial));
+  const [platform, setPlatform] = useState(initial);
   const [connectState, connect, connecting] = useActionState<AdAccountState, FormData>(connectAdAccount, undefined);
   const [syncState, sync, syncing] = useActionState<AdAccountState, FormData>(syncProjectAdAccounts, undefined);
   const config = AD_PLATFORMS.find((item) => item.value === platform);
   const choices = AD_PLATFORMS.filter((item) => item.value !== "meta" || isOwner);
 
-  return <section className="flex flex-col gap-3">
+  return <section id="ad-accounts" className="scroll-mt-6 flex flex-col gap-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-lg font-semibold text-neutral-900">Рекламные кабинеты</h2>
       <div className="flex gap-2">
