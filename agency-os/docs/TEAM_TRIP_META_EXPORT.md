@@ -2,9 +2,22 @@
 
 ## Состояние
 
-Серверный маршрут реализован и прошёл TypeScript, ESLint, 381 тест /52 файла и
-production Webpack build. Активация Google-записи и расписания пока не подтверждена.
+Серверный маршрут опубликован коммитом `b0874a6`; оба Vercel deployment checks
+успешны. Пройдены TypeScript, ESLint, 381 тест /52 файла и production Webpack build.
+Новый ограниченный ключ сохранён в sensitive Vercel Production и Script Properties.
+Активация Google-записи и расписания пока не подтверждена.
 Не менять этот статус на «работает» только по успешному deployment или unit-тестам.
+
+Живой контроль завершённой недели: HTTP 200, закреплённый кабинет, USD,
+`Europe/Istanbul`. Расход, показы и link clicks совпали с независимым account control.
+Сырые рекламные данные и денежные суммы не сохраняются в этом публичном репозитории.
+Реально проверены: 401 без ключа и с неверным ключом, 400 при `account_id=999`,
+405 HEAD, `Cache-Control: no-store`. Это данные API, не старой «Автовыгрузки».
+Google пока не авторизовал проект: первое выполнение остановилось с запросом
+разрешений, окно авторизации браузер не открыл. Пользователю отправлена короткая
+инструкция выполнить `testMetaConnection` и подтвердить доступ вручную.
+Также ожидаются подтверждение курса/коэффициента (прежние формулы 80 × 1.2 не
+подтверждены) и email ошибок. Рабочая таблица, триггеры и старое задание не изменялись.
 
 Публикация идёт в существующий Vercel project `agency-os`,
 `prj_OsyQpD1tegxeQuqhO8KQHZUCz64n`, scope `katerina-anisimova`, из ветки
@@ -29,8 +42,10 @@ production Webpack build. Активация Google-записи и распис
   Graph host. `paging.next` не используется и не передаётся клиенту.
 - Ответ: `schemaVersion=1`, `source=meta_live`, `generatedAt`, `period`, `account`,
   `details[]`, `controlRows[]`; `Cache-Control: no-store`. Только whitelist полей.
-- Account metadata включает валюту и timezone. Apps Script отдельно требует
-  согласованного Moscow timezone. USD/EUR/RUB не конвертируются на сервере.
+- Account metadata включает валюту и timezone. Apps Script версии `2026-10-25.3`
+  проверяет совпадение фактических UTC-смещений с Москвой каждый час недели и её
+  границ; этим принят подтверждённый `Europe/Istanbul`, а не любой timezone.
+  USD/EUR/RUB не конвертируются на сервере.
 - Spend, impressions и link clicks сверяются с account control. Дубли ad/day,
   control/day, действий; неполные поля; чужие даты/валюта/кабинет отменяют ответ.
   Отсутствующие actions остаются неизвестными, а не нулевыми лидами/переписками.
@@ -47,7 +62,9 @@ https://script.google.com/home/projects/1G5f5ghCKGVrbGR5Do5M_bnIegMmGVLoc50WmULn
 
 Он предназначен только для существующей вкладки `Недельный отчет 2026` (gid 810558571)
 файла Team Trip. Клиентский код и инструкции находятся в проектной папке владельца
-`scripts/meta-weekly-report`, версия `2026-10-25.2`, 17 offline-проверок.
+`scripts/meta-weekly-report`, версия `2026-10-25.3`, 18 offline-проверок.
+Исходник этой версии сохранён в Google-редакторе и побайтово сверен с локальным
+файлом через обычное copy редактора; ошибок синтаксиса нет.
 Запись по умолчанию выключена. Порядок:
 
 1. Один новый закрытый ключ записать в Vercel и `TT_META_EXPORT_KEY`, не в чат.
@@ -72,7 +89,7 @@ https://script.google.com/home/projects/1G5f5ghCKGVrbGR5Do5M_bnIegMmGVLoc50WmULn
 - Whitelist аккаунта, дат, валют; byte-safe Bearer auth, отсутствие ключа/настройки,
   ошибки API, no-store, отсутствующие actions, дубли, cursor-only pagination,
   промежуточная пустая страница и сверка независимых итогов.
-- Предыдущие 17 offline-тестов Apps Script не являются доказательством live Meta
+- 18 offline-тестов Apps Script не являются доказательством live Meta
   доступа, Google OAuth или работающего расписания.
 
 Источники: [Meta Business SDK](https://github.com/facebook/facebook-python-business-sdk/blob/main/facebook_business/adobjects/adsinsights.py),

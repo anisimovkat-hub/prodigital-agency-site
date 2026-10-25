@@ -2,12 +2,14 @@
 
 ## Team Trip: прямой Meta-экспорт — 2026-10-25
 
-Добавлен изолированный read-only route `/api/exports/team-trip-meta` и отдельный
+Опубликован изолированный read-only route `/api/exports/team-trip-meta` (`b0874a6`,
+Vercel success); живые API-итоги сошлись. Добавлен отдельный
 `TEAM_TRIP_SHEETS_SECRET`. Meta-токен не извлекать из Vercel и не передавать в Sheets.
 Проверки: TypeScript, lint, 381 тест /52 файла, Webpack build. Никаких миграций,
 изменений рекламы, прежнего импорта или пользовательских dirty-файлов.
-Состояние активации и контракт: `docs/TEAM_TRIP_META_EXPORT.md`. До подтверждённой
-живой проверки не считать Apps Script и расписание рабочими; старое задание
+Состояние активации и контракт: `docs/TEAM_TRIP_META_EXPORT.md`. Google OAuth,
+FX/коэффициент и email ошибок ещё ожидают подтверждения пользователя. До ручной
+проверки записи не считать Apps Script и расписание рабочими; старое задание
 `team-trip-meta` не выключать раньше успешной замены. Vercel scope из актуального
 deployment check — `katerina-anisimova`, project ID прежний `prj_OsyQpD1tegxeQuqhO8KQHZUCz64n`.
 
