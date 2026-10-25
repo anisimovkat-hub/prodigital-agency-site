@@ -15,6 +15,8 @@ describe("proxy matcher", () => {
     "/clients/123e4567-e89b-12d3-a456-426614174000",
     "/employees/123e4567-e89b-12d3-a456-426614174000",
     "/login",
+    "/api/exports/team-trip-meta-other",
+    "/api/exports/other-project",
     "/report/123e4567-e89b-12d3-a456-426614174000",
   ])("включает приватный/публичный роут %s (через него проходит auth-проверка)", (path) => {
     expect(matcherRegex.test(path)).toBe(true);
@@ -23,6 +25,9 @@ describe("proxy matcher", () => {
   it.each([
     "/api/cron/meta-sync",
     "/api/cron/another-job",
+    "/api/exports/team-trip-meta",
+    "/api/exports/team-trip-meta/",
+    "/api/exports/talent-press-meta",
     "/_next/static/chunk.js",
     "/_next/image",
     "/favicon.ico",

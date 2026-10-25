@@ -1,5 +1,16 @@
 # Agency OS — передача в новый чат
 
+## Team Trip: прямой Meta-экспорт — 2026-10-25
+
+Добавлен изолированный read-only route `/api/exports/team-trip-meta` и отдельный
+`TEAM_TRIP_SHEETS_SECRET`. Meta-токен не извлекать из Vercel и не передавать в Sheets.
+Проверки: TypeScript, lint, 381 тест /52 файла, Webpack build. Никаких миграций,
+изменений рекламы, прежнего импорта или пользовательских dirty-файлов.
+Состояние активации и контракт: `docs/TEAM_TRIP_META_EXPORT.md`. До подтверждённой
+живой проверки не считать Apps Script и расписание рабочими; старое задание
+`team-trip-meta` не выключать раньше успешной замены. Vercel scope из актуального
+deployment check — `katerina-anisimova`, project ID прежний `prj_OsyQpD1tegxeQuqhO8KQHZUCz64n`.
+
 ## Подключение Яндекс.Директа из аналитики — 2026-10-24
 
 Пустое состояние `/analytics?project=…&section=ads` исправлено для Яндекс-only проектов:
