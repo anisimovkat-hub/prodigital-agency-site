@@ -236,6 +236,43 @@ async function loadSheetFallback(source: unknown, directions: Direction[], perio
   }
 }
 
+/** Supabase returns at most one page by default; large goal catalogs need paging. */
+export async function collectWeeklyPages<T>(fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>, pageSize = 1000): Promise<T[]> {
+  const output: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await fetchPage(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    output.push(...(data ?? []));
+    if ((data ?? []).length < pageSize) return output;
+  }
+}
+
+async function loadWeeklyMetrics(supabase: ReturnType<typeof createServiceClient>, campaignIds: string[], period: Period): Promise<Metric[]> {
+  const output: Metric[] = [];
+  for (let index = 0; index < campaignIds.length; index += 100) {
+    const ids = campaignIds.slice(index, index + 100);
+    output.push(...await collectWeeklyPages(async (from, to) => supabase.from("ad_campaign_metrics")
+      .select("campaign_id,date,spend,impressions,clicks,spend_includes_vat")
+      .in("campaign_id", ids).gte("date", period.from).lte("date", period.to)
+      .order("campaign_id").order("date").range(from, to)) as Metric[]);
+  }
+  return output;
+}
+
+async function loadWeeklyConversions(supabase: ReturnType<typeof createServiceClient>, campaignIds: string[], actionTypes: string[], period: Period): Promise<Conversion[]> {
+  if (!actionTypes.length) return [];
+  const output: Conversion[] = [];
+  for (let index = 0; index < campaignIds.length; index += 100) {
+    const ids = campaignIds.slice(index, index + 100);
+    output.push(...await collectWeeklyPages(async (from, to) => supabase.from("ad_conversions")
+      .select("campaign_id,date,action_type,count,value,is_measured,value_is_measured")
+      .in("campaign_id", ids).in("action_type", actionTypes)
+      .gte("date", period.from).lte("date", period.to)
+      .order("campaign_id").order("date").order("action_type").range(from, to)) as Conversion[]);
+  }
+  return output;
+}
+
 async function buildReport(scenario: Scenario, period: Period, freshlySyncedAccounts = new Set<string>()): Promise<WeeklyStatusReport> {
   const supabase = createServiceClient();
   const [{ data: project, error: projectError }, { data: directions, error: directionError }] = await Promise.all([
@@ -255,20 +292,26 @@ async function buildReport(scenario: Scenario, period: Period, freshlySyncedAcco
   if (goalError) throw goalError;
   if (campaignError) throw campaignError;
   if (projectDirectionError) throw projectDirectionError;
+  const errors: string[] = [];
+  if (!activeDirections.length) errors.push("Нет активных направлений для отчёта.");
+  const usedCampaigns = new Set<string>();
+  for (const direction of activeDirections) {
+    for (const campaignId of directionCampaignIds(direction, (campaigns ?? []) as Campaign[], direction.project_direction_id
+      ? new Set((projectDirections as ProjectDirection[]).find((row) => row.id === direction.project_direction_id)?.campaign_ids ?? []) : undefined)) {
+      if (usedCampaigns.has(campaignId)) errors.push(`${direction.name}: кампания включена в несколько направлений одного статуса.`);
+      usedCampaigns.add(campaignId);
+    }
+  }
   const accountIds = [...new Set(activeDirections.map((row) => row.ad_account_id).filter((id): id is string => !!id))];
   const { data: accounts, error: accountError } = accountIds.length
     ? await supabase.from("ad_accounts").select("id,platform,last_sync_at,last_sync_error,yandex_goals").eq("project_id", scenario.project_id).in("id", accountIds)
     : { data: [] as Account[], error: null };
   if (accountError) throw accountError;
   const campaignIds = (campaigns ?? []).map((row) => row.id);
-  const [{ data: metrics, error: metricError }, { data: conversions, error: conversionError }] = await Promise.all([
-    campaignIds.length ? supabase.from("ad_campaign_metrics").select("campaign_id,date,spend,impressions,clicks,spend_includes_vat").in("campaign_id", campaignIds).gte("date", period.from).lte("date", period.to) : Promise.resolve({ data: [], error: null }),
-    campaignIds.length ? supabase.from("ad_conversions").select("campaign_id,date,action_type,count,value,is_measured,value_is_measured").in("campaign_id", campaignIds).gte("date", period.from).lte("date", period.to) : Promise.resolve({ data: [], error: null }),
+  const [metrics, conversions] = await Promise.all([
+    loadWeeklyMetrics(supabase, campaignIds, period),
+    loadWeeklyConversions(supabase, [...usedCampaigns], [...new Set(((goals ?? []) as Goal[]).map((goal) => goal.action_type))], period),
   ]);
-  if (metricError) throw metricError;
-  if (conversionError) throw conversionError;
-  const errors: string[] = [];
-  if (!activeDirections.length) errors.push("Нет активных направлений для отчёта.");
   const periodEndUtc = Date.parse(`${period.to}T21:00:00.000Z`);
   for (const direction of activeDirections) {
     if (direction.channel !== "yandex_direct" && (!direction.ad_account_id || (!direction.campaign_ids.length && !direction.campaign_name_prefix) || direction.require_vat || !direction.spend_label))
@@ -287,18 +330,10 @@ async function buildReport(scenario: Scenario, period: Period, freshlySyncedAcco
       }
     }
   }
-  const usedCampaigns = new Set<string>();
-  for (const direction of activeDirections) {
-    for (const campaignId of directionCampaignIds(direction, (campaigns ?? []) as Campaign[], direction.project_direction_id
-      ? new Set((projectDirections as ProjectDirection[]).find((row) => row.id === direction.project_direction_id)?.campaign_ids ?? []) : undefined)) {
-      if (usedCampaigns.has(campaignId)) errors.push(`${direction.name}: кампания включена в несколько направлений одного статуса.`);
-      usedCampaigns.add(campaignId);
-    }
-  }
-  for (const name of uncoveredWeeklyCampaigns(scenario.coverage_rules, (campaigns ?? []) as Campaign[], (metrics ?? []) as Metric[], usedCampaigns))
+  for (const name of uncoveredWeeklyCampaigns(scenario.coverage_rules, (campaigns ?? []) as Campaign[], metrics, usedCampaigns))
     errors.push(`Не включена в статус кампания: ${name}.`);
   const fallback = await loadSheetFallback(scenario.fallback_source, activeDirections, period, errors);
-  const reports = activeDirections.map((direction) => summarizeDirection(direction, ((goals ?? []) as Goal[]).filter((goal) => goal.direction_id === direction.id), (campaigns ?? []) as Campaign[], (metrics ?? []) as Metric[], (conversions ?? []) as Conversion[], errors, fallback.get(direction.id), (projectDirections as ProjectDirection[]).find((row) => row.id === direction.project_direction_id)));
+  const reports = activeDirections.map((direction) => summarizeDirection(direction, ((goals ?? []) as Goal[]).filter((goal) => goal.direction_id === direction.id), (campaigns ?? []) as Campaign[], metrics, conversions, errors, fallback.get(direction.id), (projectDirections as ProjectDirection[]).find((row) => row.id === direction.project_direction_id)));
   return { projectName: scenario.display_title ?? project.name, reportUrl: scenario.report_url, period, directions: reports, errors, showDirectionHeading: scenario.show_direction_heading, spendLabel: scenario.spend_label };
 }
 

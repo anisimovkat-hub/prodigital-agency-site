@@ -2,9 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, goalCounterVerified, previousFullMoscowWeek, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
+import { collectWeeklyPages, directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, goalCounterVerified, previousFullMoscowWeek, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
 
 describe("telegram weekly advertising statuses", () => {
+  it("reads all pages when a week's conversions exceed Supabase's row limit", async () => {
+    const pages = [[...Array.from({ length: 1000 }, (_, index) => index)], [1000, 1001]];
+    const fetchPage = vi.fn(async () => ({ data: pages.shift() ?? [], error: null }));
+    expect(await collectWeeklyPages(fetchPage)).toHaveLength(1002);
+    expect(fetchPage).toHaveBeenNthCalledWith(1, 0, 999);
+    expect(fetchPage).toHaveBeenNthCalledWith(2, 1000, 1999);
+  });
+
   it("uses the completed Moscow Monday–Sunday week", () => {
     expect(previousFullMoscowWeek(new Date("2026-10-05T07:00:00.000Z"))).toEqual({ from: "2026-09-28", to: "2026-10-04" });
   });
