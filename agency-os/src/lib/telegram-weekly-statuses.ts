@@ -1,6 +1,7 @@
 import "server-only";
 
 import { previousWeekPeriod } from "@/lib/analytics-period";
+import { fetchConnectedDays, storeCampaignDays, type ConnectedPlatform } from "@/lib/connected-ads-sync";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { resolveTelegramRecipientChatId } from "@/lib/telegram-recipient";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -230,7 +231,7 @@ async function loadSheetFallback(source: unknown, directions: Direction[], perio
   }
 }
 
-async function buildReport(scenario: Scenario, period: Period): Promise<WeeklyStatusReport> {
+async function buildReport(scenario: Scenario, period: Period, freshlySyncedAccounts = new Set<string>()): Promise<WeeklyStatusReport> {
   const supabase = createServiceClient();
   const [{ data: project, error: projectError }, { data: directions, error: directionError }] = await Promise.all([
     supabase.from("projects").select("name").eq("id", scenario.project_id).single(),
@@ -271,7 +272,7 @@ async function buildReport(scenario: Scenario, period: Period): Promise<WeeklySt
     const account = (accounts as Account[]).find((row) => row.id === direction.ad_account_id);
     if (!account) errors.push(`${direction.name}: рекламный кабинет не найден в проекте.`);
     else if (account.platform !== direction.channel) errors.push(`${direction.name}: площадка кабинета не совпадает с направлением.`);
-    else if (account.last_sync_error || !account.last_sync_at || Date.parse(account.last_sync_at) < periodEndUtc)
+    else if (!freshlySyncedAccounts.has(account.id) && (account.last_sync_error || !account.last_sync_at || Date.parse(account.last_sync_at) < periodEndUtc))
       errors.push(`${direction.name}: рекламный кабинет не обновлён после завершения отчётной недели${account.last_sync_error ? ` (${account.last_sync_error})` : ""}.`);
   }
   const usedCampaigns = new Set<string>();
@@ -294,6 +295,42 @@ async function loadActiveScenarios(): Promise<Scenario[]> {
     .select("id,project_id,name,channel,recipient_chat_id,recipient_profile_id,report_url,template_key,fallback_source,coverage_rules,display_title,show_direction_heading,spend_label,schedule,delivery_mode,is_active").eq("is_active", true).eq("template_key", "project_weekly_ad_status");
   if (error) throw error;
   return (data ?? []) as Scenario[];
+}
+
+/** Refresh only the configured goals through the shared Agency OS importer. */
+async function refreshWeeklySources(scenario: Scenario, period: Period): Promise<{ fresh: Set<string>; errors: string[] }> {
+  const service = createServiceClient();
+  const { data: directions, error: directionError } = await service.from("telegram_weekly_status_directions")
+    .select("id,ad_account_id,channel").eq("scenario_id", scenario.id).eq("is_active", true);
+  if (directionError) throw directionError;
+  const directionIds = (directions ?? []).map((direction) => direction.id);
+  const { data: goals, error: goalError } = directionIds.length
+    ? await service.from("telegram_weekly_status_goals").select("direction_id,goal_id").in("direction_id", directionIds).eq("is_active", true)
+    : { data: [], error: null };
+  if (goalError) throw goalError;
+  const fresh = new Set<string>();
+  const errors: string[] = [];
+  const scopes = new Map<string, { channel: ConnectedPlatform; goalIds: Set<string> }>();
+  for (const direction of directions ?? []) {
+    if (!direction.ad_account_id) continue;
+    const current = scopes.get(direction.ad_account_id) ?? { channel: direction.channel as ConnectedPlatform, goalIds: new Set<string>() };
+    if (current.channel !== direction.channel) { errors.push("Один кабинет указан с разными рекламными каналами."); continue; }
+    for (const goal of goals ?? []) if (goal.direction_id === direction.id) current.goalIds.add(goal.goal_id);
+    scopes.set(direction.ad_account_id, current);
+  }
+  for (const [accountId, scope] of scopes) {
+    try {
+      const days = await fetchConnectedDays(service, { id: accountId, platform: scope.channel }, period,
+        scope.channel === "yandex_direct" ? [...scope.goalIds] : undefined);
+      await storeCampaignDays(service, { id: accountId, project_id: scenario.project_id }, days);
+      fresh.add(accountId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "неизвестная ошибка";
+      errors.push(`Не удалось обновить кабинет ${accountId}: ${message}`);
+      console.error(`Weekly status source refresh ${scenario.name}: ${message}`);
+    }
+  }
+  return { fresh, errors };
 }
 
 /** Manual, owner-only preview. Inactive staging scenarios can be checked safely. */
@@ -332,7 +369,9 @@ export async function sendDueWeeklyAdStatuses(now = new Date()) {
     if (previousError) throw previousError;
     if (previous?.status === "sent") { skipped += 1; continue; }
     try {
-      const report = await buildReport(scenario, period);
+      const source = await refreshWeeklySources(scenario, period);
+      const report = await buildReport(scenario, period, source.fresh);
+      report.errors.push(...source.errors);
       const text = scenario.delivery_mode === "owner_review"
         ? formatWeeklyOwnerPreview(report)
         : formatWeeklyStatusMessage(report);

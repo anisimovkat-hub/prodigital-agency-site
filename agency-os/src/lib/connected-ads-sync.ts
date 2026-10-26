@@ -35,7 +35,7 @@ async function readSecret<T extends ConnectedSecret>(client: Service, accountId:
 }
 
 /** Fetches daily campaign statistics with the stored key; may refresh the stored VK token. */
-export async function fetchConnectedDays(client: Service, account: { id: string; platform: ConnectedPlatform }, period: AnalyticsPeriod): Promise<CampaignDay[]> {
+export async function fetchConnectedDays(client: Service, account: { id: string; platform: ConnectedPlatform }, period: AnalyticsPeriod, selectedYandexGoalIds?: string[]): Promise<CampaignDay[]> {
   if (account.platform === "telegram_ads") {
     const { token } = await readSecret<TelegramSecret>(client, account.id);
     const days = await fetchTelegramAdDays(token, period.from, period.to);
@@ -79,7 +79,10 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     const { error: campaignError } = await client.from('ad_campaigns').upsert(info.map((c) => ({ ad_account_id: account.id, external_id: c.id, project_id: stored.data.project_id, name: c.name, status: c.status, metrika_counter_ids: c.counterIds })), { onConflict: 'ad_account_id,external_id' });
     if (campaignError) throw new Error(campaignError.message);
   }
-  const rows = await fetchYandexGoalReport(secret, period.from, period.to, goals);
+  const reportGoals = selectedYandexGoalIds === undefined ? goals : goals.filter((goal) => selectedYandexGoalIds.includes(goal.id));
+  if (selectedYandexGoalIds?.some((id) => !reportGoals.some((goal) => goal.id === id)))
+    throw new Error('Настроенная цель статуса отсутствует в каталоге целей кабинета.');
+  const rows = await fetchYandexGoalReport(secret, period.from, period.to, reportGoals);
   const byId = new Map(info.map((campaign) => [campaign.id, campaign]));
   return rows.map((row) => ({ campaignId: row.campaignId, name: row.campaignName, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks, results: null, actionType: "yandex:conversions", spendIncludesVat: true,
     counterIds: byId.get(row.campaignId)?.counterIds ?? [], status: byId.get(row.campaignId)?.status,
