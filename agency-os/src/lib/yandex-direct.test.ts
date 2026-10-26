@@ -43,12 +43,14 @@ describe("parseYandexCampaignReport", () => {
     expect(rows[0].goals).toEqual({ '42': 2, '43': 0 });
     expect(rows[1].goals).toEqual({ '42': 0, '43': 0 });
     expect(rows[0].goalValues).toEqual({ '42': 300, '43': 0 });
+    expect(rows[1].goalValues).toEqual({ '42': 0, '43': 0 });
   });
   it('keeps empty and truncated goal cells unknown, not zero', () => {
     const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t\n2026-10-02\t101\tПоиск\t100\t4\t200\t--';
     const rows = parseYandexCampaignReport(tsv, ['42', '43']);
     expect(rows[0].goals).toEqual({ '42': null, '43': null });
     expect(rows[1].goals).toEqual({ '42': 0, '43': null });
+    expect(rows[1].goalValues).toEqual({ '42': null, '43': null });
   });
   it('keeps a period complete across zero-conversion days without combining its goals', () => {
     const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t2\t1\t0\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t--\t--\t--\t--';

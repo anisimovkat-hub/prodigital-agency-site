@@ -67,9 +67,10 @@ describe("telegram weekly advertising statuses", () => {
       { id: "d", name: "D", ad_account_id: "fortilda26", metrika_counter_ids: ["999"] },
       { id: "e", name: "E", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270", "999"] },
     ];
-    expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: true }, campaigns)]).toEqual(["a", "b"]);
+    expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: true }, campaigns)]).toEqual(["a"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns)]).toEqual(["a"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns, new Set(["a", "d"]))]).toEqual(["a"]);
+    expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: true }, campaigns, new Set(["a", "b", "c", "d", "e"]))]).toEqual(["a", "b", "e"]);
   });
 
   it("requires an explicit campaign list for VK and Telegram directions", () => {

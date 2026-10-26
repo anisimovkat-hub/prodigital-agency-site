@@ -114,6 +114,9 @@ function summarizeGoal(goal: Goal, rows: Conversion[], expectedDays: Set<string>
 
 export function directionCampaignIds(direction: Pick<Direction, "counter_id" | "ad_account_id" | "include_counterless_campaigns"> & { campaign_ids?: string[]; campaign_name_prefix?: string | null }, campaigns: Campaign[], assignedCampaignIds?: Set<string>): Set<string> {
   const explicit = direction.campaign_ids?.length ? new Set(direction.campaign_ids) : assignedCampaignIds;
+  // A campaign with several counters is safe only when Agency OS explicitly
+  // assigns it to this direction. Goal IDs are then scoped to its counter.
+  const assigned = !!explicit?.size;
   const prefix = direction.campaign_name_prefix?.trim().toLocaleLowerCase("ru-RU");
   if (!direction.counter_id && (!direction.ad_account_id || (!explicit?.size && (!prefix || prefix.length < 4)))) return new Set();
   return new Set(campaigns.filter((campaign) =>
@@ -122,9 +125,9 @@ export function directionCampaignIds(direction: Pick<Direction, "counter_id" | "
     && (!direction.ad_account_id || campaign.ad_account_id === direction.ad_account_id)
     && (direction.counter_id === null
       ? true
-      : campaign.metrika_counter_ids.length <= 1
+      : (assigned || campaign.metrika_counter_ids.length <= 1)
         && (campaign.metrika_counter_ids.includes(direction.counter_id)
-          || (direction.ad_account_id && direction.include_counterless_campaigns && campaign.metrika_counter_ids.length === 0))),
+          || (assigned && direction.ad_account_id && direction.include_counterless_campaigns && campaign.metrika_counter_ids.length === 0))),
   ).map((campaign) => campaign.id));
 }
 
@@ -152,15 +155,19 @@ function summarizeDirection(direction: Direction, goals: Goal[], campaigns: Camp
   const campaignIds = directionCampaignIds(direction, campaigns, assigned);
   const expected = direction.campaign_ids.length ? direction.campaign_ids.length : assigned?.size;
   if (expected !== undefined && expected !== campaignIds.size)
-    errors.push(`${direction.name}: часть назначенных кампаний отсутствует, относится к другому кабинету или нескольким счётчикам.`);
+    errors.push(`${direction.name}: часть назначенных кампаний отсутствует или не относится к заданному кабинету и счётчику.`);
   if (!campaignIds.size) errors.push(`${direction.name}: нет кампаний Agency OS в заданной области.`);
   const directionMetrics = metrics.filter((row) => campaignIds.has(row.campaign_id));
   const measuredSpend = directionMetrics.length && (!direction.require_vat || directionMetrics.every((row) => row.spend_includes_vat));
   if (directionMetrics.length && !measuredSpend) errors.push(`${direction.name}: расход без подтверждённого НДС.`);
-  const spend = measuredSpend ? directionMetrics.reduce((sum, row) => sum + Number(row.spend), 0) : fallback?.spend ?? null;
+  let spend = measuredSpend ? directionMetrics.reduce((sum, row) => sum + Number(row.spend), 0) : fallback?.spend ?? null;
   const impressions = directionMetrics.length ? directionMetrics.reduce((sum, row) => sum + Number(row.impressions), 0) : fallback?.impressions ?? null;
   const clicks = directionMetrics.length ? directionMetrics.reduce((sum, row) => sum + Number(row.clicks), 0) : fallback?.clicks ?? null;
   if (!directionMetrics.length) errors.push(`${direction.name}: нет нормализованных метрик за период.`);
+  if (spend === 0 && clicks !== null && clicks > 0) {
+    errors.push(`${direction.name}: расход равен нулю при ${clicks} кликах — проверьте выгрузку и тип оплаты.`);
+    spend = null;
+  }
   const expectedDays = new Set(directionMetrics.map((row) => `${row.campaign_id}:${row.date}`));
   if (!goals.length && !direction.allow_no_goals) errors.push(`${direction.name}: не настроены цели.`);
   const kindCounts = new Map(goals.map((goal) => [goal.metric_kind, goals.filter((item) => item.metric_kind === goal.metric_kind).length]));

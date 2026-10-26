@@ -1,11 +1,12 @@
 -- Run after migration 0046. This stages INOM safely; it does not send messages.
--- Verify the weekly figures and Sofia's unique Telegram binding before setting
+-- Verify the weekly figures before setting
 -- telegram_weekly_status_scenarios.is_active = true.
 DO $$
 DECLARE
   v_project uuid := 'ffc9e115-8838-420e-966b-f538df18f0af';
   v_account uuid;
-  v_profile uuid;
+  v_owner_chat text;
+  v_campaign_ids uuid[];
   v_scenario uuid;
   v_direction uuid;
 BEGIN
@@ -13,9 +14,17 @@ BEGIN
   FROM public.ad_accounts
   WHERE project_id = v_project AND platform = 'yandex_direct' AND external_id = 'fortilda26';
 
-  SELECT id INTO STRICT v_profile
-  FROM public.profiles
-  WHERE full_name ILIKE 'Софа%' AND is_active = true;
+  SELECT setting_value INTO STRICT v_owner_chat FROM public.telegram_bot_settings
+  WHERE setting_key = 'owner_chat_id';
+  IF nullif(v_owner_chat, '') IS NULL THEN
+    RAISE EXCEPTION 'Bot owner private chat is not paired';
+  END IF;
+
+  SELECT coalesce(array_agg(id), '{}'::uuid[]) INTO v_campaign_ids
+  FROM public.ad_campaigns WHERE ad_account_id = v_account;
+  IF cardinality(v_campaign_ids) = 0 THEN
+    RAISE EXCEPTION 'No imported INOM campaigns to scope';
+  END IF;
 
   IF EXISTS (
     SELECT 1 FROM public.ad_campaigns
@@ -31,24 +40,28 @@ BEGIN
      display_title, show_direction_heading, spend_label, timezone, schedule,
      template_key, is_active)
   VALUES
-    (v_project, 'ИНОМ / fortilda26', 'yandex_direct', NULL, v_profile,
+    (v_project, 'ИНОМ / fortilda26', 'yandex_direct', v_owner_chat, NULL,
      'Отчёт ИНОМ (запасной аккаунт fortilda26)', false, 'Расход',
-     'Europe/Moscow', '0 7 * * 1', 'project_weekly_ad_status', false)
+     'Europe/Moscow', '0 5 * * 1', 'project_weekly_ad_status', false)
   ON CONFLICT (project_id, name) DO UPDATE SET
-    recipient_profile_id = EXCLUDED.recipient_profile_id,
+    recipient_chat_id = EXCLUDED.recipient_chat_id,
+    recipient_profile_id = NULL,
     display_title = EXCLUDED.display_title,
     show_direction_heading = EXCLUDED.show_direction_heading,
-    spend_label = EXCLUDED.spend_label
+    spend_label = EXCLUDED.spend_label,
+    schedule = EXCLUDED.schedule,
+    is_active = false
   RETURNING id INTO v_scenario;
 
   INSERT INTO public.telegram_weekly_status_directions
     (scenario_id, name, channel, counter_id, ad_account_id,
-     include_counterless_campaigns, sort_order, is_active)
+     campaign_ids, include_counterless_campaigns, sort_order, is_active)
   VALUES
     (v_scenario, 'ИНОМ', 'yandex_direct', '109204270', v_account,
-     true, 0, true)
+     v_campaign_ids, true, 0, true)
   ON CONFLICT (scenario_id, counter_id) DO UPDATE SET
     ad_account_id = EXCLUDED.ad_account_id,
+    campaign_ids = EXCLUDED.campaign_ids,
     include_counterless_campaigns = EXCLUDED.include_counterless_campaigns,
     name = EXCLUDED.name
   RETURNING id INTO v_direction;

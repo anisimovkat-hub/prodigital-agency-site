@@ -105,6 +105,7 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
   return lines.slice(1).map((line) => {
     const cells = line.split("\t");
     const conversions = columns.Conversions < 0 ? undefined : cells[columns.Conversions];
+    const goalCounts = Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])) as Record<string, number | null>;
     return {
       date: cells[columns.Date],
       campaignId: cells[columns.CampaignId],
@@ -116,8 +117,10 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
       // A successful explicit Conversions_<goal>_LC column uses "--" for no
       // conversions. Missing columns/cells and failed imports remain unknown.
       ...(goalIds.length ? {
-        goals: Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])),
-        goalValues: Object.fromEntries(goalValueColumns.map(({ id, index }) => [id, cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])),
+        goals: goalCounts,
+        goalValues: Object.fromEntries(goalValueColumns.map(({ id, index }) => [id,
+          cells[index] === "--" && goalCounts[id] === 0 ? 0
+            : cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])),
       } : {}),
     };
   });

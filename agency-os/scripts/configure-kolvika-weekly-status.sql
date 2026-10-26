@@ -59,11 +59,11 @@ BEGIN
       LEFT JOIN public.ad_campaigns c ON c.id = assigned.campaign_id
       WHERE pd.id = v_project_direction AND (
         c.id IS NULL OR c.ad_account_id IS DISTINCT FROM v_account
-        OR cardinality(c.metrika_counter_ids) <> 1
-        OR NOT (v_item.counter_id = ANY(c.metrika_counter_ids))
+        OR (NOT (v_item.counter_id = ANY(c.metrika_counter_ids))
+          AND NOT (v_item.counter_id = '71291494' AND cardinality(c.metrika_counter_ids) = 0))
       )
     ) THEN
-      RAISE EXCEPTION 'Direction % contains missing, foreign or ambiguous campaigns', v_item.name;
+      RAISE EXCEPTION 'Direction % contains missing, foreign or incorrectly scoped campaigns', v_item.name;
     END IF;
 
     INSERT INTO public.telegram_weekly_status_directions
@@ -71,12 +71,12 @@ BEGIN
        ad_account_id, include_counterless_campaigns, sort_order, is_active)
     VALUES
       (v_scenario, v_project_direction, v_item.name, 'yandex_direct', v_item.counter_id,
-       v_account, false, v_item.sort_order, true)
+       v_account, v_item.counter_id = '71291494', v_item.sort_order, true)
     ON CONFLICT (scenario_id, counter_id) DO UPDATE SET
       project_direction_id = EXCLUDED.project_direction_id,
       name = EXCLUDED.name,
       ad_account_id = EXCLUDED.ad_account_id,
-      include_counterless_campaigns = false,
+      include_counterless_campaigns = EXCLUDED.include_counterless_campaigns,
       sort_order = EXCLUDED.sort_order,
       is_active = true
     RETURNING id INTO v_direction;
@@ -118,4 +118,28 @@ BEGIN
         sort_order = EXCLUDED.sort_order, is_active = true;
     END IF;
   END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM public.telegram_weekly_status_goals g
+    JOIN public.telegram_weekly_status_directions d ON d.id = g.direction_id
+    WHERE d.scenario_id = v_scenario AND d.is_active AND g.is_active
+      AND NOT EXISTS (
+        SELECT 1 FROM public.ad_accounts a
+        CROSS JOIN LATERAL jsonb_array_elements(a.yandex_goals::jsonb) catalog(goal)
+        WHERE a.id = d.ad_account_id AND catalog.goal->>'id' = g.goal_id
+          AND catalog.goal->>'counterId' = d.counter_id
+      )
+  ) THEN
+    RAISE EXCEPTION 'Status goal is not verified for its direction counter';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.telegram_weekly_status_directions d
+    JOIN public.project_ad_directions pd ON pd.id = d.project_direction_id
+    CROSS JOIN LATERAL unnest(pd.campaign_ids) assigned(campaign_id)
+    WHERE d.scenario_id = v_scenario AND d.is_active
+    GROUP BY assigned.campaign_id HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'One campaign is assigned to multiple status directions';
+  END IF;
 END $$;
