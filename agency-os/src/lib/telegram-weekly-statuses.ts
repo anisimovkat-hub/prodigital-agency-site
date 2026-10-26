@@ -12,7 +12,7 @@ type Direction = { id: string; scenario_id: string; project_direction_id: string
 type ProjectDirection = { id: string; counter_ids: string[]; campaign_ids: string[]; is_active: boolean };
 type Goal = { id: string; direction_id: string; goal_id: string; action_type: string; business_label: string; metric_kind: "cart" | "purchase" | "phone" | "messenger" | "form" | "subscription" | "card_view" | "join" | "engagement"; value_label: string | null; include_in_contact_cpa: boolean; sort_order: number; is_active: boolean };
 type Campaign = { id: string; name: string; ad_account_id: string; metrika_counter_ids: string[] };
-type Account = { id: string; platform: string; last_sync_at: string | null; last_sync_error: string | null };
+type Account = { id: string; platform: string; last_sync_at: string | null; last_sync_error: string | null; yandex_goals: unknown };
 type Metric = { campaign_id: string; date: string; spend: number; impressions: number; clicks: number; spend_includes_vat: boolean };
 type Conversion = { campaign_id: string; date: string; action_type: string; count: number; value: number; is_measured: boolean; value_is_measured: boolean };
 
@@ -49,13 +49,13 @@ function moscowDate(now: Date): string {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-/** Schedules are UTC crons, like Vercel's trigger. Allow a short scheduler delay. */
+/** Schedules are UTC crons; allow Vercel's documented one-hour Hobby delay. */
 export function weeklyScheduleMatches(schedule: string, now: Date): boolean {
   const match = /^(\d{1,2}) (\d{1,2}) \* \* 1$/.exec(schedule);
   const minuteOfDay = now.getUTCHours() * 60 + now.getUTCMinutes();
   const scheduledMinute = match ? Number(match[2]) * 60 + Number(match[1]) : -1;
   return !!match && now.getUTCDay() === 1
-    && minuteOfDay >= scheduledMinute && minuteOfDay < scheduledMinute + 15;
+    && minuteOfDay >= scheduledMinute && minuteOfDay < scheduledMinute + 60;
 }
 
 export function previousFullMoscowWeek(now = new Date()): Period {
@@ -111,6 +111,11 @@ function summarizeGoal(goal: Goal, rows: Conversion[], expectedDays: Set<string>
     ? (goal.metric_kind === "purchase" && count === 0 ? 0 : rows.some((row) => !row.value_is_measured) ? null : rows.reduce((sum, row) => sum + Number(row.value), 0))
     : null;
   return { label: goal.business_label, metricKind: goal.metric_kind, count, cpa: count > 0 && spend !== null ? spend / count : null, dates, value, valueLabel: goal.value_label, includeInContactCpa: goal.include_in_contact_cpa };
+}
+
+export function goalCounterVerified(catalog: unknown, goalId: string, counterId: string | null): boolean {
+  return !!counterId && Array.isArray(catalog) && catalog.some((item) =>
+    item && typeof item === "object" && item.id === goalId && item.counterId === counterId);
 }
 
 export function directionCampaignIds(direction: Pick<Direction, "counter_id" | "ad_account_id" | "include_counterless_campaigns"> & { campaign_ids?: string[]; campaign_name_prefix?: string | null }, campaigns: Campaign[], assignedCampaignIds?: Set<string>): Set<string> {
@@ -252,7 +257,7 @@ async function buildReport(scenario: Scenario, period: Period, freshlySyncedAcco
   if (projectDirectionError) throw projectDirectionError;
   const accountIds = [...new Set(activeDirections.map((row) => row.ad_account_id).filter((id): id is string => !!id))];
   const { data: accounts, error: accountError } = accountIds.length
-    ? await supabase.from("ad_accounts").select("id,platform,last_sync_at,last_sync_error").eq("project_id", scenario.project_id).in("id", accountIds)
+    ? await supabase.from("ad_accounts").select("id,platform,last_sync_at,last_sync_error,yandex_goals").eq("project_id", scenario.project_id).in("id", accountIds)
     : { data: [] as Account[], error: null };
   if (accountError) throw accountError;
   const campaignIds = (campaigns ?? []).map((row) => row.id);
@@ -274,6 +279,13 @@ async function buildReport(scenario: Scenario, period: Period, freshlySyncedAcco
     else if (account.platform !== direction.channel) errors.push(`${direction.name}: площадка кабинета не совпадает с направлением.`);
     else if (!freshlySyncedAccounts.has(account.id) && (account.last_sync_error || !account.last_sync_at || Date.parse(account.last_sync_at) < periodEndUtc))
       errors.push(`${direction.name}: рекламный кабинет не обновлён после завершения отчётной недели${account.last_sync_error ? ` (${account.last_sync_error})` : ""}.`);
+    if (account?.platform === "yandex_direct") {
+      for (const goal of (goals ?? []) as Goal[]) {
+        if (goal.direction_id !== direction.id) continue;
+        if (!goalCounterVerified(account.yandex_goals, goal.goal_id, direction.counter_id))
+          errors.push(`${direction.name}: счётчик цели ${goal.goal_id} не подтверждён в Agency OS.`);
+      }
+    }
   }
   const usedCampaigns = new Set<string>();
   for (const direction of activeDirections) {

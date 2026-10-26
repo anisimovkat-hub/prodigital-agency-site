@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, previousFullMoscowWeek, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
+import { directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, goalCounterVerified, previousFullMoscowWeek, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
 
 describe("telegram weekly advertising statuses", () => {
   it("uses the completed Moscow Monday–Sunday week", () => {
@@ -12,7 +12,8 @@ describe("telegram weekly advertising statuses", () => {
   it("keeps the owner's 08:00 Moscow slot separate from staff's 10:00 slot", () => {
     expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:00:00.000Z"))).toBe(true);
     expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:03:00.000Z"))).toBe(true);
-    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:15:00.000Z"))).toBe(false);
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T05:59:00.000Z"))).toBe(true);
+    expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T06:00:00.000Z"))).toBe(false);
     expect(weeklyScheduleMatches("0 7 * * 1", new Date("2026-10-26T05:00:00.000Z"))).toBe(false);
     expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-26T07:00:00.000Z"))).toBe(false);
     expect(weeklyScheduleMatches("0 5 * * 1", new Date("2026-10-27T05:00:00.000Z"))).toBe(false);
@@ -71,6 +72,13 @@ describe("telegram weekly advertising statuses", () => {
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns)]).toEqual(["a"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns, new Set(["a", "d"]))]).toEqual(["a"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: true }, campaigns, new Set(["a", "b", "c", "d", "e"]))]).toEqual(["a", "b", "e"]);
+  });
+
+  it("requires a verified goal-to-counter mapping, including CRM goals", () => {
+    const catalog = [{ id: "559741388", counterId: "109204270" }, { id: "559241229", counterId: null }];
+    expect(goalCounterVerified(catalog, "559741388", "109204270")).toBe(true);
+    expect(goalCounterVerified(catalog, "559241229", "109204270")).toBe(false);
+    expect(goalCounterVerified(catalog, "559741388", "other")).toBe(false);
   });
 
   it("requires an explicit campaign list for VK and Telegram directions", () => {
