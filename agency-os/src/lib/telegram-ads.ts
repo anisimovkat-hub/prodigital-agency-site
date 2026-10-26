@@ -31,7 +31,7 @@ export async function fetchTelegramAds(token: string): Promise<TelegramAd[]> {
   return ads;
 }
 
-export type TelegramAdDay = { adId: string; title: string; date: string; spendTon: number; views: number; clicks: number; joins: number };
+export type TelegramAdDay = { adId: string; title: string; date: string; spendTon: number; views: number; clicks: number; joins: number | null; actions: number | null };
 
 async function inParallel<T, R>(items: T[], limit: number, run: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
@@ -54,13 +54,18 @@ export async function fetchTelegramAdDays(token: string, from: string, to: strin
     const stats = await request<TelegramStat[]>(token, "getAdStats", { ad_id: ad.ad_id, from_time: start, to_time: end, interval: 86_400 });
     return (Array.isArray(stats) ? stats : []).flatMap((stat) => {
       if (!Number.isFinite(Number(stat.from_time))) return [];
-      const views = Number(stat.views ?? 0), clicks = Number(stat.clicks ?? 0), spendTon = Number(stat.spent_budget ?? 0);
-      if (!views && !clicks && !spendTon) return [];
+      // Keep an explicit zero day from the API: it proves no spend or traffic.
+      // An omitted metric is unknown, not an implicit zero.
+      if (stat.views === undefined || stat.clicks === undefined || stat.spent_budget === undefined) return [];
+      const views = Number(stat.views), clicks = Number(stat.clicks), spendTon = Number(stat.spent_budget);
+      if (![views, clicks, spendTon].every(Number.isFinite)) return [];
       return [{
         adId: String(ad.ad_id),
         title: String(ad.title ?? `Объявление ${ad.ad_id}`),
         date: new Date(Number(stat.from_time) * 1000).toISOString().slice(0, 10),
-        spendTon, views, clicks, joins: Number(stat.joins ?? 0),
+        spendTon, views, clicks,
+        joins: stat.joins === undefined ? null : Number(stat.joins),
+        actions: stat.actions === undefined ? null : Number(stat.actions),
       }];
     });
   });

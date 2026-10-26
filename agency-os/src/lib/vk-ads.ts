@@ -61,7 +61,7 @@ export async function fetchVkAccountName(token: string): Promise<string | null> 
   return user.username ?? (user.id ? `VK ${user.id}` : null);
 }
 
-export type VkCampaignDay = { campaignId: string; name: string; date: string; spend: number; impressions: number; clicks: number; goals: number };
+export type VkCampaignDay = { campaignId: string; name: string; date: string; spend: number; impressions: number; clicks: number; goals: number | null };
 
 type VkRow = { date: string; base?: { shows?: number | string; clicks?: number | string; spent?: number | string; goals?: number | string } };
 
@@ -80,9 +80,12 @@ export async function fetchVkCampaignDays(token: string, from: string, to: strin
     const stats = await get<{ items?: { id: number; rows?: VkRow[] }[] }>(token, "statistics/campaigns/day.json", { id: ids, date_from: from, date_to: to, metrics: "base" });
     for (const item of stats.items ?? []) {
       for (const row of item.rows ?? []) {
-        const impressions = Number(row.base?.shows ?? 0), clicks = Number(row.base?.clicks ?? 0), spend = Number(row.base?.spent ?? 0);
-        if (!impressions && !clicks && !spend) continue;
-        days.push({ campaignId: String(item.id), name: names.get(String(item.id)) ?? `Кампания ${item.id}`, date: row.date, spend, impressions, clicks, goals: Number(row.base?.goals ?? 0) });
+        if (row.base?.shows === undefined || row.base.clicks === undefined || row.base.spent === undefined) continue;
+        const impressions = Number(row.base.shows), clicks = Number(row.base.clicks), spend = Number(row.base.spent);
+        if (![impressions, clicks, spend].every(Number.isFinite)) continue;
+        const goals = row.base.goals === undefined ? null : Number(row.base.goals);
+        days.push({ campaignId: String(item.id), name: names.get(String(item.id)) ?? `Кампания ${item.id}`, date: row.date, spend, impressions, clicks,
+          goals: goals !== null && Number.isFinite(goals) ? goals : null });
       }
     }
   }

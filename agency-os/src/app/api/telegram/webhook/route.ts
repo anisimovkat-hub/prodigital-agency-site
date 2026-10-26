@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 import { answerCallbackQuery, sendTelegramMessage } from "@/lib/telegram";
 import { createTelegramTaskPreviews, resendOpenTelegramTaskPreviews } from "@/lib/telegram-task-previews";
+import { sendOwnerWeeklyStatusPreview } from "@/lib/telegram-weekly-statuses";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -101,6 +102,10 @@ async function handleOwnerMessage(message: TelegramMessage) {
       chatId,
       total ? "Обновила черновики — они уже выше." : "Нет задач, готовых к отправке.",
     );
+    return;
+  }
+  if (text === "/status" || text.startsWith("/status ")) {
+    await sendTelegramMessage(chatId, await sendOwnerWeeklyStatusPreview(chatId, text.slice("/status".length)));
     return;
   }
   if (text.startsWith("/")) return;

@@ -6,17 +6,17 @@ import { resolveTelegramRecipientChatId } from "@/lib/telegram-recipient";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type Period = { from: string; to: string };
-type Scenario = { id: string; project_id: string; name: string; channel: string; recipient_chat_id: string | null; recipient_profile_id: string | null; report_url: string | null; template_key: string; fallback_source: unknown; display_title: string | null; show_direction_heading: boolean; spend_label: string; schedule: string; is_active: boolean };
-type Direction = { id: string; scenario_id: string; project_direction_id: string | null; name: string; channel: string; counter_id: string; ad_account_id: string | null; include_counterless_campaigns: boolean; fallback_match: unknown; sort_order: number; is_active: boolean };
+type Scenario = { id: string; project_id: string; name: string; channel: string; recipient_chat_id: string | null; recipient_profile_id: string | null; report_url: string | null; template_key: string; fallback_source: unknown; coverage_rules: unknown; display_title: string | null; show_direction_heading: boolean; spend_label: string; schedule: string; delivery_mode: "owner_review" | "staff_auto"; is_active: boolean };
+type Direction = { id: string; scenario_id: string; project_direction_id: string | null; name: string; channel: string; counter_id: string | null; ad_account_id: string | null; include_counterless_campaigns: boolean; campaign_ids: string[]; campaign_name_prefix: string | null; require_vat: boolean; allow_no_goals: boolean; spend_label: string | null; fallback_match: unknown; sort_order: number; is_active: boolean };
 type ProjectDirection = { id: string; counter_ids: string[]; campaign_ids: string[]; is_active: boolean };
-type Goal = { id: string; direction_id: string; goal_id: string; action_type: string; business_label: string; metric_kind: "cart" | "purchase" | "phone" | "messenger" | "form"; value_label: string | null; include_in_contact_cpa: boolean; sort_order: number; is_active: boolean };
-type Campaign = { id: string; ad_account_id: string; metrika_counter_ids: string[] };
-type Account = { id: string; last_sync_at: string | null; last_sync_error: string | null };
+type Goal = { id: string; direction_id: string; goal_id: string; action_type: string; business_label: string; metric_kind: "cart" | "purchase" | "phone" | "messenger" | "form" | "subscription" | "card_view" | "join" | "engagement"; value_label: string | null; include_in_contact_cpa: boolean; sort_order: number; is_active: boolean };
+type Campaign = { id: string; name: string; ad_account_id: string; metrika_counter_ids: string[] };
+type Account = { id: string; platform: string; last_sync_at: string | null; last_sync_error: string | null };
 type Metric = { campaign_id: string; date: string; spend: number; impressions: number; clicks: number; spend_includes_vat: boolean };
 type Conversion = { campaign_id: string; date: string; action_type: string; count: number; value: number; is_measured: boolean; value_is_measured: boolean };
 
 type GoalReport = { label: string; metricKind: Goal["metric_kind"]; count: number | null; cpa: number | null; dates: string[]; value: number | null; valueLabel: string | null; includeInContactCpa: boolean };
-type DirectionReport = { name: string; spend: number | null; impressions: number | null; clicks: number | null; ctr: number | null; goals: GoalReport[]; contactCpa: number | null; contactCpaMissing?: boolean };
+type DirectionReport = { name: string; spend: number | null; spendLabel?: string | null; impressions: number | null; clicks: number | null; ctr: number | null; goals: GoalReport[]; contactCpa: number | null; contactCpaMissing?: boolean };
 export type WeeklyStatusReport = { projectName: string; reportUrl: string | null; period: Period; directions: DirectionReport[]; errors: string[]; showDirectionHeading?: boolean; spendLabel?: string };
 type FallbackData = { spend?: number; impressions?: number; clicks?: number; goals: Record<string, number> };
 
@@ -76,7 +76,7 @@ export function formatWeeklyStatusMessage(report: WeeklyStatusReport): string {
   for (const direction of report.directions) {
     const rows = [
       ...(report.showDirectionHeading === false ? [] : [`<b>${escapeHtml(direction.name)}</b>`]),
-      `${escapeHtml(report.spendLabel ?? "Расход с НДС")}: ${money(direction.spend)}`,
+      `${escapeHtml(direction.spendLabel ?? report.spendLabel ?? "Расход с НДС")}: ${money(direction.spend)}`,
       `Показы: ${direction.impressions === null ? "нет данных" : russianNumber(direction.impressions)}`,
       `Клики: ${direction.clicks === null ? "нет данных" : russianNumber(direction.clicks)}`,
       `CTR: ${direction.ctr === null ? "нет данных" : `${russianNumber(direction.ctr, 2)}%`}`,
@@ -84,9 +84,18 @@ export function formatWeeklyStatusMessage(report: WeeklyStatusReport): string {
       ...direction.goals.flatMap((goal) => [goalLine(goal), ...(goal.valueLabel ? [`${escapeHtml(goal.valueLabel)}: ${goal.value === null ? "—" : `${russianNumber(goal.value, 2)} ₽`}`] : [])]),
     ];
     if (direction.goals.some((goal) => goal.includeInContactCpa)) rows.push(`CPA обращений: ${direction.contactCpa === null ? (direction.contactCpaMissing ? "нет данных" : "—") : money(direction.contactCpa)}`);
-    blocks.push(rows.join("\n"));
+    blocks.push(rows.join("\n").trimEnd());
   }
   return blocks.join("\n\n");
+}
+
+/** Missing data may be shown to the owner for review, but never auto-published to staff. */
+export function formatWeeklyOwnerPreview(report: WeeklyStatusReport): string {
+  const message = formatWeeklyStatusMessage(report);
+  if (!report.errors.length) return message;
+  const warnings = report.errors.slice(0, 5).map((error) => `• ${escapeHtml(error)}`);
+  if (report.errors.length > 5) warnings.push(`• И ещё ${report.errors.length - 5} замечаний.`);
+  return `${message}\n\n⚠️ <b>Черновик: данные нужно проверить</b>\n${warnings.join("\n")}`;
 }
 
 function summarizeGoal(goal: Goal, rows: Conversion[], expectedDays: Set<string>, spend: number | null, errors: string[], directionName: string, fallbackCount?: number): GoalReport {
@@ -103,38 +112,62 @@ function summarizeGoal(goal: Goal, rows: Conversion[], expectedDays: Set<string>
   return { label: goal.business_label, metricKind: goal.metric_kind, count, cpa: count > 0 && spend !== null ? spend / count : null, dates, value, valueLabel: goal.value_label, includeInContactCpa: goal.include_in_contact_cpa };
 }
 
-export function directionCampaignIds(direction: Pick<Direction, "counter_id" | "ad_account_id" | "include_counterless_campaigns">, campaigns: Campaign[], assignedCampaignIds?: Set<string>): Set<string> {
+export function directionCampaignIds(direction: Pick<Direction, "counter_id" | "ad_account_id" | "include_counterless_campaigns"> & { campaign_ids?: string[]; campaign_name_prefix?: string | null }, campaigns: Campaign[], assignedCampaignIds?: Set<string>): Set<string> {
+  const explicit = direction.campaign_ids?.length ? new Set(direction.campaign_ids) : assignedCampaignIds;
+  const prefix = direction.campaign_name_prefix?.trim().toLocaleLowerCase("ru-RU");
+  if (!direction.counter_id && (!direction.ad_account_id || (!explicit?.size && (!prefix || prefix.length < 4)))) return new Set();
   return new Set(campaigns.filter((campaign) =>
-    (!assignedCampaignIds || assignedCampaignIds.has(campaign.id))
-    && campaign.metrika_counter_ids.length <= 1
+    (!explicit || explicit.has(campaign.id))
+    && (!prefix || campaign.name.toLocaleLowerCase("ru-RU").startsWith(prefix))
     && (!direction.ad_account_id || campaign.ad_account_id === direction.ad_account_id)
-    && (campaign.metrika_counter_ids.includes(direction.counter_id)
-      || (direction.ad_account_id && direction.include_counterless_campaigns && campaign.metrika_counter_ids.length === 0)),
+    && (direction.counter_id === null
+      ? true
+      : campaign.metrika_counter_ids.length <= 1
+        && (campaign.metrika_counter_ids.includes(direction.counter_id)
+          || (direction.ad_account_id && direction.include_counterless_campaigns && campaign.metrika_counter_ids.length === 0))),
   ).map((campaign) => campaign.id));
 }
 
+export function uncoveredWeeklyCampaigns(rules: unknown, campaigns: Campaign[], metrics: Metric[], covered: Set<string>): string[] {
+  if (!Array.isArray(rules)) return ["Неверные правила охвата кампаний."];
+  const active = new Set(metrics.map((row) => row.campaign_id));
+  const unmatched: string[] = [];
+  for (const rule of rules) {
+    if (!rule || typeof rule !== "object" || typeof rule.ad_account_id !== "string" || typeof rule.prefix !== "string" || rule.prefix.trim().length < 4)
+      return ["Неверные правила охвата кампаний."];
+    const prefix = rule.prefix.trim().toLocaleLowerCase("ru-RU");
+    for (const campaign of campaigns) {
+      if (campaign.ad_account_id === rule.ad_account_id && active.has(campaign.id)
+        && campaign.name.toLocaleLowerCase("ru-RU").startsWith(prefix) && !covered.has(campaign.id))
+        unmatched.push(campaign.name);
+    }
+  }
+  return [...new Set(unmatched)];
+}
+
 function summarizeDirection(direction: Direction, goals: Goal[], campaigns: Campaign[], metrics: Metric[], conversions: Conversion[], errors: string[], fallback?: FallbackData, projectDirection?: ProjectDirection): DirectionReport {
-  if (direction.project_direction_id && (!projectDirection?.is_active || !projectDirection.counter_ids.includes(direction.counter_id) || !projectDirection.campaign_ids.length))
+  if (direction.project_direction_id && (!projectDirection?.is_active || !direction.counter_id || !projectDirection.counter_ids.includes(direction.counter_id) || !projectDirection.campaign_ids.length))
     errors.push(`${direction.name}: направление Agency OS неактивно, не содержит нужный счётчик или не имеет назначенных кампаний.`);
   const assigned = direction.project_direction_id ? new Set(projectDirection?.campaign_ids ?? []) : undefined;
   const campaignIds = directionCampaignIds(direction, campaigns, assigned);
-  if (assigned && assigned.size !== campaignIds.size)
+  const expected = direction.campaign_ids.length ? direction.campaign_ids.length : assigned?.size;
+  if (expected !== undefined && expected !== campaignIds.size)
     errors.push(`${direction.name}: часть назначенных кампаний отсутствует, относится к другому кабинету или нескольким счётчикам.`);
-  if (!campaignIds.size) errors.push(`${direction.name}: для счётчика ${direction.counter_id} нет кампаний Agency OS.`);
+  if (!campaignIds.size) errors.push(`${direction.name}: нет кампаний Agency OS в заданной области.`);
   const directionMetrics = metrics.filter((row) => campaignIds.has(row.campaign_id));
-  const measuredSpend = directionMetrics.length && directionMetrics.every((row) => row.spend_includes_vat);
+  const measuredSpend = directionMetrics.length && (!direction.require_vat || directionMetrics.every((row) => row.spend_includes_vat));
   if (directionMetrics.length && !measuredSpend) errors.push(`${direction.name}: расход без подтверждённого НДС.`);
   const spend = measuredSpend ? directionMetrics.reduce((sum, row) => sum + Number(row.spend), 0) : fallback?.spend ?? null;
   const impressions = directionMetrics.length ? directionMetrics.reduce((sum, row) => sum + Number(row.impressions), 0) : fallback?.impressions ?? null;
   const clicks = directionMetrics.length ? directionMetrics.reduce((sum, row) => sum + Number(row.clicks), 0) : fallback?.clicks ?? null;
   if (!directionMetrics.length) errors.push(`${direction.name}: нет нормализованных метрик за период.`);
   const expectedDays = new Set(directionMetrics.map((row) => `${row.campaign_id}:${row.date}`));
-  if (!goals.length) errors.push(`${direction.name}: не настроены цели.`);
+  if (!goals.length && !direction.allow_no_goals) errors.push(`${direction.name}: не настроены цели.`);
   const kindCounts = new Map(goals.map((goal) => [goal.metric_kind, goals.filter((item) => item.metric_kind === goal.metric_kind).length]));
   const goalReports = goals.sort((a, b) => a.sort_order - b.sort_order).map((goal) => summarizeGoal(goal, conversions.filter((row) => campaignIds.has(row.campaign_id) && row.action_type === goal.action_type), expectedDays, spend, errors, direction.name, kindCounts.get(goal.metric_kind) === 1 ? fallback?.goals[goal.metric_kind] : undefined));
   const contactGoals = goalReports.filter((goal) => goal.includeInContactCpa);
   const totalContacts = contactGoals.some((goal) => goal.count === null) ? null : contactGoals.reduce((sum, goal) => sum + (goal.count ?? 0), 0);
-  return { name: direction.name, spend, impressions, clicks, ctr: clicks !== null && impressions !== null && impressions > 0 ? clicks / impressions * 100 : impressions === 0 && clicks !== null ? 0 : null, goals: goalReports, contactCpa: totalContacts !== null && totalContacts > 0 && spend !== null ? spend / totalContacts : null, contactCpaMissing: totalContacts === null || spend === null };
+  return { name: direction.name, spend, spendLabel: direction.spend_label, impressions, clicks, ctr: clicks !== null && impressions !== null && impressions > 0 ? clicks / impressions * 100 : impressions === 0 && clicks !== null ? 0 : null, goals: goalReports, contactCpa: totalContacts !== null && totalContacts > 0 && spend !== null ? spend / totalContacts : null, contactCpaMissing: totalContacts === null || spend === null };
 }
 
 function parseCsv(text: string): string[][] {
@@ -194,7 +227,7 @@ async function buildReport(scenario: Scenario, period: Period): Promise<WeeklySt
   const supabase = createServiceClient();
   const [{ data: project, error: projectError }, { data: directions, error: directionError }] = await Promise.all([
     supabase.from("projects").select("name").eq("id", scenario.project_id).single(),
-    supabase.from("telegram_weekly_status_directions").select("id,scenario_id,project_direction_id,name,channel,counter_id,ad_account_id,include_counterless_campaigns,fallback_match,sort_order,is_active").eq("scenario_id", scenario.id).eq("is_active", true).order("sort_order"),
+    supabase.from("telegram_weekly_status_directions").select("id,scenario_id,project_direction_id,name,channel,counter_id,ad_account_id,include_counterless_campaigns,campaign_ids,campaign_name_prefix,require_vat,allow_no_goals,spend_label,fallback_match,sort_order,is_active").eq("scenario_id", scenario.id).eq("is_active", true).order("sort_order"),
   ]);
   if (projectError) throw projectError;
   if (directionError) throw directionError;
@@ -203,7 +236,7 @@ async function buildReport(scenario: Scenario, period: Period): Promise<WeeklySt
   const projectDirectionIds = [...new Set(activeDirections.map((row) => row.project_direction_id).filter((id): id is string => !!id))];
   const [{ data: goals, error: goalError }, { data: campaigns, error: campaignError }, { data: projectDirections, error: projectDirectionError }] = await Promise.all([
     directionIds.length ? supabase.from("telegram_weekly_status_goals").select("id,direction_id,goal_id,action_type,business_label,metric_kind,value_label,include_in_contact_cpa,sort_order,is_active").in("direction_id", directionIds).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
-    supabase.from("ad_campaigns").select("id,ad_account_id,metrika_counter_ids").eq("project_id", scenario.project_id),
+    supabase.from("ad_campaigns").select("id,name,ad_account_id,metrika_counter_ids").eq("project_id", scenario.project_id),
     projectDirectionIds.length ? supabase.from("project_ad_directions").select("id,counter_ids,campaign_ids,is_active").eq("project_id", scenario.project_id).in("id", projectDirectionIds) : Promise.resolve({ data: [], error: null }),
   ]);
   if (goalError) throw goalError;
@@ -211,7 +244,7 @@ async function buildReport(scenario: Scenario, period: Period): Promise<WeeklySt
   if (projectDirectionError) throw projectDirectionError;
   const accountIds = [...new Set(activeDirections.map((row) => row.ad_account_id).filter((id): id is string => !!id))];
   const { data: accounts, error: accountError } = accountIds.length
-    ? await supabase.from("ad_accounts").select("id,last_sync_at,last_sync_error").eq("project_id", scenario.project_id).in("id", accountIds)
+    ? await supabase.from("ad_accounts").select("id,platform,last_sync_at,last_sync_error").eq("project_id", scenario.project_id).in("id", accountIds)
     : { data: [] as Account[], error: null };
   if (accountError) throw accountError;
   const campaignIds = (campaigns ?? []).map((row) => row.id);
@@ -225,12 +258,25 @@ async function buildReport(scenario: Scenario, period: Period): Promise<WeeklySt
   if (!activeDirections.length) errors.push("Нет активных направлений для отчёта.");
   const periodEndUtc = Date.parse(`${period.to}T21:00:00.000Z`);
   for (const direction of activeDirections) {
+    if (direction.channel !== "yandex_direct" && (!direction.ad_account_id || (!direction.campaign_ids.length && !direction.campaign_name_prefix) || direction.require_vat || !direction.spend_label))
+      errors.push(`${direction.name}: для неяндексового канала нужны кабинет, явные кампании и корректная подпись расхода.`);
     if (!direction.ad_account_id) continue;
     const account = (accounts as Account[]).find((row) => row.id === direction.ad_account_id);
     if (!account) errors.push(`${direction.name}: рекламный кабинет не найден в проекте.`);
+    else if (account.platform !== direction.channel) errors.push(`${direction.name}: площадка кабинета не совпадает с направлением.`);
     else if (account.last_sync_error || !account.last_sync_at || Date.parse(account.last_sync_at) < periodEndUtc)
       errors.push(`${direction.name}: рекламный кабинет не обновлён после завершения отчётной недели${account.last_sync_error ? ` (${account.last_sync_error})` : ""}.`);
   }
+  const usedCampaigns = new Set<string>();
+  for (const direction of activeDirections) {
+    for (const campaignId of directionCampaignIds(direction, (campaigns ?? []) as Campaign[], direction.project_direction_id
+      ? new Set((projectDirections as ProjectDirection[]).find((row) => row.id === direction.project_direction_id)?.campaign_ids ?? []) : undefined)) {
+      if (usedCampaigns.has(campaignId)) errors.push(`${direction.name}: кампания включена в несколько направлений одного статуса.`);
+      usedCampaigns.add(campaignId);
+    }
+  }
+  for (const name of uncoveredWeeklyCampaigns(scenario.coverage_rules, (campaigns ?? []) as Campaign[], (metrics ?? []) as Metric[], usedCampaigns))
+    errors.push(`Не включена в статус кампания: ${name}.`);
   const fallback = await loadSheetFallback(scenario.fallback_source, activeDirections, period, errors);
   const reports = activeDirections.map((direction) => summarizeDirection(direction, ((goals ?? []) as Goal[]).filter((goal) => goal.direction_id === direction.id), (campaigns ?? []) as Campaign[], (metrics ?? []) as Metric[], (conversions ?? []) as Conversion[], errors, fallback.get(direction.id), (projectDirections as ProjectDirection[]).find((row) => row.id === direction.project_direction_id)));
   return { projectName: scenario.display_title ?? project.name, reportUrl: scenario.report_url, period, directions: reports, errors, showDirectionHeading: scenario.show_direction_heading, spendLabel: scenario.spend_label };
@@ -238,9 +284,32 @@ async function buildReport(scenario: Scenario, period: Period): Promise<WeeklySt
 
 async function loadActiveScenarios(): Promise<Scenario[]> {
   const { data, error } = await createServiceClient().from("telegram_weekly_status_scenarios")
-    .select("id,project_id,name,channel,recipient_chat_id,recipient_profile_id,report_url,template_key,fallback_source,display_title,show_direction_heading,spend_label,schedule,is_active").eq("is_active", true).eq("template_key", "project_weekly_ad_status");
+    .select("id,project_id,name,channel,recipient_chat_id,recipient_profile_id,report_url,template_key,fallback_source,coverage_rules,display_title,show_direction_heading,spend_label,schedule,delivery_mode,is_active").eq("is_active", true).eq("template_key", "project_weekly_ad_status");
   if (error) throw error;
   return (data ?? []) as Scenario[];
+}
+
+/** Manual, owner-only preview. Inactive staging scenarios can be checked safely. */
+export async function sendOwnerWeeklyStatusPreview(chatId: string, query: string, now = new Date()): Promise<string> {
+  const supabase = createServiceClient();
+  const { data: setting, error: settingError } = await supabase.from("telegram_bot_settings")
+    .select("setting_value").eq("setting_key", "owner_chat_id").single();
+  if (settingError || setting?.setting_value !== chatId) return "Черновик доступен только в личном чате владельца.";
+  const { data, error } = await supabase.from("telegram_weekly_status_scenarios")
+    .select("id,project_id,name,channel,recipient_chat_id,recipient_profile_id,report_url,template_key,fallback_source,coverage_rules,display_title,show_direction_heading,spend_label,schedule,delivery_mode,is_active")
+    .eq("template_key", "project_weekly_ad_status").eq("delivery_mode", "owner_review");
+  if (error) throw error;
+  const scenarios = (data ?? []) as Scenario[];
+  const needle = query.trim().toLocaleLowerCase("ru-RU");
+  if (!needle) return scenarios.length
+    ? `Доступные статусы: ${scenarios.map((scenario) => escapeHtml(scenario.display_title ?? scenario.name)).join(", ")}. Напишите /status и название проекта.`
+    : "Сценарии еженедельных статусов пока не настроены.";
+  const matches = scenarios.filter((scenario) => `${scenario.name} ${scenario.display_title ?? ""}`.toLocaleLowerCase("ru-RU").includes(needle));
+  if (!matches.length) return "Такой статус не найден. Напишите /status, чтобы увидеть список.";
+  if (matches.length > 1) return `Найдено несколько статусов: ${matches.map((scenario) => escapeHtml(scenario.name)).join(", ")}. Уточните название.`;
+  const report = await buildReport(matches[0], previousFullMoscowWeek(now));
+  await sendTelegramMessage(chatId, formatWeeklyOwnerPreview(report));
+  return report.errors.length ? "Черновик отправлен с замечаниями к данным." : "Черновик отправлен за предыдущую полную неделю.";
 }
 
 /** Sends each active project scenario once per completed Moscow week. */
@@ -257,12 +326,16 @@ export async function sendDueWeeklyAdStatuses(now = new Date()) {
     if (previous?.status === "sent") { skipped += 1; continue; }
     try {
       const report = await buildReport(scenario, period);
-      const text = formatWeeklyStatusMessage(report);
-      const recipientChatId = scenario.recipient_profile_id
-        ? await resolveTelegramRecipientChatId(scenario.recipient_profile_id)
-        : scenario.recipient_chat_id;
+      const text = scenario.delivery_mode === "owner_review"
+        ? formatWeeklyOwnerPreview(report)
+        : formatWeeklyStatusMessage(report);
+      const recipientChatId = scenario.delivery_mode === "owner_review"
+        ? (await supabase.from("telegram_bot_settings").select("setting_value").eq("setting_key", "owner_chat_id").single()).data?.setting_value ?? null
+        : scenario.recipient_profile_id
+          ? await resolveTelegramRecipientChatId(scenario.recipient_profile_id)
+          : scenario.recipient_chat_id;
       const errors = [...report.errors, ...(!recipientChatId ? ["Чат получателя не найден или привязка неоднозначна."] : [])].join(" ");
-      if (errors) {
+      if (!recipientChatId || (errors && scenario.delivery_mode === "staff_auto")) {
         console.error(`Weekly Telegram status ${scenario.name}: ${errors}`);
         const { error: blockedError } = await supabase.from("telegram_weekly_status_deliveries").upsert({ scenario_id: scenario.id, period_from: period.from, period_to: period.to, message_text: text, status: "blocked", last_error: errors }, { onConflict: "scenario_id,period_from,period_to" });
         if (blockedError) throw blockedError;

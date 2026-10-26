@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { ensureVkToken } from "@/lib/vk-ads";
+import { ensureVkToken, fetchVkCampaignDays } from "@/lib/vk-ads";
 
 const fetchMock = vi.fn();
 const json = (data: unknown, ok = true) => ({ ok, status: ok ? 200 : 400, json: async () => data }) as Response;
@@ -42,5 +42,22 @@ describe("ensureVkToken", () => {
     const { credential } = await ensureVkToken({ clientId: "1", clientSecret: "s", refreshToken: "dead" });
     expect(credential.accessToken).toBe("fresh");
     expect(fetchMock.mock.calls[2][0]).toContain("token/delete.json");
+  });
+});
+
+describe("fetchVkCampaignDays", () => {
+  beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("fetch", fetchMock); });
+
+  it("preserves explicit zero days but treats an omitted goal as unknown", async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ items: [{ id: 1, name: "Прин_набор подписчиков" }] }))
+      .mockResolvedValueOnce(json({ items: [{ id: 1, rows: [
+        { date: "2026-10-24", base: { shows: 0, clicks: 0, spent: 0, goals: 0 } },
+        { date: "2026-10-25", base: { shows: 100, clicks: 1, spent: 20 } },
+      ] }] }));
+    expect(await fetchVkCampaignDays("token", "2026-10-24", "2026-10-25")).toEqual([
+      { campaignId: "1", name: "Прин_набор подписчиков", date: "2026-10-24", spend: 0, impressions: 0, clicks: 0, goals: 0 },
+      { campaignId: "1", name: "Прин_набор подписчиков", date: "2026-10-25", spend: 20, impressions: 100, clicks: 1, goals: null },
+    ]);
   });
 });

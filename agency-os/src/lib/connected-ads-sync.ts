@@ -38,8 +38,12 @@ async function readSecret<T extends ConnectedSecret>(client: Service, accountId:
 export async function fetchConnectedDays(client: Service, account: { id: string; platform: ConnectedPlatform }, period: AnalyticsPeriod): Promise<CampaignDay[]> {
   if (account.platform === "telegram_ads") {
     const { token } = await readSecret<TelegramSecret>(client, account.id);
-    const [days, rateOn] = await Promise.all([fetchTelegramAdDays(token, period.from, period.to), fetchTonRubRates(period.from)]);
-    return days.map((day) => ({ campaignId: day.adId, name: day.title, date: day.date, spend: Math.round(day.spendTon * rateOn(day.date) * 100) / 100, impressions: day.views, clicks: day.clicks, results: day.joins, actionType: "telegram:joins" }));
+    const days = await fetchTelegramAdDays(token, period.from, period.to);
+    const rateOn = days.some((day) => day.spendTon > 0) ? await fetchTonRubRates(period.from) : () => 1;
+    return days.map((day) => ({ campaignId: day.adId, name: day.title, date: day.date, spend: Math.round(day.spendTon * rateOn(day.date) * 100) / 100, impressions: day.views, clicks: day.clicks,
+      results: null, actionType: "telegram:joins",
+      goalResults: [{ action: "telegram:joins", count: day.joins }, { action: "telegram:actions", count: day.actions }],
+    }));
   }
   if (account.platform === "vk") {
     const stored = await readSecret<VkCredential>(client, account.id);
@@ -49,7 +53,10 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
       if (error) throw new Error(error.message);
     }
     const days = await fetchVkCampaignDays(credential.accessToken!, period.from, period.to);
-    return days.map((day) => ({ campaignId: day.campaignId, name: day.name, date: day.date, spend: day.spend, impressions: day.impressions, clicks: day.clicks, results: day.goals, actionType: "vk:Цели VK Рекламы" }));
+    return days.map((day) => ({ campaignId: day.campaignId, name: day.name, date: day.date, spend: day.spend, impressions: day.impressions, clicks: day.clicks,
+      results: null, actionType: "vk:Цели VK Рекламы",
+      goalResults: [{ action: "vk:Цели VK Рекламы", count: day.goals }],
+    }));
   }
   const secret = await readSecret<YandexSecret>(client, account.id);
   const [info, stored] = await Promise.all([fetchYandexCampaignInfo(secret), client.from('ad_accounts').select('yandex_goals,project_id').eq('id', account.id).single()]);

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { directionCampaignIds, formatWeeklyStatusMessage, previousFullMoscowWeek, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
+import { directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, previousFullMoscowWeek, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
 
 describe("telegram weekly advertising statuses", () => {
   it("uses the completed Moscow Monday–Sunday week", () => {
@@ -61,14 +61,62 @@ describe("telegram weekly advertising statuses", () => {
 
   it("does not mix advertiser accounts or unrelated counters", () => {
     const campaigns = [
-      { id: "a", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270"] },
-      { id: "b", ad_account_id: "fortilda26", metrika_counter_ids: [] },
-      { id: "c", ad_account_id: "other", metrika_counter_ids: ["109204270"] },
-      { id: "d", ad_account_id: "fortilda26", metrika_counter_ids: ["999"] },
-      { id: "e", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270", "999"] },
+      { id: "a", name: "A", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270"] },
+      { id: "b", name: "B", ad_account_id: "fortilda26", metrika_counter_ids: [] },
+      { id: "c", name: "C", ad_account_id: "other", metrika_counter_ids: ["109204270"] },
+      { id: "d", name: "D", ad_account_id: "fortilda26", metrika_counter_ids: ["999"] },
+      { id: "e", name: "E", ad_account_id: "fortilda26", metrika_counter_ids: ["109204270", "999"] },
     ];
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: true }, campaigns)]).toEqual(["a", "b"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns)]).toEqual(["a"]);
     expect([...directionCampaignIds({ counter_id: "109204270", ad_account_id: "fortilda26", include_counterless_campaigns: false }, campaigns, new Set(["a", "d"]))]).toEqual(["a"]);
+  });
+
+  it("requires an explicit campaign list for VK and Telegram directions", () => {
+    const campaigns = [
+      { id: "prin", name: "ПРИН — геодезия", ad_account_id: "shared", metrika_counter_ids: [] },
+      { id: "soda", name: "СОДА — геодезия", ad_account_id: "shared", metrika_counter_ids: [] },
+      { id: "foreign", name: "ПРИН — чужой кабинет", ad_account_id: "other", metrika_counter_ids: [] },
+    ];
+    const base = { counter_id: null, ad_account_id: "shared", include_counterless_campaigns: false };
+    expect([...directionCampaignIds(base, campaigns)]).toEqual([]);
+    expect([...directionCampaignIds({ ...base, campaign_ids: ["prin", "foreign"] }, campaigns)]).toEqual(["prin"]);
+    expect([...directionCampaignIds({ ...base, campaign_name_prefix: "ПРИН —" }, campaigns)]).toEqual(["prin"]);
+  });
+
+  it("warns when a new project campaign is not in any status direction", () => {
+    const campaigns = [
+      { id: "known", name: "Прин_каталог товаров", ad_account_id: "vk", metrika_counter_ids: [] },
+      { id: "new", name: "Прин_новая кампания", ad_account_id: "vk", metrika_counter_ids: [] },
+      { id: "other", name: "Сода_подписки", ad_account_id: "vk", metrika_counter_ids: [] },
+    ];
+    const metrics = ["known", "new", "other"].map((campaign_id) => ({ campaign_id, date: "2026-10-25", spend: 1, impressions: 1, clicks: 0, spend_includes_vat: false }));
+    expect(uncoveredWeeklyCampaigns([{ ad_account_id: "vk", prefix: "Прин" }], campaigns, metrics, new Set(["known"]))).toEqual(["Прин_новая кампания"]);
+  });
+
+  it("uses a truthful spend label for a non-VAT channel", () => {
+    const report: WeeklyStatusReport = {
+      projectName: "Прин", reportUrl: null, period: { from: "2026-10-19", to: "2026-10-25" }, errors: [],
+      directions: [{ name: "VK — подписки", spend: 100, spendLabel: "Расход без НДС", impressions: 1000, clicks: 10, ctr: 1,
+        contactCpa: null, goals: [{ label: "Подписки", metricKind: "subscription", count: 2, cpa: 50, dates: [], value: null, valueLabel: null, includeInContactCpa: false }] }],
+    };
+    const text = formatWeeklyStatusMessage(report);
+    expect(text).toContain("Расход без НДС: 100 ₽");
+    expect(text).toContain("Подписки: 2 / CPA 50 ₽");
+    expect(text).not.toContain("Расход с НДС");
+  });
+
+  it("marks an incomplete owner draft without inventing zero conversions", () => {
+    const report: WeeklyStatusReport = {
+      projectName: "СОДА", reportUrl: null, period: { from: "2026-10-19", to: "2026-10-25" },
+      errors: ["Telegram Ads: нет нормализованных метрик за период."],
+      directions: [{ name: "Telegram Ads", spend: null, spendLabel: "Расход в ₽ (пересчёт TON)", impressions: null,
+        clicks: null, ctr: null, contactCpa: null, goals: [{ label: "Вступления", metricKind: "join", count: null,
+          cpa: null, dates: [], value: null, valueLabel: null, includeInContactCpa: false }] }],
+    };
+    const text = formatWeeklyOwnerPreview(report);
+    expect(text).toContain("Вступления: нет данных");
+    expect(text).toContain("Черновик: данные нужно проверить");
+    expect(text).not.toContain("Вступления: 0");
   });
 });
