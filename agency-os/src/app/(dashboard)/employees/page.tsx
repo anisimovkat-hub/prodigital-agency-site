@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { InviteForm } from "@/app/(dashboard)/employees/invite-form";
+import { EmployeeForm } from "@/app/(dashboard)/employees/employee-form";
 import { Avatar } from "@/components/avatar";
 import {
   Table,
@@ -88,12 +89,19 @@ export default async function EmployeesPage() {
       </div>
 
       {isAdmin && (
+        <details className="rounded-lg border border-neutral-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-900">+ Добавить сотрудника</summary>
+          <div className="mt-4"><EmployeeForm /></div>
+        </details>
+      )}
+
+      {isAdmin && (
         <details className="group rounded-lg border border-neutral-200 bg-white p-4">
           <summary className="cursor-pointer text-sm font-semibold text-neutral-900">
-            + Пригласить сотрудника
+            Пригласить в систему — по необходимости
           </summary>
           <div className="mt-4 flex flex-col gap-4">
-            <InviteForm signupUrl="agency-os-lilac-eight.vercel.app/signup" />
+            <InviteForm signupUrl="prodigital-os.vercel.app/signup" />
             {(invites ?? []).length > 0 && (
               <div className="text-sm">
                 <p className="mb-1 font-medium text-neutral-700">
@@ -142,6 +150,7 @@ export default async function EmployeesPage() {
                     >
                       {profile.full_name}
                     </Link>
+                    {profile.is_manual && <span className="rounded bg-neutral-100 px-2 py-0.5 text-xs font-normal text-neutral-500">Только учёт</span>}
                   </div>
                 </TableCell>
                 <TableCell>{USER_ROLE_LABEL[profile.role]}</TableCell>

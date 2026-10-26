@@ -17,6 +17,8 @@ export type Database = {
       profiles: {
         Row: {
           id: string;
+          auth_user_id: string | null;
+          is_manual: boolean;
           full_name: string;
           role: Database["public"]["Enums"]["user_role"];
           position_title: string | null;
@@ -27,7 +29,9 @@ export type Database = {
           created_at: string | null;
         };
         Insert: {
-          id: string;
+          id?: string;
+          auth_user_id?: string | null;
+          is_manual?: boolean;
           full_name: string;
           role?: Database["public"]["Enums"]["user_role"];
           position_title?: string | null;
@@ -39,6 +43,8 @@ export type Database = {
         };
         Update: {
           id?: string;
+          auth_user_id?: string | null;
+          is_manual?: boolean;
           full_name?: string;
           role?: Database["public"]["Enums"]["user_role"];
           position_title?: string | null;
@@ -50,8 +56,8 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "profiles_id_fkey";
-            columns: ["id"];
+            foreignKeyName: "profiles_auth_user_id_fkey";
+            columns: ["auth_user_id"];
             isOneToOne: true;
             referencedRelation: "users";
             referencedColumns: ["id"];

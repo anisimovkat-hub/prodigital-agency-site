@@ -66,6 +66,7 @@ export default async function EmployeeDetailPage({
           {USER_ROLE_LABEL[profile.role]}
           {profile.position_title ? ` · ${profile.position_title}` : ""}
         </p>
+        {profile.is_manual && <p className="mt-2 text-sm text-neutral-500">Только учёт задач. Доступ в систему не подключён.</p>}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
