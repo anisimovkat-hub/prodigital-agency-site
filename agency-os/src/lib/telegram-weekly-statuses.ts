@@ -368,6 +368,29 @@ export async function sendOwnerWeeklyStatusPreview(chatId: string, query: string
   return report.errors.length ? "Черновик отправлен с замечаниями к данным." : "Черновик отправлен за предыдущую полную неделю.";
 }
 
+/** Owner-only CRM preview for a project, using the same source refresh as the cron. */
+export async function sendOwnerWeeklyStatusPreviewForProject(projectId: string, now = new Date()): Promise<string> {
+  const service = createServiceClient();
+  const [{ data: setting, error: settingError }, { data: scenarios, error: scenarioError }] = await Promise.all([
+    service.from("telegram_bot_settings").select("setting_value").eq("setting_key", "owner_chat_id").single(),
+    service.from("telegram_weekly_status_scenarios")
+      .select("id,project_id,name,channel,recipient_chat_id,recipient_profile_id,report_url,template_key,fallback_source,coverage_rules,display_title,show_direction_heading,spend_label,schedule,delivery_mode,is_active")
+      .eq("project_id", projectId).eq("template_key", "project_weekly_ad_status").eq("delivery_mode", "owner_review"),
+  ]);
+  if (settingError || !setting?.setting_value) return "Личный чат с ботом не привязан.";
+  if (scenarioError) throw scenarioError;
+  if (scenarios?.length !== 1) return "Для проекта нет одного однозначного сценария статуса.";
+  const scenario = scenarios[0] as Scenario;
+  const period = previousFullMoscowWeek(now);
+  const source = await refreshWeeklySources(scenario, period);
+  const report = await buildReport(scenario, period, source.fresh);
+  report.errors.push(...source.errors);
+  await sendTelegramMessage(setting.setting_value, formatWeeklyOwnerPreview(report));
+  return report.errors.length
+    ? "Черновик отправлен в личный чат с замечаниями к данным."
+    : "Черновик за предыдущую неделю отправлен в личный чат.";
+}
+
 /** Sends each active project scenario once per completed Moscow week. */
 export async function sendDueWeeklyAdStatuses(now = new Date()) {
   const period = previousFullMoscowWeek(now);

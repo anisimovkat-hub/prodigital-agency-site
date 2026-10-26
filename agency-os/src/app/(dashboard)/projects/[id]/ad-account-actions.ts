@@ -17,6 +17,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { fetchTelegramAds } from "@/lib/telegram-ads";
 import { ensureVkToken, fetchVkAccountName } from "@/lib/vk-ads";
 import { fetchYandexClient } from "@/lib/yandex-direct";
+import { sendOwnerWeeklyStatusPreviewForProject } from "@/lib/telegram-weekly-statuses";
 
 export type AdAccountState = { ok: boolean; message: string } | undefined;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -123,6 +124,17 @@ export async function syncProjectAdAccounts(_state: AdAccountState, formData: Fo
     return { ok: result.ok, message: result.message };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Не удалось обновить кабинеты." };
+  }
+}
+
+export async function sendProjectAdStatusPreview(_state: AdAccountState, formData: FormData): Promise<AdAccountState> {
+  const projectId = text(formData, "project_id");
+  const access = await projectAccess(projectId);
+  if (!access?.isOwner) return { ok: false, message: "Черновик может запросить только владелец." };
+  try {
+    return { ok: true, message: await sendOwnerWeeklyStatusPreviewForProject(projectId) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Не удалось отправить черновик." };
   }
 }
 

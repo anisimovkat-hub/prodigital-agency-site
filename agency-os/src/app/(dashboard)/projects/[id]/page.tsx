@@ -123,6 +123,9 @@ export default async function ProjectDetailPage({
   const monthlyFee = isOwner ? (projectFinance?.monthly_fee ?? null) : null;
   // Ad accounts are owner-only under RLS; the project row above already proved access.
   const adAccountsData = await loadProjectAdAccounts(id, isOwner);
+  const { data: weeklyStatus } = isOwner
+    ? await createServiceClient().from("telegram_weekly_status_scenarios").select("id").eq("project_id", id).eq("template_key", "project_weekly_ad_status").eq("delivery_mode", "owner_review").eq("is_active", true).limit(1)
+    : { data: [] };
 
   const monthAllocation = allocateTaskTime(
     (timeRows ?? []) as TaskTimeEntry[],
@@ -279,7 +282,7 @@ export default async function ProjectDetailPage({
         </Card>
       </div>
 
-      <AdAccountsSection projectId={id} isOwner={isOwner} accounts={adAccountsData.accounts} unlinkedMeta={adAccountsData.unlinkedMeta} initialPlatform={initialAdPlatform} />
+      <AdAccountsSection projectId={id} isOwner={isOwner} hasWeeklyStatus={!!weeklyStatus?.length} accounts={adAccountsData.accounts} unlinkedMeta={adAccountsData.unlinkedMeta} initialPlatform={initialAdPlatform} />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-neutral-900">KPI</h2>

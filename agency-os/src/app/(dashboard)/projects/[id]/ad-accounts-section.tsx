@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { CircleAlert, CircleCheck, Plus, RefreshCw } from "lucide-react";
+import { CircleAlert, CircleCheck, Plus, RefreshCw, Send } from "lucide-react";
 
 import {
   connectAdAccount,
   disconnectAdAccount,
   replaceAdAccountKey,
+  sendProjectAdStatusPreview,
   syncProjectAdAccounts,
   type AdAccountState,
 } from "@/app/(dashboard)/projects/[id]/ad-account-actions";
@@ -72,9 +73,10 @@ function ReplaceKey({ projectId, account }: { projectId: string; account: Projec
   </form>;
 }
 
-export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta, initialPlatform }: {
+export function AdAccountsSection({ projectId, isOwner, hasWeeklyStatus, accounts, unlinkedMeta, initialPlatform }: {
   projectId: string;
   isOwner: boolean;
+  hasWeeklyStatus: boolean;
   accounts: ProjectAdAccount[];
   unlinkedMeta: { id: string; name: string }[];
   initialPlatform?: string;
@@ -86,6 +88,7 @@ export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta, 
   const [platform, setPlatform] = useState(initial);
   const [connectState, connect, connecting] = useActionState<AdAccountState, FormData>(connectAdAccount, undefined);
   const [syncState, sync, syncing] = useActionState<AdAccountState, FormData>(syncProjectAdAccounts, undefined);
+  const [previewState, preview, previewing] = useActionState<AdAccountState, FormData>(sendProjectAdStatusPreview, undefined);
   const config = AD_PLATFORMS.find((item) => item.value === platform);
   const choices = AD_PLATFORMS.filter((item) => item.value !== "meta" || isOwner);
 
@@ -93,6 +96,10 @@ export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta, 
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h2 className="text-lg font-semibold text-neutral-900">Рекламные кабинеты</h2>
       <div className="flex gap-2">
+        {isOwner && hasWeeklyStatus && <form action={preview}>
+          <input type="hidden" name="project_id" value={projectId} />
+          <Button type="submit" variant="outline" size="sm" disabled={previewing}><Send className="size-3.5" />{previewing ? "Готовлю черновик…" : "Черновик в Telegram"}</Button>
+        </form>}
         {accounts.some((account) => account.usesKey) && <form action={sync}>
           <input type="hidden" name="project_id" value={projectId} />
           <Button type="submit" variant="outline" size="sm" disabled={syncing}><RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />{syncing ? "Обновляю…" : "Обновить статистику"}</Button>
@@ -101,6 +108,7 @@ export function AdAccountsSection({ projectId, isOwner, accounts, unlinkedMeta, 
       </div>
     </div>
     <Status state={syncState} />
+    <Status state={previewState} />
 
     {accounts.length > 0 && <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
       {accounts.map((account) => <li key={account.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
