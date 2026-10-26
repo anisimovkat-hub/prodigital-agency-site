@@ -92,6 +92,11 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
     if (!Number.isFinite(result) || result < 0) throw new Error("Яндекс вернул некорректное число в отчёте.");
     return result;
   };
+  const requiredNumber = (value: string | undefined, field: string) => {
+    if (value === undefined || value === "--" || value === "")
+      throw new Error(`Яндекс не вернул показатель ${field}. Данные не заменены нулём.`);
+    return number(value);
+  };
   const goalColumns = goalIds.map((id) => {
     const index = header.indexOf(`Conversions_${id}_LC`);
     if (index < 0) throw new Error(`Яндекс не вернул запрошенную цель ${id}. Данные не заменены нулями.`);
@@ -110,9 +115,9 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
       date: cells[columns.Date],
       campaignId: cells[columns.CampaignId],
       campaignName: cells[columns.CampaignName],
-      impressions: number(cells[columns.Impressions]),
-      clicks: number(cells[columns.Clicks]),
-      cost: number(cells[columns.Cost]),
+      impressions: requiredNumber(cells[columns.Impressions], "показы"),
+      clicks: requiredNumber(cells[columns.Clicks], "клики"),
+      cost: requiredNumber(cells[columns.Cost], "расход"),
       conversions: conversions === undefined || conversions === "--" || conversions === "" ? null : number(conversions),
       // A successful explicit Conversions_<goal>_LC column uses "--" for no
       // conversions. Missing columns/cells and failed imports remain unknown.

@@ -82,6 +82,13 @@ describe("parseYandexCampaignReport", () => {
     expect(parseYandexCampaignReport(tsv)[0]).toMatchObject({ cost: 20, conversions: null });
   });
 
+  it("does not turn missing spend with clicks into a measured zero", () => {
+    const header = "Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost";
+    for (const cost of ["", "--"])
+      expect(() => parseYandexCampaignReport(`${header}\n2026-10-19\t5\tРСЯ\t100\t4\t${cost}`))
+        .toThrow("Яндекс не вернул показатель расход");
+  });
+
   it("returns no rows for an empty report", () => {
     expect(parseYandexCampaignReport("")).toEqual([]);
   });
