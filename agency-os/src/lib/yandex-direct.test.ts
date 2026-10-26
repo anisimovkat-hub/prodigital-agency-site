@@ -69,6 +69,17 @@ describe("parseYandexCampaignReport", () => {
     expect(() => parseYandexCampaignReport(tsv, ['42'])).toThrow('не вернул запрошенную цель');
     expect(() => parseYandexCampaignReport(tsv.replace('200', 'NaN'))).toThrow('некорректное число');
   });
+  it('preserves signed goal revenue without relaxing counts or missing-value checks', () => {
+    const header = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_LC\tRevenue_42_LC';
+    const row = '2026-10-01\t101\tПоиск\t100\t4\t200\t2\t-1500.25';
+    expect(parseYandexCampaignReport(`${header}\n${row}`, ['42'])[0])
+      .toMatchObject({ goals: { '42': 2 }, goalValues: { '42': -1500.25 }, cost: 200 });
+    expect(() => parseYandexCampaignReport(`${header}\n${row.replace('\t2\t-1500.25', '\t-2\t0')}`, ['42']))
+      .toThrow('Conversions_42_LC');
+    for (const invalid of ['NaN', 'Infinity', 'not-a-number'])
+      expect(() => parseYandexCampaignReport(`${header}\n${row.replace('-1500.25', invalid)}`, ['42']))
+        .toThrow('Revenue_42_LC');
+  });
   it("reads daily rows and keeps unmeasured conversions as null", () => {
     const tsv = "Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\n2026-10-01\t101\tПоиск\t1200\t40\t1530.5\t3\n2026-10-02\t101\tПоиск\t900\t31\t1201\t--\n";
     expect(parseYandexCampaignReport(tsv)).toEqual([

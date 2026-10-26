@@ -86,16 +86,17 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
   };
   // Accounts without key goals may come back without a Conversions column: spend still counts.
   const columns = Object.fromEntries(REPORT_FIELDS.map((name) => [name, name === "Conversions" ? header.indexOf(name) : at(name)])) as Record<(typeof REPORT_FIELDS)[number], number>;
-  const number = (value: string | undefined) => {
+  const number = (value: string | undefined, field = "значение", allowNegative = false) => {
     if (value === undefined || value === "--" || value === "") return 0;
     const result = Number(value);
-    if (!Number.isFinite(result) || result < 0) throw new Error("Яндекс вернул некорректное число в отчёте.");
+    if (!Number.isFinite(result) || (!allowNegative && result < 0))
+      throw new Error(`Яндекс вернул некорректное число в отчёте (${field}).`);
     return result;
   };
   const requiredNumber = (value: string | undefined, field: string) => {
     if (value === undefined || value === "--" || value === "")
       throw new Error(`Яндекс не вернул показатель ${field}. Данные не заменены нулём.`);
-    return number(value);
+    return number(value, field);
   };
   const goalColumns = goalIds.map((id) => {
     const index = header.indexOf(`Conversions_${id}_LC`);
@@ -110,7 +111,7 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
   return lines.slice(1).map((line) => {
     const cells = line.split("\t");
     const conversions = columns.Conversions < 0 ? undefined : cells[columns.Conversions];
-    const goalCounts = Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])) as Record<string, number | null>;
+    const goalCounts = Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index], `Conversions_${id}_LC`)])) as Record<string, number | null>;
     return {
       date: cells[columns.Date],
       campaignId: cells[columns.CampaignId],
@@ -118,14 +119,16 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
       impressions: requiredNumber(cells[columns.Impressions], "показы"),
       clicks: requiredNumber(cells[columns.Clicks], "клики"),
       cost: requiredNumber(cells[columns.Cost], "расход"),
-      conversions: conversions === undefined || conversions === "--" || conversions === "" ? null : number(conversions),
+      conversions: conversions === undefined || conversions === "--" || conversions === "" ? null : number(conversions, "Conversions"),
       // A successful explicit Conversions_<goal>_LC column uses "--" for no
       // conversions. Missing columns/cells and failed imports remain unknown.
       ...(goalIds.length ? {
         goals: goalCounts,
         goalValues: Object.fromEntries(goalValueColumns.map(({ id, index }) => [id,
           cells[index] === "--" && goalCounts[id] === 0 ? 0
-            : cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index])])),
+            // Revenue is supplied by Metrika and may contain signed adjustments.
+            // Counts and traffic still require finite, nonnegative numbers.
+            : cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index], `Revenue_${id}_LC`, true)])),
       } : {}),
     };
   });
