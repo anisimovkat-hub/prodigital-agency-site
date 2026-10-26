@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { directionCampaigns, directionHasGoal, directionReportHref, parseYandexGoals, yandexGoalLabel, type AdDirection } from './yandex-goals';
+import { chooseYandexSyncGoals, directionCampaigns, directionHasGoal, directionReportHref, parseYandexGoals, yandexGoalLabel, type AdDirection } from './yandex-goals';
 import { buildGoalCards } from './project-ad-goals';
 
 describe('Yandex direction configuration', () => {
@@ -36,5 +36,28 @@ describe('Yandex direction configuration', () => {
     expect(cards[0].current).toEqual({ results: 2, spend: 100, cpa: 50, complete: true });
     const url = new URL(directionReportHref(direction), 'https://example.com');
     expect(Object.fromEntries(url.searchParams)).toEqual({ project: 'p', direction: 'd', section: 'ads' });
+  });
+});
+
+describe('chooseYandexSyncGoals', () => {
+  const goal = (id: string) => ({ id, name: `Цель ${id}`, domain: 'site.ru', counterId: null });
+  it('loads the whole small catalog except goals the owner hid', () => {
+    const chosen = chooseYandexSyncGoals({ catalog: ['1', '2', '3'].map(goal), settings: [{ goal_key: 'yandex:2', hidden: true }], recentGoalIds: new Set() });
+    expect(chosen.map((g) => g.id)).toEqual(['1', '3']);
+  });
+  it('limits a huge catalog to configured, direction and recently converting goals', () => {
+    const catalog = Array.from({ length: 800 }, (_, index) => goal(String(index + 1)));
+    const chosen = chooseYandexSyncGoals({
+      catalog,
+      settings: [{ goal_key: 'yandex:5', hidden: false }, { goal_key: 'yandex:6', hidden: true, is_primary: true }, { goal_key: 'yandex:7', hidden: true }],
+      requiredKeys: ['yandex:700', null],
+      recentGoalIds: new Set(['7', '100', '200']),
+    });
+    expect(chosen.map((g) => g.id).sort()).toEqual(['100', '200', '5', '6', '700']);
+  });
+  it('never exceeds the limit with recent goals', () => {
+    const catalog = Array.from({ length: 200 }, (_, index) => goal(String(index + 1)));
+    const chosen = chooseYandexSyncGoals({ catalog, settings: [], recentGoalIds: new Set(catalog.map((g) => g.id)), limit: 20 });
+    expect(chosen).toHaveLength(20);
   });
 });

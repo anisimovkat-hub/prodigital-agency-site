@@ -2,7 +2,7 @@ import { Sunrise } from "lucide-react";
 import Link from "next/link";
 
 import { FilterSelect } from "@/components/filter-select";
-import { HealthBadge } from "@/components/badges";
+import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
 import { PersonalCalendarSchedule } from "@/components/personal-calendar";
 import { TaskDoneCheckbox } from "@/components/task-done-checkbox";
 import { Card, CardContent } from "@/components/ui/card";
@@ -700,7 +700,7 @@ export default async function DashboardPage({
                 </TableCell>
                 <TableCell>{project.client?.name ?? "—"}</TableCell>
                 <TableCell>
-                  <HealthBadge health={project.health ?? "green"} />
+                  <ProjectQuickSelect projectId={project.id} projectName={project.name} field="health" value={project.health ?? "green"} />
                 </TableCell>
                 <TableCell>{project.responsible?.full_name ?? "—"}</TableCell>
                 <TableCell>{formatCurrency(project.budget)}</TableCell>

@@ -65,7 +65,9 @@ export function AnalyticsShell({
         <header><p className="text-xs text-neutral-500">Отдельный отчёт направления</p><h1 className="mt-1 text-xl font-semibold text-neutral-950 sm:text-2xl">{directionReport.name}</h1><p className="mt-1 break-words text-sm text-neutral-500">{directionReport.websites[0]}</p><p className="mt-2 text-xs text-neutral-500">Показатели рассчитаны только по кампаниям и целям этого направления.</p></header>
         {adsFilters}
         {adsPanel}
-      </div> : portfolioOverview ?? <MarketingDashboard
+      </div> : portfolioOverview ?? <>
+      {params.project && <Link href={`/analytics?${new URLSearchParams({ from: params.from, to: params.to })}`} className="mb-3 inline-flex w-fit items-center gap-2 rounded-md py-1 text-sm text-neutral-600 hover:text-neutral-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400"><ArrowLeft className="size-4" aria-hidden="true" />Все проекты</Link>}
+      <MarketingDashboard
         payload={payload}
         section={section}
         controls={<ClientReportAction projectId={params.project} />}
@@ -80,7 +82,7 @@ export function AnalyticsShell({
             section={section}
           />}</div>
         }
-      />}
+      /></>}
     </>
   );
 }

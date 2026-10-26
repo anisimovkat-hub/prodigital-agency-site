@@ -349,6 +349,8 @@ export async function updateProjectQuickField(
   revalidatePath("/projects");
   revalidatePath(`/projects/${parsed.data.id}`);
   revalidatePath("/clients");
+  if (updateResult.data.client_id) revalidatePath(`/clients/${updateResult.data.client_id}`);
+  revalidatePath("/employees/[id]", "page");
   revalidatePath("/analytics");
   revalidatePath("/board");
   revalidatePath("/tasks");

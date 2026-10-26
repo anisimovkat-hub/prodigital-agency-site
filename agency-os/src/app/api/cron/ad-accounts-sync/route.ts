@@ -27,7 +27,9 @@ export async function GET(request: Request) {
     // A rates failure must not stop the ad import; the summary falls back to the last known rate.
     const fxRows = await refreshFxRates(service).catch((error) => { console.error("FX rates refresh failed", error instanceof Error ? error.message : error); return 0; });
     // Семь дней повторно: площадки уточняют конверсии задним числом.
-    const result = { ...(await syncConnectedAccounts(service, lastDaysPeriod(new Date(), 7))), fxRows };
+    // Catch-up run: only accounts the main run did not refresh (timeout, temporary API limit).
+    const catchUp = new URL(request.url).searchParams.get("catchup") === "1";
+    const result = { ...(await syncConnectedAccounts(service, lastDaysPeriod(new Date(), 7), undefined, catchUp ? { staleAfterHours: 12 } : {})), fxRows };
     if (result.accounts.some((account) => account.error)) console.error(result.message);
     return Response.json(result, { status: result.ok || result.accounts.length === 0 ? 200 : 502 });
   } catch (error) {

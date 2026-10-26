@@ -208,8 +208,9 @@ export default async function AnalyticsPage({
       .order("name"),
     supabase.from("ad_campaigns").select("id,name,objective,optimization_goal,status,project_id,ad_account_id,metrika_counter_ids"),
     supabase.from("ad_accounts").select("id,name,external_id,project_id,currency,platform,last_sync_at,last_sync_error,yandex_goals"),
-    supabase.from("ad_sets").select("id,name,status,campaign_id"),
-    supabase.from("ads").select("id,name,status,adset_id"),
+    // The portfolio shows project cards only; ad sets and ads are needed inside a project.
+    projectId ? supabase.from("ad_sets").select("id,name,status,campaign_id") : Promise.resolve({ data: [] as { id: string; name: string | null; status: string | null; campaign_id: string }[], error: null }),
+    projectId ? supabase.from("ads").select("id,name,status,adset_id") : Promise.resolve({ data: [] as { id: string; name: string | null; status: string | null; adset_id: string }[], error: null }),
     supabase.from("ad_custom_conversions").select("conversion_id,name"),
     projectId
       ? supabase
@@ -354,12 +355,17 @@ export default async function AnalyticsPage({
       return (projectId ? query.in("campaign_id", campaignIdList) : query).range(offset, last);
     }, "Метрики рекламы");
   }
+  // Portfolio cards count only actions with results, plus each project's default Yandex goal
+  // (its zero days prove the goal was measured). Zero rows of hundreds of other Yandex goals
+  // are tens of thousands of rows and made the all-projects view load for a long time.
+  const portfolioGoalActions = [...new Set((goalSettingsResult.data ?? []).filter((s) => s.is_primary && !s.hidden && s.goal_key.startsWith("yandex:")).map((s) => yandexGoalAction(s.goal_key.slice(7))))];
   function completeConversions(start: string, end: string) {
     if (projectId && !campaignIdList.length) return Promise.resolve({ data: [] as ConversionRow[], error: null });
     return fetchCompleteQuery<ConversionRow>((offset, last) => {
       const query = supabase.from("ad_conversions").select("campaign_id,date,action_type,count,value,is_measured")
         .gte("date", start).lte("date", end).order("date").order("campaign_id").order("action_type");
-      return (projectId ? query.in("campaign_id", campaignIdList) : query).range(offset, last);
+      return (projectId ? query.in("campaign_id", campaignIdList)
+        : query.or(portfolioGoalActions.length ? `count.gt.0,action_type.in.(${portfolioGoalActions.map((action) => `"${action}"`).join(",")})` : "count.gt.0")).range(offset, last);
     }, "Конверсии рекламы");
   }
   const paidMetricsPromise = completeMetrics(from, to);
@@ -397,7 +403,7 @@ export default async function AnalyticsPage({
     ? supabase
         .from("ad_campaign_metrics")
         .select("campaign_id,date")
-        .in("campaign_id", campaignIdList)
+        // All current campaigns are in scope here: hundreds of IDs in the URL only slowed the request.
         .order("date", { ascending: false })
         .range(0, 19999)
     : Promise.resolve({ data: [] as { campaign_id: string; date: string }[], error: null });
@@ -423,9 +429,9 @@ export default async function AnalyticsPage({
     socialPostsPromise,
     paidMetricsPromise,
     conversionsPromise,
-    supabase.rpc("ad_campaign_period_summary", { p_since: from, p_until: to }),
-    supabase.rpc("ad_set_period_summary", { p_since: from, p_until: to }),
-    supabase.rpc("ad_ad_period_summary", { p_since: from, p_until: to }),
+    projectId ? supabase.rpc("ad_campaign_period_summary", { p_since: from, p_until: to }) : Promise.resolve({ data: [], error: null }),
+    projectId ? supabase.rpc("ad_set_period_summary", { p_since: from, p_until: to }) : Promise.resolve({ data: [], error: null }),
+    projectId ? supabase.rpc("ad_ad_period_summary", { p_since: from, p_until: to }) : Promise.resolve({ data: [], error: null }),
     audiencePromise,
     latestPaidMetricPromise,
     activePlanMetricsPromise,

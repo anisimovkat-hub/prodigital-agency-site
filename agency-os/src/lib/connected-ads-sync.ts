@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase/types";
 import { fetchTelegramAdDays, fetchTonRubRates } from "@/lib/telegram-ads";
 import { ensureVkToken, fetchVkCampaignDays, type VkCredential } from "@/lib/vk-ads";
 import { fetchYandexCampaignInfo, fetchYandexGoalReport, fetchYandexGoals, readYandexGoalCounters } from "@/lib/yandex-direct";
-import { parseYandexGoals, yandexGoalAction } from "@/lib/yandex-goals";
+import { chooseYandexSyncGoals, parseYandexGoals, yandexGoalAction } from "@/lib/yandex-goals";
 
 /** Service-role client: credentials are readable only by the server. */
 type Service = SupabaseClient<Database>;
@@ -32,6 +32,27 @@ async function readSecret<T extends ConnectedSecret>(client: Service, accountId:
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Ключ кабинета не найден — подключите кабинет заново.");
   return JSON.parse(data) as T;
+}
+
+/** Owner goal settings, direction goals and goals with results in the last 60 days. */
+async function readGoalPreferences(client: Service, accountId: string, projectId: string) {
+  const since = new Date(Date.now() - 60 * 86_400_000).toISOString().slice(0, 10);
+  const [settings, directions] = await Promise.all([
+    client.from("project_ad_goal_settings").select("goal_key,hidden,is_primary").eq("project_id", projectId).like("goal_key", "yandex:%"),
+    client.from("project_ad_directions").select("primary_goal").eq("project_id", projectId).eq("is_active", true),
+  ]);
+  if (settings.error) throw new Error(settings.error.message);
+  if (directions.error) throw new Error(directions.error.message);
+  const recentGoalIds = new Set<string>();
+  for (let from = 0; from < 20_000; from += 1000) {
+    const { data, error } = await client.from("ad_conversions").select("action_type, ad_campaigns!inner(ad_account_id)")
+      .eq("ad_campaigns.ad_account_id", accountId).like("action_type", "yandex_goal:%").gt("count", 0).gte("date", since)
+      .order("date", { ascending: false }).range(from, from + 999);
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) { const id = row.action_type.split(":")[1]; if (id) recentGoalIds.add(id); }
+    if ((data?.length ?? 0) < 1000) break;
+  }
+  return { settings: settings.data ?? [], requiredKeys: (directions.data ?? []).map((row) => row.primary_goal), recentGoalIds };
 }
 
 /** Fetches daily campaign statistics with the stored key; may refresh the stored VK token. */
@@ -79,7 +100,9 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     const { error: campaignError } = await client.from('ad_campaigns').upsert(info.map((c) => ({ ad_account_id: account.id, external_id: c.id, project_id: stored.data.project_id, name: c.name, status: c.status, metrika_counter_ids: c.counterIds })), { onConflict: 'ad_account_id,external_id' });
     if (campaignError) throw new Error(campaignError.message);
   }
-  const reportGoals = selectedYandexGoalIds === undefined ? goals : goals.filter((goal) => selectedYandexGoalIds.includes(goal.id));
+  const reportGoals = selectedYandexGoalIds === undefined
+    ? chooseYandexSyncGoals({ catalog: goals, ...(await readGoalPreferences(client, account.id, stored.data.project_id)) })
+    : goals.filter((goal) => selectedYandexGoalIds.includes(goal.id));
   if (selectedYandexGoalIds?.some((id) => !reportGoals.some((goal) => goal.id === id)))
     throw new Error('Настроенная цель статуса отсутствует в каталоге целей кабинета.');
   const rows = await fetchYandexGoalReport(secret, period.from, period.to, reportGoals);
@@ -117,20 +140,35 @@ export async function storeCampaignDays(client: Service, account: { id: string; 
 
 export type ConnectedSyncResult = { ok: boolean; message: string; accounts: { name: string; days: number; error?: string }[] };
 
-/** Imports every connected account of active projects (or of one project); one failure never blocks the rest. */
-export async function syncConnectedAccounts(client: Service, period: AnalyticsPeriod, projectId?: string): Promise<ConnectedSyncResult> {
+/** Accounts imported at the same time; Yandex limits report queues per advertiser, not across them. */
+const SYNC_CONCURRENCY = 3;
+/** Leave headroom under the 300 s function limit so finished accounts are always recorded. */
+const SYNC_BUDGET_MS = 240_000;
+
+/**
+ * Imports every connected account of active projects (or of one project); one failure never blocks the rest.
+ * Least recently updated accounts go first, a few at a time, so one slow account cannot starve the others.
+ * With `staleAfterHours` only accounts not updated within that window are imported (catch-up run).
+ */
+export async function syncConnectedAccounts(client: Service, period: AnalyticsPeriod, projectId?: string, { staleAfterHours }: { staleAfterHours?: number } = {}): Promise<ConnectedSyncResult> {
   let query = client.from("ad_account_credentials")
-    .select("ad_account_id, ad_accounts!inner(id,name,platform,project_id,is_active,projects!inner(stage))")
+    .select("ad_account_id, ad_accounts!inner(id,name,platform,project_id,is_active,last_sync_at,projects!inner(stage))")
     .eq("ad_accounts.is_active", true)
     .in("ad_accounts.projects.stage", ["launching", "active"]);
   if (projectId) query = query.eq("ad_accounts.project_id", projectId);
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  const accounts = (data ?? []).map((row) => row.ad_accounts as unknown as { id: string; name: string | null; platform: ConnectedPlatform; project_id: string });
-  if (!accounts.length) return { ok: false, message: "Нет подключённых кабинетов в активных проектах.", accounts: [] };
+  const staleBefore = staleAfterHours === undefined ? null : Date.now() - staleAfterHours * 3_600_000;
+  const accounts = (data ?? []).map((row) => row.ad_accounts as unknown as { id: string; name: string | null; platform: ConnectedPlatform; project_id: string; last_sync_at: string | null })
+    .filter((account) => staleBefore === null || !account.last_sync_at || Date.parse(account.last_sync_at) < staleBefore)
+    .sort((left, right) => (left.last_sync_at ? Date.parse(left.last_sync_at) : 0) - (right.last_sync_at ? Date.parse(right.last_sync_at) : 0));
+  if (!accounts.length) return { ok: staleBefore !== null, message: staleBefore !== null ? "Все кабинеты уже обновлены." : "Нет подключённых кабинетов в активных проектах.", accounts: [] };
 
+  const startedAt = Date.now();
   const results: ConnectedSyncResult["accounts"] = [];
-  for (const account of accounts) {
+  const skipped: string[] = [];
+  const queue = [...accounts];
+  const syncOne = async (account: (typeof accounts)[number]) => {
     const name = account.name ?? account.platform;
     try {
       const days = await fetchConnectedDays(client, account, period);
@@ -144,11 +182,17 @@ export async function syncConnectedAccounts(client: Service, period: AnalyticsPe
       await client.from("ad_accounts").update({ last_sync_error: message }).eq("id", account.id);
       results.push({ name, days: 0, error: message });
     }
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(SYNC_CONCURRENCY, queue.length) }, async () => {
+    for (let account = queue.shift(); account; account = queue.shift()) {
+      if (Date.now() - startedAt > SYNC_BUDGET_MS) { skipped.push(account.name ?? account.platform); continue; }
+      await syncOne(account);
+    }
+  }));
   const failed = results.filter((result) => result.error);
   return {
-    ok: failed.length < results.length,
-    message: `Загружено кабинетов: ${results.length - failed.length} из ${results.length}.${failed.length ? ` Ошибки: ${failed.map((item) => `${item.name} — ${item.error}`).join("; ")}` : ""}`,
+    ok: results.length > 0 && failed.length < results.length,
+    message: `Загружено кабинетов: ${results.length - failed.length} из ${accounts.length}.${failed.length ? ` Ошибки: ${failed.map((item) => `${item.name} — ${item.error}`).join("; ")}` : ""}${skipped.length ? ` Не успели, обновятся следующим запуском: ${skipped.join(", ")}.` : ""}`,
     accounts: results,
   };
 }

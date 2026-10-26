@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { PriorityBadge, ProjectStageBadge, TaskStatusBadge } from "@/components/badges";
+import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
+import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -194,7 +195,7 @@ export default async function EmployeeDetailPage({
                   </TableCell>
                   <TableCell>{member.project?.client?.name ?? "—"}</TableCell>
                   <TableCell>
-                    <ProjectStageBadge stage={member.project?.stage ?? "active"} />
+                    {member.project ? <ProjectQuickSelect projectId={member.project_id} projectName={member.project.name} field="stage" value={member.project.stage ?? "active"} /> : "—"}
                   </TableCell>
                   <TableCell>{member.role_on_project ?? "—"}</TableCell>
                 </TableRow>

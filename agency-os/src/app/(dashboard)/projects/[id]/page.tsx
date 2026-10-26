@@ -6,12 +6,11 @@ import { KpiForm } from "@/app/(dashboard)/projects/kpi-form";
 import { NotesTabs } from "@/app/(dashboard)/projects/notes-tabs";
 import { ProjectEditDisclosure } from "@/app/(dashboard)/projects/project-edit-disclosure";
 import { ProjectEditForm } from "@/app/(dashboard)/projects/project-edit-form";
+import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
 import { TaskForm } from "@/app/(dashboard)/tasks/task-form";
 import { Avatar } from "@/components/avatar";
 import {
-  HealthBadge,
   PriorityBadge,
-  ProjectStageBadge,
   TaskStatusBadge,
 } from "@/components/badges";
 import { ProjectLogo } from "@/components/project-logo";
@@ -174,8 +173,8 @@ export default async function ProjectDetailPage({
             <h1 className="text-2xl font-semibold text-neutral-900">
               {project.name}
             </h1>
-            <HealthBadge health={project.health ?? "green"} />
-            <ProjectStageBadge stage={project.stage ?? "active"} />
+            <ProjectQuickSelect projectId={project.id} projectName={project.name} field="health" value={project.health ?? "green"} />
+            <ProjectQuickSelect projectId={project.id} projectName={project.name} field="stage" value={project.stage ?? "active"} />
           </div>
         </div>
       </ProjectEditDisclosure>
