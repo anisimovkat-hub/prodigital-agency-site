@@ -353,7 +353,7 @@
  },
  {
   "id": "tgt-10",
-  "slug": "polaris-bytovaya-tehnika-vk-ads",
+  "slug": "bytovaya-tehnika-e-commerce-vk-ads",
   "service": "targetirovannaya-reklama",
   "niches": [
    "e-commerce"
@@ -361,7 +361,7 @@
   "countries": [
    "rossiya"
   ],
-  "title": "Бытовая техника Polaris",
+  "title": "Бытовая техника: продажи в VK Ads",
   "year": "Таргет · 2024",
   "img": "assets/tgt-appliances.png",
   "summary": "Таргет для e-commerce проекта с широким ассортиментом. Продажи через социальные сети и ретаргетинг на тёплую аудиторию.",
@@ -384,7 +384,7 @@
   ],
   "result": "Рост продаж и снижение стоимости покупки через оптимизированные рекламные связки.",
   "insights": [],
-  "client_name_public": null
+  "client_name_public": false
  },
  {
   "id": "tgt-12",
@@ -428,7 +428,7 @@
   ],
   "result": "За последние 30 дней в 2026 году кампания на сайт принесла 35 лидов при расходе 321,94 € и CPL 9,20 €. Отдельная трафиковая связка дала 2 410 просмотров посадочной страницы при расходе 138,40 € и цене просмотра 0,06 € — это питает следующую волну заявок на обучение.",
   "insights": [],
-  "client_name_public": null
+  "client_name_public": true
  },
  {
   "id": "ctx-1",
@@ -629,7 +629,7 @@
   ],
   "result": "825 лидов по 857 ₽ — стабильный поток обращений в туристическую нишу с хорошей экономикой.",
   "insights": [],
-  "client_name_public": null
+  "client_name_public": true
  },
  {
   "id": "ctx-6",
@@ -668,7 +668,7 @@
   ],
   "result": "Минимальная стоимость заказа — 55,26 ₽ при стоимости среднего заказа от 900 ₽. Для e-commerce сегмента это сильная экономика.",
   "insights": [],
-  "client_name_public": null
+  "client_name_public": true
  },
  {
   "id": "ctx-7",
@@ -863,6 +863,6 @@
   ],
   "result": "ДРР составил 2,68% при целевом показателе до 10% — расходы на рекламу удержаны значительно ниже установленного KPI. Кампании обеспечили продажи доставки продуктов сразу в 12 городах.",
   "insights": [],
-  "client_name_public": null
+  "client_name_public": true
  }
 ]

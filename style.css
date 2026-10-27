@@ -1404,9 +1404,6 @@ em.serif, .serif-em {
 .article-body p, .article-body li { color: var(--text); font-size: 16px; line-height: 1.7; }
 .article-steps { padding-left: 22px; }
 .article-steps li { margin-bottom: 8px; }
-.article-faq-item { border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; background: var(--bg-card); }
-.article-faq-item summary { cursor: pointer; font-weight: 600; }
-.article-faq-item p { margin: 10px 0 0; color: var(--muted); }
 .article-author { color: var(--muted); font-size: 14px; margin-top: 28px; }
 .article-related { padding: 8px 0 24px; }
 .article-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }

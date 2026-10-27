@@ -206,7 +206,6 @@ def build_case(c):
     path = f"keysy/{c['slug']}/index.html"
     pre = "../../"
     service_name, service_page = TAX["services"][c["service"]]
-    plat = meta_note(platform(c))
     title = f"{c['title']}: кейс {service_name.lower()} | ProDigital"
     description = c["summary"][:155]
     stats = "".join(f'<div class="case-stat-box"><span>{e(s["label"])}</span><strong>{e(meta_note(s["value"]))}</strong></div>'
@@ -222,12 +221,6 @@ def build_case(c):
             tags.append(f'<a href="{pre}strany/{k}/">{e(TAX["countries"][k][0])}</a>')
     tags.append(f'<a href="{pre}{service_page}">{e(service_name)}</a>')
     rel = related(c)
-    faq = [
-        (f"Какая площадка использовалась в кейсе «{c['title']}»?", f"{service_name}: {plat}." if plat else service_name + "."),
-        ("Какой результат получили?", c["result"]),
-        ("Что сделали для результата?", "; ".join(c["done"]) + "."),
-    ]
-    faq_html = "".join(f'<details class="article-faq-item"><summary>{e(q)}</summary><p>{e(a)}</p></details>' for q, a in faq)
     body = f"""<article>
 <section class="article-hero">
   <div class="container article-narrow">
@@ -248,8 +241,6 @@ def build_case(c):
     <h2>Результат</h2>
     <p>{e(meta_note(c['result']))}</p>
     {f'<h2>Что важно знать о нише</h2><ul>{insights}</ul>' if insights else ''}
-    <h2>Частые вопросы</h2>
-    <div class="article-faq">{faq_html}</div>
     <p class="article-author">Автор кейса — <a href="{pre}index.html">Катерина Анисимова</a>, ProDigital. Обновлено: {TODAY}.</p>
   </div>
 </section>
@@ -262,8 +253,6 @@ def build_case(c):
          "dateModified": TODAY, "mainEntityOfPage": url(f"keysy/{c['slug']}/"),
          **({"image": url(c["img"])} if c.get("img") else {})},
         breadcrumbs([("Главная", ""), ("Кейсы", "keysy/"), (c["title"], f"keysy/{c['slug']}/")]),
-        {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q,
-                                              "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]},
     )
     return path, page(path, title, description, body, ld, og_image=c.get("img") or "assets/prodigital-logo-wordmark.png")
 
