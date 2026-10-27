@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: {
+          aliases: string[];
           id: string;
           auth_user_id: string | null;
           is_manual: boolean;
@@ -29,6 +30,7 @@ export type Database = {
           created_at: string | null;
         };
         Insert: {
+          aliases?: string[];
           id?: string;
           auth_user_id?: string | null;
           is_manual?: boolean;
@@ -42,6 +44,7 @@ export type Database = {
           created_at?: string | null;
         };
         Update: {
+          aliases?: string[];
           id?: string;
           auth_user_id?: string | null;
           is_manual?: boolean;
@@ -131,6 +134,7 @@ export type Database = {
       };
       projects: {
         Row: {
+          aliases: string[];
           id: string;
           client_id: string | null;
           name: string;
@@ -150,6 +154,7 @@ export type Database = {
           updated_at: string | null;
         };
         Insert: {
+          aliases?: string[];
           id?: string;
           client_id?: string | null;
           name: string;
@@ -169,6 +174,7 @@ export type Database = {
           updated_at?: string | null;
         };
         Update: {
+          aliases?: string[];
           id?: string;
           client_id?: string | null;
           name?: string;
@@ -275,6 +281,7 @@ export type Database = {
       };
       tasks: {
         Row: {
+          owner_approval_pending: boolean;
           id: string;
           project_id: string | null;
           title: string;
@@ -296,6 +303,7 @@ export type Database = {
           completed_at: string | null;
         };
         Insert: {
+          owner_approval_pending?: boolean;
           id?: string;
           project_id?: string | null;
           title: string;
@@ -317,6 +325,7 @@ export type Database = {
           completed_at?: string | null;
         };
         Update: {
+          owner_approval_pending?: boolean;
           id?: string;
           project_id?: string | null;
           title?: string;
@@ -518,12 +527,31 @@ export type Database = {
         Update: { id?: string; scenario_id?: string; period_from?: string; period_to?: string; message_text?: string; status?: string; sent_at?: string | null; sent_message_id?: number | null; last_error?: string | null; created_at?: string; updated_at?: string };
         Relationships: [{ foreignKeyName: "telegram_weekly_status_deliveries_scenario_id_fkey"; columns: ["scenario_id"]; isOneToOne: false; referencedRelation: "telegram_weekly_status_scenarios"; referencedColumns: ["id"] }];
       };
+      telegram_intake_messages: {
+        Row: { chat_id: string; message_id: number; intake_id: string; created_at: string };
+        Insert: { chat_id: string; message_id: number; intake_id: string; created_at?: string };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      telegram_task_intakes: {
+        Row: { id: string; chat_id: string; source_message_id: number; message_ids: number[]; items: Json; current_index: number; revision: number; pending_field: string | null; choices: Json; edit_draft_id: string | null; status: string; created_at: string; updated_at: string };
+        Insert: { id?: string; chat_id: string; source_message_id: number; message_ids?: number[]; items: Json; current_index?: number; revision?: number; pending_field?: string | null; choices?: Json; edit_draft_id?: string | null; status?: string; created_at?: string; updated_at?: string };
+        Update: { message_ids?: number[]; items?: Json; current_index?: number; revision?: number; pending_field?: string | null; choices?: Json; status?: string; updated_at?: string };
+        Relationships: [];
+      };
+      telegram_voice_queue: {
+        Row: { id: string; chat_id: string; source_message_id: number; file_id: string; file_unique_id: string; status: string; created_at: string; updated_at: string };
+        Insert: { id?: string; chat_id: string; source_message_id: number; file_id: string; file_unique_id: string; status?: string };
+        Update: { status?: string; updated_at?: string };
+        Relationships: [];
+      };
       telegram_task_drafts: {
         Row: {
+          expires_at: string | null;
           id: string;
           task_id: string;
           source_date: string;
-          recipient_chat_id: string;
+          recipient_chat_id: string | null;
           recipient_profile_id: string | null;
           message_text: string;
           status: string;
@@ -535,10 +563,11 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          expires_at?: string | null;
           id?: string;
           task_id: string;
           source_date: string;
-          recipient_chat_id: string;
+          recipient_chat_id: string | null;
           recipient_profile_id?: string | null;
           message_text: string;
           status?: string;
@@ -550,10 +579,11 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          expires_at?: string | null;
           id?: string;
           task_id?: string;
           source_date?: string;
-          recipient_chat_id?: string;
+          recipient_chat_id?: string | null;
           recipient_profile_id?: string | null;
           message_text?: string;
           status?: string;
@@ -1907,6 +1937,13 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      claim_telegram_task_delivery: { Args: { p_draft_id: string; p_owner_chat_id: string }; Returns: string };
+      start_telegram_task_intake: { Args: { p_chat_id: string; p_message_id: number; p_items: Json; p_edit_draft_id?: string }; Returns: string };
+      apply_telegram_intake_reply: { Args: { p_intake_id: string; p_message_id: number; p_revision: number; p_items: Json }; Returns: string | null };
+      complete_telegram_task_delivery: { Args: { p_draft_id: string; p_recipient_chat_id: string; p_message_id: number }; Returns: boolean };
+      cancel_telegram_task_draft: { Args: { p_draft_id: string; p_owner_chat_id: string }; Returns: boolean };
+      expire_telegram_intake_drafts: { Args: Record<string, never>; Returns: number };
+      commit_telegram_intake_item: { Args: { p_intake_id: string; p_index: number }; Returns: string };
       save_project_ad_goals: {
         Args: { p_project_id: string; p_rows: Json };
         Returns: undefined;
