@@ -139,6 +139,22 @@
     }
     if (result) result.innerHTML = data.result || '';
 
+    // Ссылка на полную статью кейса (assets/case-pages.js собирается tools/build_pages.py)
+    const pageUrl = window.CASE_PAGES && window.CASE_PAGES[caseId];
+    let more = caseModal.querySelector('.case-more-link');
+    if (pageUrl && result) {
+      if (!more) {
+        more = document.createElement('a');
+        more.className = 'btn btn-ghost case-more-link';
+        more.textContent = 'Читать кейс полностью →';
+        result.insertAdjacentElement('afterend', more);
+      }
+      more.href = pageUrl;
+      more.hidden = false;
+    } else if (more) {
+      more.hidden = true;
+    }
+
     caseModal.classList.add('open');
     caseModal.setAttribute('aria-hidden', 'false');
     body.style.overflow = 'hidden';
@@ -216,6 +232,22 @@
 
   // ── Mobile Menu ────────────────────────────────────────────
   const mobileMenu = document.getElementById('mobileMenu');
+  // Мобильное меню собирается из основной навигации, если не заполнено в разметке
+  const mainNav = document.querySelector('.site-header .nav');
+  if (mobileMenu && mainNav && !mobileMenu.children.length) {
+    mainNav.querySelectorAll(':scope > a, :scope > .nav-dropdown').forEach(item => {
+      if (item.tagName === 'A') {
+        mobileMenu.appendChild(item.cloneNode(true));
+        return;
+      }
+      const trigger = item.querySelector('.nav-dropdown-trigger');
+      if (trigger) mobileMenu.appendChild(trigger.cloneNode(true));
+      const sub = document.createElement('div');
+      sub.className = 'mobile-submenu';
+      item.querySelectorAll('.nav-dropdown-menu a').forEach(a => sub.appendChild(a.cloneNode(true)));
+      mobileMenu.appendChild(sub);
+    });
+  }
   document.querySelectorAll('[data-mobile-toggle]').forEach(btn => {
     btn.addEventListener('click', () => mobileMenu && mobileMenu.classList.toggle('open'));
   });
