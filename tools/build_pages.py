@@ -300,12 +300,18 @@ def build_service(svc):
             parts.append(f"<{tag}{cls}>" + "".join(f"<li>{e(i)}</li>" for i in sec["items"]) + f"</{tag}>")
         if sec.get("case_link"):
             parts.append(f'<p><a href="{pre}{sec["case_link"]}">{e(sec["case_link_text"])}</a></p>')
+    tool = ""
+    if svc.get("tool"):
+        t = svc["tool"]
+        tool = (f'<div class="article-tool"><a class="btn btn-primary" href="{pre}{t["href"]}">{e(t["text"])}</a>'
+                f'<span>{e(t["note"])}</span></div>')
     body = f"""<section class="article-hero">
   <div class="container article-narrow">
     <nav class="article-crumbs"><a href="{pre}index.html">Главная</a> / <a href="{pre}index.html#services">Услуги</a> / <span>{e(svc['title'])}</span></nav>
     <div class="eyebrow">{e(svc['eyebrow'])}</div>
     <h1>{e(svc['title'])}</h1>
     <p class="article-lead">{e(svc['lead'])}</p>
+    {tool}
   </div>
 </section>
 <section class="article-body"><div class="container article-narrow">
@@ -396,7 +402,9 @@ def main():
         encoding="utf-8")
     update_static_pages(built)
 
-    urls = ["", "cases-target.html", "cases-context.html"] + [p.replace("index.html", "") for p, _ in built]
+    # Страницы, которые не собираются генератором, но должны быть в карте сайта
+    static_pages = ["ai-diagnostika/"]
+    urls = ["", "cases-target.html", "cases-context.html"] + static_pages + [p.replace("index.html", "") for p, _ in built]
     sitemap = "\n".join(f"  <url><loc>{url(u)}</loc><lastmod>{TODAY}</lastmod></url>" for u in urls)
     (ROOT / "sitemap.xml").write_text(
         f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{sitemap}\n</urlset>\n',

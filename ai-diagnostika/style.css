@@ -1,0 +1,20 @@
+/* Диагностика автоматизации — дополнения к ../career/style.css */
+.criteria{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.examples{list-style:none;padding:0;margin:0 0 24px;display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.examples li{padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.examples strong{display:block;margin-bottom:6px}
+.examples span{color:var(--muted);font-size:14px}
+.solutions{display:grid;gap:14px;margin:20px 0}
+.solution h3{margin-top:8px}
+.facts{padding-left:18px;margin:10px 0}
+.facts li{margin-bottom:4px}
+.first{background:var(--panel2);border-radius:12px;padding:12px 14px}
+.proof{font-size:14px;color:var(--muted);border-left:2px solid var(--orange);padding-left:12px}
+.readiness,.ai-form,.ai-result,.cta{margin:18px 0}
+.ai-form textarea,.ai-form input{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:8px 0}
+.ai-form textarea:focus,.ai-form input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.ai-result ul{padding-left:20px}
+.ai-solution{border-top:1px solid rgba(0,0,0,.12);padding-top:12px;margin-top:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.header-note{text-decoration:none}
+.cream h4{color:#9b4b12}
