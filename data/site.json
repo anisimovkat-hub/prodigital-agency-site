@@ -1,0 +1,4 @@
+{
+  "site_url": "https://anisimovkat-hub.github.io/prodigital-agency-site",
+  "_comment": "Технический адрес (GitHub Pages) — проверить. После покупки домена заменить и пересобрать: python3 tools/build_pages.py"
+}

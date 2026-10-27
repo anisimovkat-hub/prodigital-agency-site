@@ -139,6 +139,22 @@
     }
     if (result) result.innerHTML = data.result || '';
 
+    // Ссылка на полную статью кейса (assets/case-pages.js собирается tools/build_pages.py)
+    const pageUrl = window.CASE_PAGES && window.CASE_PAGES[caseId];
+    let more = caseModal.querySelector('.case-more-link');
+    if (pageUrl && result) {
+      if (!more) {
+        more = document.createElement('a');
+        more.className = 'btn btn-ghost case-more-link';
+        more.textContent = 'Читать кейс полностью →';
+        result.insertAdjacentElement('afterend', more);
+      }
+      more.href = pageUrl;
+      more.hidden = false;
+    } else if (more) {
+      more.hidden = true;
+    }
+
     caseModal.classList.add('open');
     caseModal.setAttribute('aria-hidden', 'false');
     body.style.overflow = 'hidden';

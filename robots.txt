@@ -1,0 +1,5 @@
+# Поисковики и AI-ассистенты (GPTBot, OAI-SearchBot, PerplexityBot, ClaudeBot, Google-Extended, YandexBot) не закрыты намеренно.
+User-agent: *
+Allow: /
+
+Sitemap: https://anisimovkat-hub.github.io/prodigital-agency-site/sitemap.xml
