@@ -6,7 +6,7 @@ const now = new Date("2026-10-27T12:00:00Z");
 const catalog: IntakeCatalog = {
   projects: [
     { id: "trip", name: "Team Trip", aliases: [], stage: "active", memberIds: ["ilona"] },
-    { id: "mos", name: "Мос.ру", aliases: ["Моспром"], clientName: "БЛЭК", stage: "completed", memberIds: [] },
+    { id: "mos", name: "Мос.ру", aliases: ["Мосру"], clientName: "БЛЭК", stage: "finished", memberIds: [] },
     { id: "fck", name: "ФЦК", aliases: ["Производительность РФ"], clientName: "БЛЭК", stage: "active", memberIds: [] },
   ],
   profiles: [{ id: "ilona", name: "Илона", aliases: ["Илоне"] }, { id: "sofa", name: "Софа", aliases: ["Софе"] }],
@@ -23,7 +23,7 @@ describe("shared live/preview intake questions", () => {
     expect(nextIntakeQuestion(item, catalog, now)).toMatchObject({ field: "project", choices: [{ id: "mos" }, { id: "fck" }, { id: "other" }] });
   });
   it("requires another choice for a completed project", () => {
-    expect(nextIntakeQuestion(parse("Илоне Моспром завтра отчёт"), catalog, now)).toMatchObject({ field: "project", choices: [{ id: "other" }] });
+    expect(nextIntakeQuestion(parse("Илоне Мос.ру завтра отчёт"), catalog, now)).toMatchObject({ field: "project", choices: [{ id: "other" }] });
   });
   it("offers project staff for an unknown employee", () => {
     expect(nextIntakeQuestion(parse("Мише Team Trip завтра отчёт"), catalog, now)).toMatchObject({ field: "assignee", choices: [{ id: "ilona" }, { id: "other" }] });
@@ -40,4 +40,11 @@ describe("shared live/preview intake questions", () => {
     expect(item.projectId).toBeNull();
     expect(nextIntakeQuestion(item, catalog, now)?.choices[0].id).toBe("trip");
   });
+});
+
+// Missing CRM identity must lead to a question, never to the unrelated Мос.ру.
+it("does not use Мос.ру when Моспром is absent from the live-style catalog", () => {
+  const item = parse("Илоне по моспрому до пятницы отчёт");
+  expect(item.projectId).toBeNull();
+  expect(nextIntakeQuestion(item, catalog, now)?.field).toBe("project");
 });

@@ -3,9 +3,11 @@ import { intakeDistance, matchIntakeEntities, normalizeIntakeText, parseIntakeDe
 
 const now = new Date("2026-10-27T12:00:00Z");
 const projects: IntakeProject[] = [
-  { id: "mos", name: "Мос.ру", aliases: ["Моспром", "моспрому"], stage: "active", memberIds: ["ilona"] },
+  { id: "mos", name: "Мос.ру", aliases: ["Мосру", "mos.ru"], stage: "finished", memberIds: [] },
+  // Separate fixture identity; no Моспром project is created in live CRM by these tests.
+  { id: "mosprom", name: "Моспром", aliases: ["моспрому"], stage: null, memberIds: ["ilona"] },
   { id: "quercus", name: "Беседки Кверкус", aliases: ["Кверкус"], stage: "active", memberIds: ["sofa"] },
-  { id: "estt", name: "ESTT", aliases: [], stage: "active", memberIds: ["ilona"] },
+  { id: "estt", name: "ESTT", aliases: ["ИСТТ", "серверы", "ВПС", "ВДС", "VPS", "VDS"], stage: "active", memberIds: ["ilona"] },
   { id: "mm", name: "M&M Documents", aliases: ["ММ Документс"], stage: "active", memberIds: ["inna"] },
   { id: "tt", name: "Team Trip", aliases: ["Тим Трип"], stage: "active", memberIds: ["ilona"] },
   { id: "st", name: "Stroyteam77", aliases: ["Стройтим"], stage: "active", memberIds: ["ekat"] },
@@ -23,7 +25,7 @@ const profiles = [
 describe("owner task intake — exact owner examples", () => {
   it("Илоне по моспрому до пятницы отчёт", () => {
     const task = parseIntakeTask("Илоне по моспрому до пятницы отчёт", projects, profiles, now);
-    expect(task).toMatchObject({ projectId: "mos", assigneeId: "ilona", dueDate: "2026-10-30", deadlineKnown: true, title: "отчёт" });
+    expect(task).toMatchObject({ projectId: "mosprom", assigneeId: "ilona", dueDate: "2026-10-30", deadlineKnown: true, title: "отчёт" });
   });
   it("завтра Софе выгрузить лиды Кверкус", () => {
     expect(parseIntakeTask("завтра Софе выгрузить лиды Кверкус", projects, profiles, now)).toMatchObject({ projectId: "quercus", assigneeId: "sofa", dueDate: "2026-10-28", title: "выгрузить лиды" });
@@ -49,7 +51,7 @@ describe("task intake — regression phrases grounded in CRM", () => {
     ["Софе Kolvika в воскресенье собрать данные", "kol", "sofa", "2026-11-01"],
     ["Илоне ESTT через 1 день отчёт", "estt", "ilona", "2026-10-28"],
     ["Алёне Team Trip через 5 дней проверить материалы", "tt", "alena", "2026-11-01"],
-    ["Илоне Моспром до 31-го отчёт", "mos", "ilona", "2026-10-31"],
+    ["Илоне Моспром до 31-го отчёт", "mosprom", "ilona", "2026-10-31"],
     ["Софе Кверкус без срока подготовить список лидов", "quercus", "sofa", null],
     ["ИЛОНЕ ESTT ЗАВТРА ОТЧЁТ", "estt", "ilona", "2026-10-28"],
   ] as const;
@@ -68,7 +70,7 @@ describe("task intake — regression phrases grounded in CRM", () => {
   });
   it("suggests a two-letter typo without choosing", () => {
     const hits = matchIntakeEntities("Илоне моспрмм завтра отчёт", projects);
-    expect(hits[0].id).toBe("mos"); expect(uniqueExactIntakeMatch(hits)).toBeNull();
+    expect(hits[0].id).toBe("mosprom"); expect(uniqueExactIntakeMatch(hits)).toBeNull();
   });
   it("does not match a short alias inside another word", () => expect(parseIntakeTask("Илоне завтра принести отчёт", projects, profiles, now).projectId).toBeNull());
   it("does not choose between two explicitly named projects", () => expect(parseIntakeTask("Илоне ESTT и Team Trip завтра отчёт", projects, profiles, now).projectId).toBeNull());
@@ -84,6 +86,37 @@ describe("calendar deadlines", () => {
   it("rejects an impossible numbered day rather than normalizing it", () => expect(parseIntakeDeadline("до 32-го", now).known).toBe(false));
   it("normalizes case and ё", () => expect(normalizeIntakeText("АЛЁНЕ — Мос.РУ")).toBe("алене мос ру"));
   it("recognizes adjacent swaps", () => expect(intakeDistance("кверкус", "кверксу")).toBe(1));
+});
+
+describe("owner alias corrections, 27 October", () => {
+  const correctedProjects: IntakeProject[] = [
+    ...projects,
+    { id: "ans", name: "Ansaligy", aliases: ["Ансалиджи"], stage: "active", memberIds: [] },
+    { id: "boards", name: "Электроника", aliases: ["Системные решения", "системайс", "платы", "печатные платы"], stage: "active", memberIds: [] },
+  ];
+  const correctedProfiles = [...profiles, { id: "owner", name: "Катерина Анисимова", aliases: ["Катерина", "Катя"] }];
+  const parse = (text: string) => parseIntakeTask(text, correctedProjects, correctedProfiles, now);
+  it.each(["ИСТТ", "серверы", "ВПС", "ВДС", "VPS", "VDS"])("maps %s to ESTT", (alias) => {
+    expect(parse(`Илоне ${alias} завтра отчёт`).projectId).toBe("estt");
+  });
+  it("keeps Моспром separate from Мос.ру", () => {
+    expect(parse("Илоне Моспром завтра отчёт").projectId).toBe("mosprom");
+    expect(parse("Илоне Мос.ру завтра отчёт").projectId).toBe("mos");
+  });
+  it("asks if both separate projects are named", () => {
+    expect(parse("Илоне Моспром и Мос.ру завтра отчёт").projectId).toBeNull();
+  });
+  it("recognizes Ансалиджи", () => expect(parse("Софе Ансалиджи завтра отчёт").projectId).toBe("ans"));
+  it.each(["Системные решения", "системайс", "платы", "печатные платы"])("maps %s to Электроника", (alias) => {
+    expect(parse(`Софе ${alias} завтра отчёт`).projectId).toBe("boards");
+  });
+  it("assigns Катя to the owner, distinct from employee Екатерина", () => {
+    expect(parse("Катя ESTT завтра отчёт").assigneeId).toBe("owner");
+    expect(parse("Екатерине ESTT завтра отчёт").assigneeId).toBe("ekat");
+  });
+  it("does not silently choose ESTT when a generic alias also names another project", () => {
+    expect(parse("Илоне Ansaligy завтра проверить серверы").projectId).toBeNull();
+  });
 });
 
 describe("partial CRM edits", () => {
