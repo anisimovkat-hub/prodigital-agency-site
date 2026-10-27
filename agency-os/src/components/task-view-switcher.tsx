@@ -50,7 +50,7 @@ export function TaskViewSwitcher() {
           className={cn(
             "flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400",
             active === value
-              ? "bg-white text-neutral-900 shadow-sm"
+              ? "bg-blue-600 text-white shadow-sm"
               : "text-neutral-500 hover:text-neutral-900",
           )}
         >

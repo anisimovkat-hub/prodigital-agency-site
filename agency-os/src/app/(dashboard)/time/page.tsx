@@ -299,7 +299,7 @@ function PeriodLink({
       className={cn(
         "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
         active
-          ? "bg-white text-neutral-900 shadow-sm"
+          ? "bg-blue-600 text-white shadow-sm"
           : "text-neutral-500 hover:text-neutral-900",
       )}
     >

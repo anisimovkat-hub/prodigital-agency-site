@@ -23,6 +23,7 @@ export function ProjectEditDisclosure({
           onClick={() => setOpen((current) => !current)}
           aria-expanded={open}
           aria-controls="project-editor"
+          variant={open ? "outline" : "secondary"}
           className="shrink-0"
         >
           {open ? (

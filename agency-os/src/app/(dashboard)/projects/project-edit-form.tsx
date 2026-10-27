@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Check } from "lucide-react";
 
 import {
   updateProject,
@@ -225,11 +226,8 @@ export function ProjectEditForm({
 
       <div className="col-span-2 sm:col-span-4">
         <FieldErrors errors={state?.errors?._root} />
-        <Button
-          type="submit"
-          disabled={pending}
-          className="bg-emerald-800 text-white hover:bg-emerald-700"
-        >
+        <Button type="submit" disabled={pending}>
+          <Check aria-hidden />
           {pending ? "Сохраняем..." : "Сохранить изменения"}
         </Button>
         <p

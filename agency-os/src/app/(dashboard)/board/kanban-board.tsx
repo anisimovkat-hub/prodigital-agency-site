@@ -211,7 +211,7 @@ export function KanbanBoard({
               className={cn(
                 "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition",
                 sortMode === "smart"
-                  ? "bg-white text-neutral-900 shadow-sm"
+                  ? "bg-blue-600 text-white shadow-sm"
                   : "text-neutral-500 hover:text-neutral-900",
               )}
             >
@@ -225,7 +225,7 @@ export function KanbanBoard({
               className={cn(
                 "inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition",
                 sortMode === "manual"
-                  ? "bg-white text-neutral-900 shadow-sm"
+                  ? "bg-blue-600 text-white shadow-sm"
                   : "text-neutral-500 hover:text-neutral-900",
               )}
             >

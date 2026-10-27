@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Check } from "lucide-react";
 
 import {
   updateClient,
@@ -119,6 +120,7 @@ export function ClientEditForm({ client }: { client: Tables<"clients"> }) {
 
       <div className="col-span-2 sm:col-span-4">
         <Button type="submit" disabled={pending}>
+          <Check aria-hidden />
           {pending ? "Сохраняем..." : "Сохранить изменения"}
         </Button>
         <p

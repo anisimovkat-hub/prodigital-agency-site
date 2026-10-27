@@ -7,16 +7,10 @@ import {
   type QuickProjectFieldFormState,
 } from "@/app/(dashboard)/projects/actions";
 import { Select } from "@/components/ui/select";
-import {
-  PROJECT_HEALTH_LABEL,
-  PROJECT_STAGE_LABEL,
-} from "@/lib/labels";
+import { PROJECT_HEALTH_LABEL, PROJECT_STAGE_LABEL } from "@/lib/labels";
 import type { Enums } from "@/lib/supabase/types";
 import { cn } from "@/lib/utils";
-import {
-  PROJECT_HEALTH_VALUES,
-  PROJECT_STAGE_VALUES,
-} from "@/lib/validation";
+import { PROJECT_HEALTH_VALUES, PROJECT_STAGE_VALUES } from "@/lib/validation";
 
 type ProjectQuickSelectProps =
   | {
@@ -33,17 +27,25 @@ type ProjectQuickSelectProps =
     };
 
 const HEALTH_CLASS: Record<Enums<"project_health">, string> = {
-  green: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  yellow: "border-amber-200 bg-amber-50 text-amber-700",
-  red: "border-red-200 bg-red-50 text-red-700",
+  green: "border-emerald-200 bg-emerald-100 text-emerald-800",
+  yellow: "border-amber-200 bg-amber-100 text-amber-800",
+  red: "border-red-200 bg-red-100 text-red-800",
 };
 
 const STAGE_CLASS: Record<Enums<"project_stage">, string> = {
-  launching: "border-blue-200 bg-blue-50 text-blue-700",
-  active: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  paused: "border-amber-200 bg-amber-50 text-amber-700",
-  finished: "border-neutral-200 bg-neutral-100 text-neutral-700",
+  launching: "border-blue-200 bg-blue-100 text-blue-800",
+  active: "border-emerald-200 bg-emerald-100 text-emerald-800",
+  paused: "border-amber-200 bg-amber-100 text-amber-800",
+  finished: "border-neutral-300 bg-neutral-100 text-neutral-700",
 };
+
+/** Точка берёт только цвет текста плашки, без её фона и рамки. */
+function textTone(classes: string) {
+  return classes
+    .split(" ")
+    .filter((name) => name.startsWith("text-"))
+    .join(" ");
+}
 
 export function ProjectQuickSelect(props: ProjectQuickSelectProps) {
   const [state, formAction, pending] = useActionState<
@@ -67,27 +69,38 @@ export function ProjectQuickSelect(props: ProjectQuickSelectProps) {
     <form ref={formRef} action={formAction} className="inline-flex flex-col">
       <input type="hidden" name="id" value={props.projectId} />
       <input type="hidden" name="field" value={props.field} />
-      <Select
-        key={props.value}
-        name="value"
-        defaultValue={props.value}
-        disabled={pending}
-        onChange={(event) => event.currentTarget.form?.requestSubmit()}
-        aria-label={`Изменить ${fieldLabel} проекта «${props.projectName}»`}
-        title={state?.error ?? `Нажмите, чтобы изменить ${fieldLabel}`}
+      <span
         className={cn(
-          "h-7 w-auto min-w-0 cursor-pointer rounded-full border px-2 py-0 pr-6 text-sm font-medium shadow-none transition-colors hover:brightness-95 focus-visible:ring-2",
-          colorClass,
+          "relative inline-flex items-center",
+          textTone(colorClass),
         )}
       >
-        {values.map((value) => (
-          <option key={value} value={value}>
-            {isHealth
-              ? PROJECT_HEALTH_LABEL[value as Enums<"project_health">]
-              : PROJECT_STAGE_LABEL[value as Enums<"project_stage">]}
-          </option>
-        ))}
-      </Select>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-2.5 size-1.5 -translate-y-1/2 rounded-full bg-current"
+        />
+        <Select
+          key={props.value}
+          name="value"
+          defaultValue={props.value}
+          disabled={pending}
+          onChange={(event) => event.currentTarget.form?.requestSubmit()}
+          aria-label={`Изменить ${fieldLabel} проекта «${props.projectName}»`}
+          title={state?.error ?? `Нажмите, чтобы изменить ${fieldLabel}`}
+          className={cn(
+            "h-7 w-auto min-w-0 cursor-pointer rounded-full border py-0 pr-6 pl-5 text-sm font-semibold shadow-none transition-colors hover:brightness-95 focus-visible:ring-2",
+            colorClass,
+          )}
+        >
+          {values.map((value) => (
+            <option key={value} value={value}>
+              {isHealth
+                ? PROJECT_HEALTH_LABEL[value as Enums<"project_health">]
+                : PROJECT_STAGE_LABEL[value as Enums<"project_stage">]}
+            </option>
+          ))}
+        </Select>
+      </span>
       <span aria-live="polite" className="sr-only">
         {pending
           ? `Сохраняем ${fieldLabel}`

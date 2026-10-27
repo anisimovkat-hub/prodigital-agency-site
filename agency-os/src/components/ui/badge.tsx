@@ -9,10 +9,12 @@ const badgeVariants = cva(
     variants: {
       variant: {
         neutral: "bg-neutral-100 text-neutral-700",
-        green: "bg-green-100 text-green-700",
-        yellow: "bg-yellow-100 text-yellow-700",
-        red: "bg-red-100 text-red-700",
-        blue: "bg-blue-100 text-blue-700",
+        green: "bg-emerald-100 text-emerald-800",
+        yellow: "bg-amber-100 text-amber-800",
+        red: "bg-red-100 text-red-800",
+        blue: "bg-blue-100 text-blue-800",
+        violet: "bg-violet-100 text-violet-800",
+        sky: "bg-sky-100 text-sky-800",
       },
     },
     defaultVariants: {
@@ -21,17 +23,26 @@ const badgeVariants = cva(
   },
 );
 
+/** `dot` добавляет цветную точку: статус читается не только по цвету фона. */
 function Badge({
   className,
   variant,
+  dot = false,
+  children,
   ...props
-}: React.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+}: React.ComponentProps<"span"> &
+  VariantProps<typeof badgeVariants> & { dot?: boolean }) {
   return (
     <span
       data-slot="badge"
       className={cn(badgeVariants({ variant, className }))}
       {...props}
-    />
+    >
+      {dot && (
+        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />
+      )}
+      {children}
+    </span>
   );
 }
 

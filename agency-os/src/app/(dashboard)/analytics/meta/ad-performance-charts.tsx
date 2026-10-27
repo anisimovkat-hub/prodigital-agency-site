@@ -116,7 +116,7 @@ export function AdPerformanceCharts({ points, goalLabel, currency, granularity, 
   const [phoneChart, setPhoneChart] = useState<"results" | "price">("results");
   const switcher = <div className="flex rounded-lg bg-neutral-100 p-0.5 text-xs font-medium" role="tablist" aria-label="График">
     {([["results", `Результаты по ${interval}`], ["price", "Цена результата"]] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={phoneChart === value} onClick={() => setPhoneChart(value)}
-      className={`flex-1 rounded-md px-2 py-1.5 transition ${phoneChart === value ? "bg-white text-neutral-950 shadow-sm" : "text-neutral-500"}`}>{label}</button>)}
+      className={`flex-1 rounded-md px-2 py-1.5 transition ${phoneChart === value ? "bg-blue-600 text-white shadow-sm" : "text-neutral-500"}`}>{label}</button>)}
   </div>;
 
   return <section className="grid gap-3 lg:grid-cols-2" aria-label="Динамика рекламы">

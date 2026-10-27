@@ -1,21 +1,153 @@
 @import "tailwindcss";
 
+/*
+ * Визуальная основа (редизайн, этап 1, 2026-10-27).
+ * Стандартные шкалы Tailwind перенастроены на палитру Agency OS, поэтому все
+ * существующие классы neutral/blue/emerald/amber/red/violet/sky сразу получают
+ * фирменные оттенки: прохладный серый, один синий для действий и семантические
+ * цвета статусов. Шаг 600/700 — цвет текста, 50/100 — мягкий фон плашек.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #f3f5f9;
+  --surface: #ffffff;
+  --line: #d9dfea;
+  --line-strong: #c3cbda;
+  --ink: #141b2b;
+  --ink-2: #4a5468;
+  --ink-3: #6b7489;
+  --nav: #131a2c;
+  --nav-ink: #c9d1e3;
+  --brand: #3554d1;
+  --brand-soft: #e8edfd;
+  --ok: #17885a;
+  --warn: #b86e00;
+  --bad: #c9372c;
+  --ai: #7a45e6;
+  --info: #0b7fa8;
+  --shadow: 0 1px 2px rgba(20, 27, 43, 0.06), 0 2px 8px rgba(20, 27, 43, 0.05);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+}
+
+@theme {
+  --color-neutral-50: #f3f5f9;
+  --color-neutral-100: #eaeef4;
+  --color-neutral-200: #d9dfea;
+  --color-neutral-300: #c3cbda;
+  --color-neutral-400: #959eb2;
+  --color-neutral-500: #667085;
+  --color-neutral-600: #4a5468;
+  --color-neutral-700: #374055;
+  --color-neutral-800: #252d40;
+  --color-neutral-900: #141b2b;
+  --color-neutral-950: #0c111d;
+
+  --color-blue-50: #eef2fe;
+  --color-blue-100: #e2e8fd;
+  --color-blue-200: #c6d2fa;
+  --color-blue-300: #9eb1f5;
+  --color-blue-400: #6f8bee;
+  --color-blue-500: #4a69e0;
+  --color-blue-600: #3554d1;
+  --color-blue-700: #2a44b4;
+  --color-blue-800: #233891;
+  --color-blue-900: #1f3174;
+  --color-blue-950: #151f47;
+
+  --color-emerald-50: #e9f7f0;
+  --color-emerald-100: #d3f0e2;
+  --color-emerald-200: #a8dfc4;
+  --color-emerald-300: #74c9a1;
+  --color-emerald-400: #3fae7d;
+  --color-emerald-500: #1f9a66;
+  --color-emerald-600: #17885a;
+  --color-emerald-700: #116c48;
+  --color-emerald-800: #0f573b;
+  --color-emerald-900: #0c4630;
+  --color-emerald-950: #062519;
+  --color-green-50: #e9f7f0;
+  --color-green-100: #d3f0e2;
+  --color-green-200: #a8dfc4;
+  --color-green-500: #1f9a66;
+  --color-green-600: #17885a;
+  --color-green-700: #116c48;
+  --color-green-800: #0f573b;
+
+  --color-amber-50: #fff6e5;
+  --color-amber-100: #ffecc7;
+  --color-amber-200: #fdd68d;
+  --color-amber-300: #f8bb52;
+  --color-amber-400: #ec9d24;
+  --color-amber-500: #d4840a;
+  --color-amber-600: #b86e00;
+  --color-amber-700: #935700;
+  --color-amber-800: #774700;
+  --color-amber-900: #5e3800;
+  --color-amber-950: #331e00;
+  --color-yellow-50: #fff6e5;
+  --color-yellow-100: #ffecc7;
+  --color-yellow-200: #fdd68d;
+  --color-yellow-500: #d4840a;
+  --color-yellow-600: #b86e00;
+  --color-yellow-700: #935700;
+  --color-yellow-800: #774700;
+
+  --color-red-50: #fdeeed;
+  --color-red-100: #fbdcd9;
+  --color-red-200: #f6b8b2;
+  --color-red-300: #ee8b82;
+  --color-red-400: #e2604f;
+  --color-red-500: #d4473a;
+  --color-red-600: #c9372c;
+  --color-red-700: #a82c23;
+  --color-red-800: #87241d;
+  --color-red-900: #6c1f19;
+  --color-red-950: #3d0f0c;
+
+  --color-violet-50: #f4effe;
+  --color-violet-100: #eadffd;
+  --color-violet-200: #d5c0fb;
+  --color-violet-300: #b898f6;
+  --color-violet-400: #9a6ff0;
+  --color-violet-500: #8755ea;
+  --color-violet-600: #7a45e6;
+  --color-violet-700: #6534c4;
+  --color-violet-800: #522ba0;
+  --color-violet-900: #422380;
+
+  --color-sky-50: #e8f6fb;
+  --color-sky-100: #cdecf7;
+  --color-sky-200: #9fd9ee;
+  --color-sky-300: #63c0e2;
+  --color-sky-400: #2ea4d0;
+  --color-sky-500: #1390be;
+  --color-sky-600: #0b7fa8;
+  --color-sky-700: #086688;
+  --color-sky-800: #07526d;
+  --color-sky-900: #064258;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-nav: var(--nav);
+  --color-nav-ink: var(--nav-ink);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --shadow-sm: var(--shadow);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-onest), "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* The owner's browser workspace switches to cards only on narrow screens. */

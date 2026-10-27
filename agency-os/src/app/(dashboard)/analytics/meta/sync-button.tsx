@@ -7,6 +7,8 @@ import {
   syncMetaAds,
   type SyncMetaState,
 } from "@/app/(dashboard)/analytics/meta/actions";
+import { RefreshCw } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import type { AnalyticsPeriod } from "@/lib/analytics-period";
 
@@ -32,7 +34,8 @@ export function SyncMetaButton({ period, projectId, label = "Обновить о
   return (
     <form action={formAction} className="flex w-full flex-wrap items-center gap-2">
       <PeriodFields period={period} projectId={projectId} />
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" variant="secondary" disabled={pending}>
+        <RefreshCw aria-hidden className={pending ? "animate-spin" : undefined} />
         {pending ? "Обновляю кампании…" : label}
       </Button>
       {state && (

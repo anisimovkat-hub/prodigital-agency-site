@@ -1,6 +1,6 @@
 "use client";
 
-import {
+import { Trash2,
   ExternalLink,
   Link2,
   ListChecks,
@@ -698,9 +698,10 @@ function AttachmentEditor({
         <Button
           type="submit"
           size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+          variant="destructive"
+          className="h-7 px-2 text-xs"
         >
+          <Trash2 aria-hidden />
           Удалить
         </Button>
       </form>
