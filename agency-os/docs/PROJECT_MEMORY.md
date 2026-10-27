@@ -4,7 +4,7 @@
 
 Подготовлен в отдельной ветке `codex/jarvis-text-task-intake` от
 `claude/redesign-stage1-20261027`. PR и Vercel Preview разрешены владельцем;
-production-выпуск запрещён до проверки превью. В Preview доступна только владельцу
+production-выпуск разрешён владельцем 27.10 после проверки превью. В Preview доступна только владельцу
 страница `/jarvis-preview`: общий с ботом разбор, уточнения и формат черновика,
 без создания CRM-задач и отправки Telegram. Preview-webhook и Telegram-cron
 возвращают 404, общий Telegram transport блокирует отправку.
@@ -23,6 +23,13 @@ KPI-миграция `20261027045143` также сохранена из ран�
 Модель `tasks.todo` + `telegram_task_drafts.pending_approval` сохранена;
 новые задачи закрыты от сотрудника до отправки, отменяются по кнопке или через 24 часа.
 Подробнее: `docs/TELEGRAM_TEXT_INTAKE.md`.
+
+Предрелизные проверки: 509 тестов /59 файлов, ESLint, TypeScript/build,
+read-only сверка исходников миграций с Supabase и rollback-safe SQL проверки
+с ROLLBACK — PASS. 09:00 МСК (`0 6 * * *`) и прежние задачи сотрудников сохранены.
+Точный production до выпуска: `590e2b2`, deployment `3VgAWRTu7yWNLcMsbQVDJzaNALQJ`.
+Откат и порядок выпуска: `docs/JARVIS_RELEASE_ROLLBACK.md`; runtime после
+релиза отмечать в Obsidian/PR, без лишнего production-деплоя в 30-минутное окно.
 
 ## 2026-10-26 — подготовка owner-only статусов Прин и Сода
 

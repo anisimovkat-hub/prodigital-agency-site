@@ -70,7 +70,17 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM public.tasks t WHERE t.id=task_id AND t.status='cancelled' AND t.owner_approval_pending) THEN
     RAISE EXCEPTION 'A task without a delivered owner preview did not expire';
   END IF;
+  -- Cancelling an old morning message must never cancel the employee's task.
+  INSERT INTO public.tasks(project_id,assignee_id,creator_id,title,status,owner_approval_pending)
+    VALUES(project_id,staff_id,owner_id,'__JARVIS_MORNING_ROLLBACK_CHECK__','todo',false) RETURNING id INTO task_id;
+  INSERT INTO public.telegram_task_drafts(task_id,source_date,recipient_profile_id,recipient_chat_id,message_text,review_chat_id)
+    VALUES(task_id,current_date,staff_id,'test-only-chat','__JARVIS_MORNING_ROLLBACK_CHECK__',owner_chat) RETURNING id INTO draft_id;
+  IF NOT public.cancel_telegram_task_draft(draft_id,owner_chat) THEN RAISE EXCEPTION 'Morning message cancellation failed'; END IF;
+  PERFORM public.expire_telegram_intake_drafts();
+  IF NOT EXISTS(SELECT 1 FROM public.tasks t WHERE t.id=task_id AND t.status='todo' AND NOT t.owner_approval_pending) THEN
+    RAISE EXCEPTION 'Cancelling a morning message changed the employee task';
+  END IF;
 END;
 $check$;
 ROLLBACK;
-SELECT 'PASS: idempotency, creator, staff RLS, owner access, RPC grants, cancellation, expiry, delivery claim; all test rows rolled back' AS result;
+SELECT 'PASS: idempotency, creator, staff RLS, owner access, RPC grants, cancellation, expiry, delivery claim, legacy morning task preserved; all test rows rolled back' AS result;
