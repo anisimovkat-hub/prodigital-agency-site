@@ -179,12 +179,25 @@ def meta_note(text):
 
 def case_card(c, pre):
     stat = next((s["value"] for s in c["stats"] if "цена" in s["label"] or "результат" in s["label"]), "")
+    cover = (f'<span class="case-cover"><img src="{pre}{c["img"]}" alt="{e(c["title"])}" loading="lazy"></span>'
+             if c.get("img") else "")
     return f"""<a class="article-card" href="{pre}keysy/{c['slug']}/">
+  {cover}
   <span class="article-card-meta">{e(c['year'])} · {e(meta_note(platform(c)))}</span>
   <strong>{e(c['title'])}</strong>
   <span class="article-card-text">{e(c['summary'])}</span>
-  {f'<span class="article-card-stat">{e(stat)}</span>' if stat else ''}
+  {f'<span class="kpi-row"><span class="kpi-pill">{e(stat)}</span></span>' if stat else ''}
+  <span class="case-open-btn">Читать кейс</span>
 </a>"""
+
+
+def illustration(name, pre, alt):
+    """Иллюстрация страницы: assets/illustrations/<name>.png (или .jpg/.webp), если файл добавлен."""
+    for ext in ("png", "jpg", "webp"):
+        if (ROOT / f"assets/illustrations/{name}.{ext}").exists():
+            return (f'<figure class="article-cover"><img src="{pre}assets/illustrations/{name}.{ext}" '
+                    f'alt="{e(alt)}"></figure>')
+    return ""
 
 
 def related(c, limit=3):
@@ -233,6 +246,7 @@ def build_case(c):
     <div class="eyebrow">{e(c['year'])}</div>
     <h1>{e(c['title'])}</h1>
     <p class="article-lead">{e(meta_note(c['summary']))}</p>
+    {f'<figure class="article-cover"><img src="{pre}{c["img"]}" alt="{e(c["title"])}"></figure>' if c.get("img") else ''}
     <div class="case-stats-row article-stats">{stats}</div>
     <div class="article-tags">{''.join(tags)}</div>
   </div>
@@ -263,6 +277,7 @@ def build_case(c):
 
 
 def build_list(path, crumbs, eyebrow, h1, lead, cases, extra_ld=None):
+    ill_name = path.replace("/index.html", "").replace("/", "-")
     depth = path.count("/")
     pre = "../" * depth
     crumbs_html = " / ".join(
@@ -275,6 +290,7 @@ def build_list(path, crumbs, eyebrow, h1, lead, cases, extra_ld=None):
     <div class="eyebrow">{e(eyebrow)}</div>
     <h1>{e(h1)}</h1>
     <p class="article-lead">{e(lead)}</p>
+    {illustration(ill_name, pre, h1)}
   </div>
 </section>
 <section class="article-related"><div class="container article-narrow"><div class="article-grid">{cards}</div></div></section>"""
@@ -311,6 +327,7 @@ def build_service(svc):
     <div class="eyebrow">{e(svc['eyebrow'])}</div>
     <h1>{e(svc['title'])}</h1>
     <p class="article-lead">{e(svc['lead'])}</p>
+    {illustration("uslugi-" + svc["slug"], pre, svc["title"])}
     {tool}
   </div>
 </section>
@@ -361,10 +378,8 @@ def update_static_pages(pages_built):
         new = replace_block(s, "HEAD", hb)
         s = new if new is not None else s.replace("</head>", f"  <!-- GEN:HEAD:START -->\n  {hb}\n  <!-- GEN:HEAD:END -->\n</head>", 1)
         if service:
-            cases = [c for c in CASES if c["service"] == service]
-            links = "".join(f'<li><a href="keysy/{c["slug"]}/">{e(c["title"])}</a> — {e(c["summary"])}</li>' for c in cases)
-            block = (f'<section class="case-articles"><div class="container"><h2>Подробные разборы кейсов</h2>'
-                     f'<ul class="case-articles-list">{links}</ul><p><a href="keysy/">Все кейсы ProDigital →</a></p></div></section>')
+            block = ('<section class="case-articles"><div class="container case-articles-cta">'
+                     '<a class="btn btn-ghost" href="keysy/">Все кейсы ProDigital →</a></div></section>')
             new = replace_block(s, "CASE-LINKS", block)
             s = new if new is not None else s.replace('<footer class="footer">',
                                                       f"<!-- GEN:CASE-LINKS:START -->\n{block}\n<!-- GEN:CASE-LINKS:END -->\n\n<footer class=\"footer\">", 1)
