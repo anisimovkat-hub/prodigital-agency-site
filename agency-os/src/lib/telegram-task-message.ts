@@ -1,12 +1,12 @@
 export type TelegramTaskMessageInput = {
   projectName: string | null;
-  dueDate: string;
+  dueDate: string | null;
   workstream: string | null;
   title: string;
   description: string | null;
 };
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -51,7 +51,7 @@ export function formatTelegramTaskMessage(input: TelegramTaskMessageInput): stri
   const body = input.description?.trim() || title;
   return [
     `<b>${escapeHtml(projectPrefix(input.projectName))} // ${escapeHtml(title)}</b>`,
-    `<b>${shortDeadline(input.dueDate, title)}</b>`,
+    `<b>${input.dueDate ? shortDeadline(input.dueDate, title) : "Без срока"}</b>`,
     formatBody(body),
   ].join("\n\n");
 }

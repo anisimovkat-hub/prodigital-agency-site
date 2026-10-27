@@ -14,6 +14,7 @@ import {
   TaskStatusBadge,
 } from "@/components/badges";
 import { ProjectLogo } from "@/components/project-logo";
+import { IntakeAliasesEditor } from "@/components/intake-aliases-editor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -281,6 +282,7 @@ export default async function ProjectDetailPage({
         </Card>
       </div>
 
+      {isOwner && <IntakeAliasesEditor kind="project" id={id} aliases={project.aliases} />}
       <AdAccountsSection projectId={id} isOwner={isOwner} hasWeeklyStatus={!!weeklyStatus?.length} accounts={adAccountsData.accounts} unlinkedMeta={adAccountsData.unlinkedMeta} initialPlatform={initialAdPlatform} />
 
       <section className="flex flex-col gap-3">
