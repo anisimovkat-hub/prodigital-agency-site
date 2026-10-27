@@ -1,3 +1,5 @@
+import { assertTelegramDeliveryAllowed } from "@/lib/preview-policy";
+
 type InlineButton = { text: string; callback_data: string };
 
 type TelegramResponse<T> = { ok: boolean; result?: T; description?: string };
@@ -11,6 +13,7 @@ function token(): string {
 }
 
 async function callTelegram<T>(method: string, body: Record<string, unknown>): Promise<T> {
+  assertTelegramDeliveryAllowed();
   const response = await fetch(`https://api.telegram.org/bot${token()}/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },

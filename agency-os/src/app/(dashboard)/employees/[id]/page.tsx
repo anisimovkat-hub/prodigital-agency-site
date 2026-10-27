@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PriorityBadge, TaskStatusBadge } from "@/components/badges";
 import { ProjectQuickSelect } from "@/app/(dashboard)/projects/project-quick-select";
+import { IntakeAliasesEditor } from "@/components/intake-aliases-editor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -26,6 +27,8 @@ export default async function EmployeeDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: actor } = user ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle() : { data: null };
 
   const [{ data: profile }, { data: members }, { data: tasks }] =
     await Promise.all([
@@ -118,6 +121,7 @@ export default async function EmployeeDetailPage({
         </Card>
       </div>
 
+      {actor?.role === "owner" && <IntakeAliasesEditor kind="profile" id={id} aliases={profile.aliases} />}
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold text-neutral-900">Задачи</h2>
         <Table>
