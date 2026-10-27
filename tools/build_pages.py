@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SITE = json.loads((ROOT / "data/site.json").read_text(encoding="utf-8"))
 CASES = json.loads((ROOT / "data/cases.json").read_text(encoding="utf-8"))
 TAX = json.loads((ROOT / "data/taxonomy.json").read_text(encoding="utf-8"))
+SERVICES = json.loads((ROOT / "data/services.json").read_text(encoding="utf-8"))
 BASE = SITE["site_url"].rstrip("/")
 TODAY = datetime.date.today().isoformat()
 MIN_CASES_FOR_HUB = 2
@@ -71,7 +72,10 @@ def breadcrumbs(items):
     }
 
 
-def page(path, title, description, body, ld, og_image="assets/prodigital-logo-wordmark.png"):
+DEFAULT_CTA = ("Нужны клиенты для вашего бизнеса?", "Расскажите о проекте — предложим модель продвижения под ваш продукт, рынок и бюджет.")
+
+
+def page(path, title, description, body, ld, og_image="assets/prodigital-logo-wordmark.png", cta=DEFAULT_CTA):
     depth = path.count("/")
     pre = "../" * depth
     canonical = url(path.replace("index.html", ""))
@@ -106,6 +110,7 @@ def page(path, title, description, body, ld, og_image="assets/prodigital-logo-wo
     <a class="brand" href="{pre}index.html"><img src="{pre}assets/prodigital-logo-wordmark.png" alt="ProDigital"></a>
     <nav class="nav">
       <a href="{pre}index.html#services">Услуги</a>
+      <a href="{pre}uslugi/ai-avtomatizacii-i-agenty/">AI-агенты</a>
       <div class="nav-dropdown">
         <a class="nav-dropdown-trigger" href="{pre}keysy/">Кейсы</a>
         <div class="nav-dropdown-menu">
@@ -128,8 +133,8 @@ def page(path, title, description, body, ld, og_image="assets/prodigital-logo-wo
 {body}
 <section class="article-cta">
   <div class="container article-narrow">
-    <h2>Нужны клиенты для вашего бизнеса?</h2>
-    <p>Расскажите о проекте — предложим модель продвижения под ваш продукт, рынок и бюджет.</p>
+    <h2>{e(cta[0])}</h2>
+    <p>{e(cta[1])}</p>
     <div class="article-cta-actions">
       <a class="btn btn-primary" href="{pre}index.html#contact">Обсудить проект</a>
       <a class="btn btn-ghost" href="https://t.me/ka_anisimova" target="_blank" rel="noopener">Написать в Telegram</a>
@@ -281,6 +286,40 @@ def build_list(path, crumbs, eyebrow, h1, lead, cases, extra_ld=None):
     return path, page(path, f"{h1} | ProDigital", lead[:155], body, ld)
 
 
+def build_service(svc):
+    path = f"uslugi/{svc['slug']}/index.html"
+    pre = "../../"
+    parts = []
+    for sec in svc["sections"]:
+        parts.append(f"<h2>{e(sec['h2'])}</h2>")
+        for para in sec.get("paragraphs", []):
+            parts.append(f"<p>{e(para)}</p>")
+        if sec.get("items"):
+            tag = "ol" if sec["h2"].startswith("Как мы работаем") else "ul"
+            cls = ' class="article-steps"' if tag == "ol" else ""
+            parts.append(f"<{tag}{cls}>" + "".join(f"<li>{e(i)}</li>" for i in sec["items"]) + f"</{tag}>")
+        if sec.get("case_link"):
+            parts.append(f'<p><a href="{pre}{sec["case_link"]}">{e(sec["case_link_text"])}</a></p>')
+    body = f"""<section class="article-hero">
+  <div class="container article-narrow">
+    <nav class="article-crumbs"><a href="{pre}index.html">Главная</a> / <a href="{pre}index.html#services">Услуги</a> / <span>{e(svc['title'])}</span></nav>
+    <div class="eyebrow">{e(svc['eyebrow'])}</div>
+    <h1>{e(svc['title'])}</h1>
+    <p class="article-lead">{e(svc['lead'])}</p>
+  </div>
+</section>
+<section class="article-body"><div class="container article-narrow">
+{''.join(parts)}
+<p class="article-author">Катерина Анисимова, ProDigital. Обновлено: {TODAY}.</p>
+</div></section>"""
+    ld = jsonld(ORG, PERSON,
+                {"@type": "Service", "name": svc["title"], "description": svc["description"], "provider": {"@id": BASE + "/#org"},
+                 "url": url(f"uslugi/{svc['slug']}/"), "areaServed": ORG["areaServed"], "inLanguage": "ru"},
+                breadcrumbs([("Главная", ""), ("Услуги", "index.html#services"), (svc["title"], f"uslugi/{svc['slug']}/")]))
+    cta = tuple(svc["cta"]) if svc.get("cta") else DEFAULT_CTA
+    return path, page(path, svc["meta_title"], svc["description"][:155], body, ld, cta=cta)
+
+
 def hub_lead(kind, key, cases):
     name, intro = TAX[kind][key]
     platforms = sorted({meta_note(platform(c)) for c in cases if platform(c)})
@@ -345,6 +384,8 @@ def main():
         name = TAX["countries"][k][0]
         built.append(build_list(f"strany/{k}/index.html", [("Главная", "index.html"), ("Кейсы", "keysy/"), (name, f"strany/{k}/")],
                                 "Страна и регион", f"Реклама в регионе «{name}»: кейсы", hub_lead("countries", k, cases), cases))
+    for svc in SERVICES:
+        built.append(build_service(svc))
     for path, content in built:
         out = ROOT / path
         out.parent.mkdir(parents=True, exist_ok=True)

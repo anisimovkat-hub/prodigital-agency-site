@@ -1425,3 +1425,16 @@ em.serif, .serif-em {
   .article-main { padding-top: 80px; }
   .article-cta-actions .btn { width: 100%; justify-content: center; }
 }
+.article-body ul { list-style: disc; padding-left: 22px; }
+.article-body ul li, .article-body ol li { margin-bottom: 8px; }
+.article-body a, .article-author a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+/* Шапка 821–1240 px: убираем вторую кнопку, чтобы основная не обрезалась */
+@media (min-width: 821px) and (max-width: 1240px) {
+  .header-actions .btn-ghost { display: none; }
+  .nav { gap: 20px; }
+}
+/* 821–1040 px: меню не помещается — показываем бургер, как на мобильных */
+@media (min-width: 821px) and (max-width: 1040px) {
+  .nav { display: none; }
+  .mobile-toggle { display: inline-flex; }
+}
