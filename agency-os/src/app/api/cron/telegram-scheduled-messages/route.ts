@@ -1,3 +1,4 @@
+import { isVercelPreview } from "@/lib/preview-policy";
 import { sendDueCampaignCompletionMessages } from "@/lib/telegram-campaign-completions";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ function isAuthorized(request: Request) {
 }
 
 export async function GET(request: Request) {
+  if (isVercelPreview()) return Response.json({ ok: false, reason: "preview_disabled" }, { status: 404 });
   if (!isAuthorized(request)) return Response.json({ ok: false }, { status: 401 });
   try {
     return Response.json({ ok: true, ...(await sendDueCampaignCompletionMessages()) });

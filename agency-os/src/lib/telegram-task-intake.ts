@@ -1,8 +1,9 @@
+import { nextIntakeQuestion } from "@/lib/task-intake-flow";
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Json, Tables } from "@/lib/supabase/types";
 import { answerCallbackQuery, sendTelegramMessage } from "@/lib/telegram";
 import { sendTelegramTaskPreview } from "@/lib/telegram-task-previews";
-import { matchIntakeEntities, parseIntakeDeadline, parseIntakeTask, parseIntakeEdit, shiftIntakeDate, moscowIntakeDate, splitIntakeTasks, uniqueExactIntakeMatch, type IntakeProject, type IntakeProfile, type ParsedIntakeTask } from "@/lib/task-intake-parser";
+import { matchIntakeEntities, parseIntakeDeadline, parseIntakeTask, parseIntakeEdit, splitIntakeTasks, uniqueExactIntakeMatch, type IntakeProject, type IntakeProfile, type ParsedIntakeTask } from "@/lib/task-intake-parser";
 
 type Session = Tables<"telegram_task_intakes">;
 type Choice = { id: string; label: string };
@@ -58,30 +59,8 @@ async function advance(initial: Session, data: Catalog) {
   let session = initial;
   while (session.status === "pending" && session.current_index < itemsOf(session).length) {
     const item = itemsOf(session)[session.current_index];
-    if (!item.title.trim()) { await ask(session, "title", [], "Что нужно сделать? Напишите название задачи."); return; }
-    if (!item.projectId) {
-      const hits = matchIntakeEntities(item.projectQuery ?? item.source, data.projects);
-      // Client names only suggest candidates; an agency may have many projects.
-      const suggested = hits.length ? hits : data.projects.filter((p) => p.clientName && matchIntakeEntities(item.source, [{ id: p.id, name: p.clientName, aliases: [] }]).length).map((p) => ({ id: p.id, label: p.name }));
-      const choices = (suggested.length ? suggested : data.projects.filter((p) => ["active", "launching"].includes(p.stage ?? ""))).slice(0, 3).map((p) => ({ id: p.id, label: "label" in p ? p.label : p.name }));
-      choices.push({ id: "other", label: "Другой" });
-      await ask(session, "project", choices, "Какой проект?"); return;
-    }
-    const project = data.projects.find((p) => p.id === item.projectId);
-    if (!project || !["active", "launching"].includes(project.stage ?? "")) {
-      await ask(session, "project", [{ id: "other", label: "Выбрать другой проект" }], "Проект на паузе или завершён. Я не буду возвращать его в работу автоматически. Выберите другой проект или отмените задачу."); return;
-    }
-    if (!item.assigneeId || !data.profiles.some((p) => p.id === item.assigneeId)) {
-      const members = data.profiles.filter((p) => project.memberIds.includes(p.id));
-      const choices = (members.length ? members : data.profiles).map((p) => ({ id: p.id, label: p.name }));
-      if (members.length) choices.push({ id: "other", label: "Другой сотрудник" });
-      await ask(session, "assignee", choices, "Кому?"); return;
-    }
-    if (!item.deadlineKnown) {
-      const today = moscowIntakeDate();
-      const friday = parseIntakeDeadline("пятница").date!;
-      await ask(session, "deadline", [{ id: today, label: "Сегодня" }, { id: shiftIntakeDate(today, 1), label: "Завтра" }, { id: friday, label: "Пятница" }, { id: "none", label: "Без срока" }], "Срок? Можно выбрать кнопку или написать дату."); return;
-    }
+    const question = nextIntakeQuestion(item, data);
+    if (question) { await ask(session, question.field, question.choices, question.prompt); return; }
     const { data: taskId, error } = await createServiceClient().rpc("commit_telegram_intake_item", { p_intake_id: session.id, p_index: session.current_index });
     if (error) throw error;
     await sendTelegramTaskPreview(taskId, { refreshPending: true, ...(session.edit_draft_id ? { existingDraftId: session.edit_draft_id } : {}) });

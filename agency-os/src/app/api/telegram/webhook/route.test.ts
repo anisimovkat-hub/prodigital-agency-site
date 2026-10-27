@@ -17,6 +17,7 @@ function request(body: unknown, secret = "webhook-test-only") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("VERCEL_ENV", "production");
   vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "webhook-test-only");
   mocks.rpc.mockResolvedValue({ data: 0, error: null });
   mocks.send.mockResolvedValue({ message_id: 1 });
@@ -30,6 +31,12 @@ beforeEach(() => {
 const ownerMessage = { message_id: 99, chat: { id: 123, type: "private" }, from: { id: 123 }, text: "Илоне ESTT завтра отчёт" };
 
 describe("Telegram task webhook safety", () => {
+  it("blocks preview webhook before reading or mutating the live database", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    expect((await POST(request({ message: ownerMessage }))).status).toBe(404);
+    expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.intake).not.toHaveBeenCalled(); expect(mocks.send).not.toHaveBeenCalled();
+  });
   it("rejects an invalid webhook secret before accessing data", async () => {
     expect((await POST(request({ message: ownerMessage }, "invalid"))).status).toBe(401);
     expect(mocks.from).not.toHaveBeenCalled(); expect(mocks.intake).not.toHaveBeenCalled();

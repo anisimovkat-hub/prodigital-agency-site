@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { handleTelegramIntakeChoice, handleTelegramTaskText, queueTelegramVoice } from "@/lib/telegram-task-intake";
 import { resolveTelegramRecipientChatId } from "@/lib/telegram-recipient";
 import { formatTelegramTaskMessage } from "@/lib/telegram-task-message";
+import { isVercelPreview } from "@/lib/preview-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -198,6 +199,7 @@ async function handleCallback(callback: NonNullable<TelegramUpdate["callback_que
 }
 
 export async function POST(request: Request) {
+  if (isVercelPreview()) return Response.json({ ok: false, reason: "preview_disabled" }, { status: 404 });
   if (!constantTimeMatches(request.headers.get("x-telegram-bot-api-secret-token"), process.env.TELEGRAM_WEBHOOK_SECRET)) {
     return new Response("Unauthorized", { status: 401 });
   }
