@@ -175,13 +175,17 @@ describe('Yandex goal discovery and goal reports', () => {
       return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${goals.map((id) => `Conversions_${id}_LC`).join('\t')}\t${goals.map((id) => `Revenue_${id}_LC`).join('\t')}\n2026-10-01\t101\tПоиск\t100\t4\t200\t${goals.map(() => '1').join('\t')}\t${goals.map(() => '0').join('\t')}` } as Response;
     });
     const goals = Array.from({ length: 11 }, (_, i) => ({ id: String(i+1), name: 'Цель', domain: 'site.ru', counterId: null }));
-    const result = await fetchYandexGoalReport({ token: 't' }, '2026-10-01', '2026-10-01', goals);
+    const result = await fetchYandexGoalReport({ token: 't' }, '2026-10-01', '2026-10-01', goals, 'account-one');
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ cost: 200, conversions: null });
     expect(Object.keys(result[0].goals!)).toHaveLength(11);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).params.AttributionModels).toEqual(['LC']);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).params.FieldNames).toEqual(['Date', 'CampaignId', 'CampaignName', 'Impressions', 'Clicks', 'Cost', 'Conversions', 'Revenue']);
+  });
+  it('requires an advertiser account key before merging goal batches', async () => {
+    await expect(fetchYandexGoalReport({ token: 't' }, '2026-10-01', '2026-10-01', [{ id: '1', name: 'Цель', domain: '', counterId: null }], '')).rejects.toThrow('ID рекламного кабинета');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('keeps one spend snapshot when the unfinished current day changes between goal batches', async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-07T10:00:00Z'));
@@ -191,7 +195,7 @@ describe('Yandex goal discovery and goal reports', () => {
       return { status: 200, text: async () => `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\t${ids.map((id) => `Conversions_${id}_LC`).join('\t')}\t${ids.map((id) => `Revenue_${id}_LC`).join('\t')}\n2026-10-07\t101\tПоиск\t${100 + calls++}\t4\t200\t${ids.map(() => '1').join('\t')}\t${ids.map(() => '0').join('\t')}` } as Response;
     });
     try {
-      const rows = await fetchYandexGoalReport({ token: 't' }, '2026-10-07', '2026-10-07', Array.from({length:11},(_,i)=>({id:String(i+1),name:'Цель',domain:'',counterId:null})));
+      const rows = await fetchYandexGoalReport({ token: 't' }, '2026-10-07', '2026-10-07', Array.from({length:11},(_,i)=>({id:String(i+1),name:'Цель',domain:'',counterId:null})), 'account-one');
       expect(rows[0]).toMatchObject({ impressions: 100, cost: 200 });
       expect(Object.keys(rows[0].goals!)).toHaveLength(11);
     } finally { vi.useRealTimers(); }
