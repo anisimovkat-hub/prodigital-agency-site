@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { collectWeeklyPages, directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, goalCounterVerified, previousFullMoscowWeek, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
+import { collectWeeklyPages, directionCampaignIds, formatWeeklyOwnerPreview, formatWeeklyStatusMessage, goalCounterVerified, previousFullMoscowWeek, summarizeDirection, uncoveredWeeklyCampaigns, weeklyScheduleMatches, type WeeklyStatusReport } from "./telegram-weekly-statuses";
 
 describe("telegram weekly advertising statuses", () => {
   it("reads all pages when a week's conversions exceed Supabase's row limit", async () => {
@@ -65,7 +65,38 @@ describe("telegram weekly advertising statuses", () => {
       directions: [{ name: "AI-лендинги", spend: 100, impressions: 1000, clicks: 20, ctr: 2, contactCpa: null,
         contactCpaMissing: false, goals: [{ label: "Отправка формы", metricKind: "form", count: 0, cpa: null, dates: [], value: null, valueLabel: null, includeInContactCpa: true }] }],
     };
-    expect(formatWeeklyStatusMessage(report)).toContain("CPA обращений: —");
+    expect(formatWeeklyStatusMessage(report)).toContain("Средний CPA обращений (сумма контактных действий, без дедупликации): —");
+  });
+
+  const direction = { id: "d", scenario_id: "s", project_direction_id: null, name: "ИНОМ / fortilda26", channel: "yandex_direct", counter_id: "109204270", ad_account_id: "account-1", include_counterless_campaigns: true, campaign_ids: ["campaign-1"], campaign_name_prefix: null, require_vat: true, allow_no_goals: false, spend_label: null, fallback_match: null, sort_order: 0, is_active: true };
+  const goal = { id: "g", direction_id: "d", goal_id: "559741388", action_type: "yandex_goal:559741388:LC", business_label: "Страница «Спасибо»", metric_kind: "form" as const, value_label: null, include_in_contact_cpa: false, sort_order: 0, is_active: true };
+
+  it("preserves verified zero spend with clicks and zero CPA", () => {
+    const errors: string[] = [];
+    const report = summarizeDirection(direction, [goal], [{ id: "campaign-1", name: "МК", ad_account_id: "account-1", metrika_counter_ids: [] }],
+      [{ campaign_id: "campaign-1", date: "2026-10-19", spend: 0, impressions: 100, clicks: 3, spend_includes_vat: true }],
+      [{ campaign_id: "campaign-1", date: "2026-10-19", action_type: goal.action_type, count: 1, value: 0, is_measured: true, value_is_measured: false }], errors);
+    expect(report).toMatchObject({ spend: 0, impressions: 100, clicks: 3, goals: [{ count: 1, cpa: 0 }] });
+    expect(errors).toEqual([]);
+  });
+
+  it("keeps missing mandatory metrics distinct from confirmed zero", () => {
+    const errors: string[] = [];
+    const report = summarizeDirection(direction, [goal], [{ id: "campaign-1", name: "МК", ad_account_id: "account-1", metrika_counter_ids: [] }],
+      [{ campaign_id: "campaign-1", date: "2026-10-19", spend: null, impressions: null, clicks: null, spend_includes_vat: false }],
+      [{ campaign_id: "campaign-1", date: "2026-10-19", action_type: goal.action_type, count: 0, value: 0, is_measured: false, value_is_measured: false }], errors);
+    expect(report).toMatchObject({ spend: null, impressions: null, clicks: null, goals: [{ count: null, cpa: null }] });
+    expect(errors.length).toBeGreaterThan(0);
+  });
+
+  it("flags Kolvika Tools traffic missing from the direction assignment", () => {
+    const errors: string[] = [];
+    const report = summarizeDirection({ ...direction, name: "Kolvika Tools", counter_id: "71291494", project_direction_id: "tools", campaign_ids: [] }, [],
+      [{ id: "old", name: "kolvika_tmk_tools_rf", ad_account_id: "account-1", metrika_counter_ids: [] }, { id: "new", name: "kolvika_tmk_tools_rf 08.10", ad_account_id: "account-1", metrika_counter_ids: [] }],
+      [{ campaign_id: "new", date: "2026-10-19", spend: 0, impressions: 18596, clicks: 618, spend_includes_vat: true }], [], errors,
+      undefined, { id: "tools", is_active: true, counter_ids: ["71291494"], campaign_ids: ["old"] });
+    expect(report.spend).toBeNull();
+    expect(errors.join(" ")).toContain("kolvika_tmk_tools_rf 08.10");
   });
 
   it("does not mix advertiser accounts or unrelated counters", () => {
