@@ -105,7 +105,7 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     : goals.filter((goal) => selectedYandexGoalIds.includes(goal.id));
   if (selectedYandexGoalIds?.some((id) => !reportGoals.some((goal) => goal.id === id)))
     throw new Error('Настроенная цель статуса отсутствует в каталоге целей кабинета.');
-  const rows = await fetchYandexGoalReport(secret, period.from, period.to, reportGoals);
+  const rows = await fetchYandexGoalReport(secret, period.from, period.to, reportGoals, account.id);
   const byId = new Map(info.map((campaign) => [campaign.id, campaign]));
   return rows.map((row) => ({ campaignId: row.campaignId, name: row.campaignName, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks, results: null, actionType: "yandex:conversions", spendIncludesVat: true,
     counterIds: byId.get(row.campaignId)?.counterIds ?? [], status: byId.get(row.campaignId)?.status,
