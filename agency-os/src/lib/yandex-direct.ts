@@ -253,7 +253,8 @@ export async function fetchYandexCampaignInfo(auth: YandexAuth): Promise<YandexC
 }
 
 /** Merge goal batches into one campaign/day: money and clicks must never be duplicated. */
-export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: string, goals: YandexGoal[]): Promise<YandexCampaignDay[]> {
+export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: string, goals: YandexGoal[], accountKey: string): Promise<YandexCampaignDay[]> {
+  if (!accountKey) throw new Error("Для объединения отчёта нужен ID рекламного кабинета.");
   const ids = [...new Set(goals.map((goal) => goal.id))];
   if (!ids.length) {
     const rows = await fetchYandexCampaignReport(auth, from, to);
@@ -264,7 +265,7 @@ export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: 
     const batch = ids.slice(index, index + 10);
     const rows = await fetchYandexCampaignReport(auth, from, to, { goalIds: batch });
     for (const row of rows) {
-      const key = `${row.campaignId}:${row.date}`;
+      const key = `${accountKey}:${row.campaignId}:${row.date}`;
       const previous = days.get(key);
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
       if (previous && row.date !== today && (previous.cost !== row.cost || previous.clicks !== row.clicks || previous.impressions !== row.impressions)) throw new Error(`Метрики за ${row.date} изменились между пакетами целей. Повторите загрузку.`);
