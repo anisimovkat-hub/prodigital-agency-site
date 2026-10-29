@@ -8,6 +8,7 @@ import { handleTelegramIntakeChoice, handleTelegramTaskText, queueTelegramVoice 
 import { resolveTelegramRecipientChatId } from "@/lib/telegram-recipient";
 import { formatTelegramTaskMessage } from "@/lib/telegram-task-message";
 import { isVercelPreview } from "@/lib/preview-policy";
+import { isTelegramTaskOperational } from "@/lib/telegram-task-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -151,13 +152,19 @@ async function handleCallback(callback: NonNullable<TelegramUpdate["callback_que
   }
 
   if (action === "edit") {
+    const target = await supabase.from("tasks").select("status,project_id,projects(stage)").eq("id", draft.task_id).maybeSingle();
+    if (target.error) throw target.error;
+    if (!isTelegramTaskOperational(target.data)) {
+      await answerCallbackQuery(callback.id, "Задача или проект уже остановлены. Напишите новую задачу отдельным сообщением."); return;
+    }
     const open = await supabase.from("telegram_task_drafts").select("id").eq("review_chat_id", String(chat.id)).eq("status", "editing").neq("id", draft.id).limit(1);
     if (open.error) throw open.error;
     if (open.data?.length) { await answerCallbackQuery(callback.id, "Сначала завершите правку предыдущей задачи."); return; }
     const edited = await supabase
       .from("telegram_task_drafts")
       .update({ status: "editing", updated_at: new Date().toISOString() })
-      .eq("id", draft.id).in("status", ["pending_approval", "failed"]).select("id").maybeSingle();
+      .eq("id", draft.id).eq("task_id", draft.task_id).eq("review_chat_id", String(chat.id))
+      .in("status", ["pending_approval", "failed"]).select("id").maybeSingle();
     if (edited.error) throw edited.error;
     if (!edited.data) { await answerCallbackQuery(callback.id, "Черновик уже обработан."); return; }
     await answerCallbackQuery(callback.id);
