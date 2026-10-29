@@ -13,7 +13,7 @@ type ProjectDirection = { id: string; counter_ids: string[]; campaign_ids: strin
 type Goal = { id: string; direction_id: string; goal_id: string; action_type: string; business_label: string; metric_kind: "cart" | "purchase" | "phone" | "messenger" | "form" | "subscription" | "card_view" | "join" | "engagement"; value_label: string | null; include_in_contact_cpa: boolean; sort_order: number; is_active: boolean };
 type Campaign = { id: string; name: string; ad_account_id: string; metrika_counter_ids: string[] };
 type Account = { id: string; platform: string; last_sync_at: string | null; last_sync_error: string | null; yandex_goals: unknown };
-type Metric = { campaign_id: string; date: string; spend: number; impressions: number; clicks: number; spend_includes_vat: boolean };
+type Metric = { campaign_id: string; date: string; spend: number | null; impressions: number | null; clicks: number | null; spend_includes_vat: boolean };
 type Conversion = { campaign_id: string; date: string; action_type: string; count: number; value: number; is_measured: boolean; value_is_measured: boolean };
 
 type GoalReport = { label: string; metricKind: Goal["metric_kind"]; count: number | null; cpa: number | null; dates: string[]; value: number | null; valueLabel: string | null; includeInContactCpa: boolean };
@@ -84,7 +84,7 @@ export function formatWeeklyStatusMessage(report: WeeklyStatusReport): string {
       "",
       ...direction.goals.flatMap((goal) => [goalLine(goal), ...(goal.valueLabel ? [`${escapeHtml(goal.valueLabel)}: ${goal.value === null ? "—" : `${russianNumber(goal.value, 2)} ₽`}`] : [])]),
     ];
-    if (direction.goals.some((goal) => goal.includeInContactCpa)) rows.push(`CPA обращений: ${direction.contactCpa === null ? (direction.contactCpaMissing ? "нет данных" : "—") : money(direction.contactCpa)}`);
+    if (direction.goals.some((goal) => goal.includeInContactCpa)) rows.push(`Средний CPA обращений (сумма контактных действий, без дедупликации): ${direction.contactCpa === null ? (direction.contactCpaMissing ? "нет данных" : "—") : money(direction.contactCpa)}`);
     blocks.push(rows.join("\n").trimEnd());
   }
   return blocks.join("\n\n");
@@ -154,7 +154,7 @@ export function uncoveredWeeklyCampaigns(rules: unknown, campaigns: Campaign[], 
   return [...new Set(unmatched)];
 }
 
-function summarizeDirection(direction: Direction, goals: Goal[], campaigns: Campaign[], metrics: Metric[], conversions: Conversion[], errors: string[], fallback?: FallbackData, projectDirection?: ProjectDirection): DirectionReport {
+export function summarizeDirection(direction: Direction, goals: Goal[], campaigns: Campaign[], metrics: Metric[], conversions: Conversion[], errors: string[], fallback?: FallbackData, projectDirection?: ProjectDirection): DirectionReport {
   if (direction.project_direction_id && (!projectDirection?.is_active || !direction.counter_id || !projectDirection.counter_ids.includes(direction.counter_id) || !projectDirection.campaign_ids.length))
     errors.push(`${direction.name}: направление Agency OS неактивно, не содержит нужный счётчик или не имеет назначенных кампаний.`);
   const assigned = direction.project_direction_id ? new Set(projectDirection?.campaign_ids ?? []) : undefined;
@@ -164,16 +164,23 @@ function summarizeDirection(direction: Direction, goals: Goal[], campaigns: Camp
     errors.push(`${direction.name}: часть назначенных кампаний отсутствует или не относится к заданному кабинету и счётчику.`);
   if (!campaignIds.size) errors.push(`${direction.name}: нет кампаний Agency OS в заданной области.`);
   const directionMetrics = metrics.filter((row) => campaignIds.has(row.campaign_id));
-  const measuredSpend = directionMetrics.length && (!direction.require_vat || directionMetrics.every((row) => row.spend_includes_vat));
-  if (directionMetrics.length && !measuredSpend) errors.push(`${direction.name}: расход без подтверждённого НДС.`);
-  let spend = measuredSpend ? directionMetrics.reduce((sum, row) => sum + Number(row.spend), 0) : fallback?.spend ?? null;
-  const impressions = directionMetrics.length ? directionMetrics.reduce((sum, row) => sum + Number(row.impressions), 0) : fallback?.impressions ?? null;
-  const clicks = directionMetrics.length ? directionMetrics.reduce((sum, row) => sum + Number(row.clicks), 0) : fallback?.clicks ?? null;
-  if (!directionMetrics.length) errors.push(`${direction.name}: нет нормализованных метрик за период.`);
-  if (spend === 0 && clicks !== null && clicks > 0) {
-    errors.push(`${direction.name}: расход равен нулю при ${clicks} кликах — проверьте выгрузку и тип оплаты.`);
-    spend = null;
+  if (!directionMetrics.length && direction.ad_account_id && (assigned?.size || direction.campaign_ids.length)) {
+    const explicitlyAssigned = new Set(direction.campaign_ids.length ? direction.campaign_ids : assigned);
+    const candidates = campaigns.filter((campaign) => campaign.ad_account_id === direction.ad_account_id
+      && !explicitlyAssigned.has(campaign.id) && campaign.metrika_counter_ids.length === 0
+      && metrics.some((row) => row.campaign_id === campaign.id && (row.impressions ?? 0) > 0));
+    if (candidates.length) errors.push(`${direction.name}: есть кампании с показами без счётчика и назначения направлению (${candidates.map((row) => row.name).join(", ")}); проверьте Campaign ID.`);
   }
+  const known = (value: number | null) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+  const measuredSpend = directionMetrics.length > 0 && directionMetrics.every((row) => known(row.spend) && (!direction.require_vat || row.spend_includes_vat));
+  if (directionMetrics.length && !measuredSpend) errors.push(`${direction.name}: расход или НДС не подтверждены для всех строк.`);
+  const spend = measuredSpend ? directionMetrics.reduce((sum, row) => sum + row.spend!, 0) : fallback?.spend ?? null;
+  const measuredImpressions = directionMetrics.length > 0 && directionMetrics.every((row) => known(row.impressions));
+  const measuredClicks = directionMetrics.length > 0 && directionMetrics.every((row) => known(row.clicks));
+  if (directionMetrics.length && (!measuredImpressions || !measuredClicks)) errors.push(`${direction.name}: показы или клики не подтверждены для всех строк.`);
+  const impressions = measuredImpressions ? directionMetrics.reduce((sum, row) => sum + row.impressions!, 0) : fallback?.impressions ?? null;
+  const clicks = measuredClicks ? directionMetrics.reduce((sum, row) => sum + row.clicks!, 0) : fallback?.clicks ?? null;
+  if (!directionMetrics.length) errors.push(`${direction.name}: нет нормализованных метрик за период.`);
   const expectedDays = new Set(directionMetrics.map((row) => `${row.campaign_id}:${row.date}`));
   if (!goals.length && !direction.allow_no_goals) errors.push(`${direction.name}: не настроены цели.`);
   const kindCounts = new Map(goals.map((goal) => [goal.metric_kind, goals.filter((item) => item.metric_kind === goal.metric_kind).length]));
