@@ -450,6 +450,27 @@ def main():
         text = text.replace('</head>', '<meta name="robots" content="noindex, follow">\n</head>')
     text = text.replace('<head>', f'<head>\n  <base href="{e(BASE)}/">', 1)
     not_found.write_text(clean_home_links(text), encoding="utf-8")
+    # Keep previously shared project URLs working after the branded site is live.
+    redirect_script = """(() => {
+  const base = __BASE__;
+  const oldOrigin = 'https://anisimovkat-hub.github.io';
+  const oldPrefix = '/prodigital-agency-site/';
+  if (location.origin !== oldOrigin || !location.pathname.startsWith(oldPrefix)) return;
+  if (base === oldOrigin + oldPrefix.slice(0, -1)) return;
+  const path = location.pathname.slice(oldPrefix.length).replace(/(^|\\/)index\\.html$/, '$1');
+  location.replace(base + '/' + path + location.search + location.hash);
+})();
+""".replace('__BASE__', json.dumps(BASE))
+    (ROOT / 'assets/site-address.js').write_text(redirect_script, encoding='utf-8')
+    for html_path in ROOT.rglob('*.html'):
+        if '.git' in html_path.parts:
+            continue
+        content = html_path.read_text(encoding='utf-8')
+        if 'assets/site-address.js' in content:
+            continue
+        pre = '../' * (len(html_path.relative_to(ROOT).parts) - 1)
+        content = content.replace('</head>', f'<script src="{pre}assets/site-address.js"></script>\n</head>', 1)
+        html_path.write_text(content, encoding='utf-8')
     print(f"Собрано страниц: {len(built)}; хабы ниш: {sorted(NICHE_HUBS)}; хабы стран: {sorted(COUNTRY_HUBS)}")
 
 
