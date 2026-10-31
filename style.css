@@ -727,10 +727,17 @@ em.serif, .serif-em {
 .modal-close {
   width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
   border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06);
-  color: var(--text); cursor: pointer; font-size: 20px;
-  display: flex; align-items: center; justify-content: center;
+  color: var(--text); cursor: pointer; font-size: 0; line-height: 1; padding: 0;
+  position: relative; display: grid; place-items: center;
   transition: background 0.2s;
 }
+/* Draw the icon around the button centre, independently of font metrics. */
+.modal-close::before, .modal-close::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 16px; height: 2px; border-radius: 1px; background: currentColor;
+  transform: translate(-50%, -50%) rotate(45deg); pointer-events: none;
+}
+.modal-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
 .modal-close:hover { background: rgba(255,255,255,0.1); }
 .modal-body { padding: 6px 28px 28px; }
 
