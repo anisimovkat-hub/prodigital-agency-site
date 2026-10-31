@@ -13,7 +13,6 @@ cases-context.html (meta-теги, разметка, списки ссылок �
 Источник правды — data/cases.json. Править тексты кейсов там, потом пересобрать.
 Адрес сайта — data/site.json (site_url). Сменили домен → поправить и пересобрать.
 """
-import datetime
 import html
 import json
 import re
@@ -25,7 +24,7 @@ CASES = json.loads((ROOT / "data/cases.json").read_text(encoding="utf-8"))
 TAX = json.loads((ROOT / "data/taxonomy.json").read_text(encoding="utf-8"))
 SERVICES = json.loads((ROOT / "data/services.json").read_text(encoding="utf-8"))
 BASE = SITE["site_url"].rstrip("/")
-TODAY = datetime.date.today().isoformat()
+CONTENT_DATE = SITE["content_updated_at"]
 MIN_CASES_FOR_HUB = 2
 
 ORG = {
@@ -55,7 +54,7 @@ def e(s):
 
 
 def url(path):
-    return BASE + "/" + path.lstrip("/")
+    return BASE + "/" + re.sub(r"(^|/)index\.html(?=$|[?#])", r"\1", path.lstrip("/"))
 
 
 def jsonld(*items):
@@ -75,11 +74,24 @@ def breadcrumbs(items):
 DEFAULT_CTA = ("Нужны клиенты для вашего бизнеса?", "Расскажите о проекте — предложим модель продвижения под ваш продукт, рынок и бюджет.")
 
 
+def clean_home_links(text):
+    """Один адрес у каталога: / вместо /index.html, старые файлы остаются доступны."""
+    def replace(match):
+        target = match.group(2)
+        if re.match(r"(?:[a-z]+:)?//", target):
+            return match.group(0)
+        target = re.sub(r"(^|/)index\.html(?=$|[?#])", r"\1", target)
+        if not target or target.startswith("#"):
+            target = "./" + target
+        return match.group(1) + target + match.group(3)
+    return re.sub(r'(href=["\'])([^"\']*index\.html(?:[?#][^"\']*)?)(["\'])', replace, text)
+
+
 def page(path, title, description, body, ld, og_image="assets/prodigital-logo-wordmark.png", cta=DEFAULT_CTA):
     depth = path.count("/")
     pre = "../" * depth
     canonical = url(path.replace("index.html", ""))
-    return f"""<!DOCTYPE html>
+    return clean_home_links(f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -162,7 +174,7 @@ def page(path, title, description, body, ld, og_image="assets/prodigital-logo-wo
 <script src="{pre}script.js"></script>
 </body>
 </html>
-"""
+""")
 
 
 def platform(case):
@@ -260,7 +272,7 @@ def build_case(c):
     <h2>Результат</h2>
     <p>{e(meta_note(c['result']))}</p>
     {f'<h2>Что важно знать о нише</h2><ul>{insights}</ul>' if insights else ''}
-    <p class="article-author">Автор кейса — <a href="{pre}index.html">Катерина Анисимова</a>, ProDigital. Обновлено: {TODAY}.</p>
+    <p class="article-author">Автор кейса — <a href="{pre}index.html">Катерина Анисимова</a>, ProDigital. Обновлено: {CONTENT_DATE}.</p>
   </div>
 </section>
 {f'''<section class="article-related"><div class="container article-narrow"><h2>Похожие кейсы</h2><div class="article-grid">{"".join(case_card(o, pre) for o in rel)}</div></div></section>''' if rel else ''}
@@ -269,7 +281,7 @@ def build_case(c):
         ORG, PERSON,
         {"@type": "Article", "headline": c["title"], "description": c["summary"], "inLanguage": "ru",
          "author": {"@id": BASE + "/#katerina"}, "publisher": {"@id": BASE + "/#org"},
-         "dateModified": TODAY, "mainEntityOfPage": url(f"keysy/{c['slug']}/"),
+         "dateModified": CONTENT_DATE, "mainEntityOfPage": url(f"keysy/{c['slug']}/"),
          **({"image": url(c["img"])} if c.get("img") else {})},
         breadcrumbs([("Главная", ""), ("Кейсы", "keysy/"), (c["title"], f"keysy/{c['slug']}/")]),
     )
@@ -333,7 +345,7 @@ def build_service(svc):
 </section>
 <section class="article-body"><div class="container article-narrow">
 {''.join(parts)}
-<p class="article-author">Катерина Анисимова, ProDigital. Обновлено: {TODAY}.</p>
+
 </div></section>"""
     ld = jsonld(ORG, PERSON,
                 {"@type": "Service", "name": svc["title"], "description": svc["description"], "provider": {"@id": BASE + "/#org"},
@@ -369,12 +381,16 @@ def update_static_pages(pages_built):
                 f'  <meta property="og:image" content="{url("assets/prodigital-logo-wordmark.png")}">\n  {ld}')
 
     for path, service in [("index.html", None), ("cases-target.html", "targetirovannaya-reklama"),
-                          ("cases-context.html", "kontekstnaya-reklama")]:
+                          ("cases-context.html", "kontekstnaya-reklama"), ("career/index.html", None),
+                          ("claude-guide.html", None), ("ai-diagnostika/index.html", None)]:
         p = ROOT / path
         s = p.read_text(encoding="utf-8")
         title = re.search(r"<title>(.*?)</title>", s, re.S).group(1).strip()
         desc = re.search(r'name="description" content="(.*?)"', s).group(1)
         hb = head_block(path, html.unescape(title), html.unescape(desc))
+        if "<!-- GEN:HEAD:START -->" not in s:
+            s = re.sub(r'<link\b[^>]*rel=["\']canonical["\'][^>]*>\s*', '', s)
+            s = re.sub(r'<meta\b[^>]*property=["\']og:[^"\']+["\'][^>]*>\s*', '', s)
         new = replace_block(s, "HEAD", hb)
         s = new if new is not None else s.replace("</head>", f"  <!-- GEN:HEAD:START -->\n  {hb}\n  <!-- GEN:HEAD:END -->\n</head>", 1)
         if service:
@@ -385,7 +401,7 @@ def update_static_pages(pages_built):
                                                       f"<!-- GEN:CASE-LINKS:START -->\n{block}\n<!-- GEN:CASE-LINKS:END -->\n\n<footer class=\"footer\">", 1)
             if 'src="assets/case-pages.js"' not in s:
                 s = s.replace('<script src="script.js"></script>', '<script src="assets/case-pages.js"></script>\n<script src="script.js"></script>', 1)
-        p.write_text(s, encoding="utf-8")
+        p.write_text(clean_home_links(s), encoding="utf-8")
 
 
 def main():
@@ -418,15 +434,22 @@ def main():
     update_static_pages(built)
 
     # Страницы, которые не собираются генератором, но должны быть в карте сайта
-    static_pages = ["ai-diagnostika/"]
+    static_pages = ["ai-diagnostika/", "career/", "claude-guide.html"]
     urls = ["", "cases-target.html", "cases-context.html"] + static_pages + [p.replace("index.html", "") for p, _ in built]
-    sitemap = "\n".join(f"  <url><loc>{url(u)}</loc><lastmod>{TODAY}</lastmod></url>" for u in urls)
+    sitemap = "\n".join(f"  <url><loc>{url(u)}</loc></url>" for u in urls)
     (ROOT / "sitemap.xml").write_text(
         f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n{sitemap}\n</urlset>\n',
         encoding="utf-8")
     (ROOT / "robots.txt").write_text(
         "# Поисковики и AI-ассистенты (GPTBot, OAI-SearchBot, PerplexityBot, ClaudeBot, Google-Extended, YandexBot) не закрыты намеренно.\n"
         f"User-agent: *\nAllow: /\n\nSitemap: {url('sitemap.xml')}\n", encoding="utf-8")
+    not_found = ROOT / "404.html"
+    text = not_found.read_text(encoding="utf-8")
+    text = re.sub(r'<base\b[^>]*>\s*', '', text)
+    if '<meta name="robots"' not in text:
+        text = text.replace('</head>', '<meta name="robots" content="noindex, follow">\n</head>')
+    text = text.replace('<head>', f'<head>\n  <base href="{e(BASE)}/">', 1)
+    not_found.write_text(clean_home_links(text), encoding="utf-8")
     print(f"Собрано страниц: {len(built)}; хабы ниш: {sorted(NICHE_HUBS)}; хабы стран: {sorted(COUNTRY_HUBS)}")
 
 
