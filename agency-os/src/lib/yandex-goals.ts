@@ -5,7 +5,12 @@ export type AdDirection = {
   campaign_ids: string[]; primary_goal: string | null; is_active: boolean;
 };
 export const yandexGoalKey = (id: string) => `yandex:${id}` as const;
-export const yandexGoalAction = (id: string) => `yandex_goal:${id}:LC`;
+export const YANDEX_ATTRIBUTION_MODELS = ["LC", "LSCCD", "AUTO"] as const;
+export type YandexAttributionModel = (typeof YANDEX_ATTRIBUTION_MODELS)[number];
+export function assertYandexAttributionModel(model: string): asserts model is YandexAttributionModel {
+  if (!(YANDEX_ATTRIBUTION_MODELS as readonly string[]).includes(model)) throw new Error("Неподдерживаемая модель атрибуции Яндекса.");
+}
+export const yandexGoalAction = (id: string, model: YandexAttributionModel = "LC") => `yandex_goal:${id}:${model}`;
 
 /** A stable, independently bookmarkable report; account data stays stored once. */
 export function directionReportHref(direction: Pick<AdDirection, "id" | "project_id">): string {
@@ -48,7 +53,8 @@ export const YANDEX_SYNC_GOAL_LIMIT = 60;
 
 /**
  * Goals a routine import requests. Owner-visible, default and direction goals always load;
- * explicitly hidden goals never do. Other catalog goals load while the catalog is small;
+ * explicitly required report goals load even when hidden in the UI. Other hidden goals
+ * never load. Other catalog goals load while the catalog is small;
  * a large catalog (hundreds of Metrika goals) is limited to goals that recently had results,
  * otherwise one account issues dozens of sequential reports and the whole import times out.
  */
@@ -63,6 +69,7 @@ export function chooseYandexSyncGoals({ catalog, settings, requiredKeys = [], re
   const required = new Set(requiredKeys.filter(Boolean) as string[]);
   for (const row of settings) if (!row.hidden || row.is_primary) required.add(row.goal_key);
   const explicit = catalog.filter((goal) => required.has(yandexGoalKey(goal.id)));
+  if (explicit.length > limit) throw new Error("Число обязательных целей превышает лимит загрузки Яндекса.");
   const rest = catalog.filter((goal) => !required.has(yandexGoalKey(goal.id)) && !byKey.get(yandexGoalKey(goal.id))?.hidden);
   if (explicit.length + rest.length <= limit) return [...explicit, ...rest];
   return [...explicit, ...rest.filter((goal) => recentGoalIds.has(goal.id)).slice(0, Math.max(0, limit - explicit.length))];
