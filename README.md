@@ -2,6 +2,15 @@
 
 Static website for ProDigital marketing agency.
 
+Live site: https://prodigital-agency.github.io/
+
+Complete page inventory: [docs/SITE-URLS.md](docs/SITE-URLS.md).
+
+Source code stays in this repository. Deployment is configured in
+`prodigital-agency/prodigital-agency.github.io` through the manual `Publish ProDigital` workflow.
+Use `source_ref=main` (or a verified commit) after merging a release.
+Legacy project URLs redirect in the browser while retaining their path, query and fragment.
+
 ## Pages
 
 - `index.html` - main page
@@ -23,7 +32,7 @@ Case articles, hubs and technical SEO files are generated from data:
   Field `insights` — extra expert notes per case (empty for now; filled with Katerina).
   Field `client_name_public` — whether the client name may be published (`null` = not confirmed).
 - `data/taxonomy.json` — niches, countries, services. Hubs are generated only when there are 2+ cases.
-- `data/site.json` — site URL used in canonical, Open Graph, sitemap. Change after buying the domain.
+- `data/site.json` — site URL used in canonical, Open Graph, sitemap. Change and rebuild if the primary address changes.
 
 Build: `python3 tools/build_pages.py` — writes `keysy/`, `nishi/`, `strany/`, `robots.txt`, `sitemap.xml`,
 `assets/case-pages.js` and updates `<!-- GEN:... -->` blocks in `index.html`, `cases-target.html`, `cases-context.html`.

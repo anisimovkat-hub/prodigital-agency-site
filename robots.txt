@@ -2,4 +2,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://anisimovkat-hub.github.io/prodigital-agency-site/sitemap.xml
+Sitemap: https://prodigital-agency.github.io/sitemap.xml
