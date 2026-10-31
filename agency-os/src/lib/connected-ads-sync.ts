@@ -6,8 +6,10 @@ import type { AnalyticsPeriod } from "@/lib/analytics-period";
 import type { Database } from "@/lib/supabase/types";
 import { fetchTelegramAdDays, fetchTonRubRates } from "@/lib/telegram-ads";
 import { ensureVkToken, fetchVkCampaignDays, type VkCredential } from "@/lib/vk-ads";
-import { fetchYandexCampaignInfo, fetchYandexGoalReport, fetchYandexGoals, readYandexGoalCounters } from "@/lib/yandex-direct";
-import { chooseYandexSyncGoals, parseYandexGoals, yandexGoalAction } from "@/lib/yandex-goals";
+import { fetchYandexCampaignInfo, fetchYandexGoalReport, fetchYandexGoals, readYandexGoalCounters, type YandexReportOptions } from "@/lib/yandex-direct";
+import { chooseYandexSyncGoals, parseYandexGoals, yandexGoalKey } from "@/lib/yandex-goals";
+import { mergeYandexAttributionDays, yandexCampaignDays } from "@/lib/yandex-attribution-days";
+import { requiredYandexReportGoals, yandexReportRequirement } from "@/lib/yandex-report-requirements";
 
 /** Service-role client: credentials are readable only by the server. */
 type Service = SupabaseClient<Database>;
@@ -80,7 +82,7 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     }));
   }
   const secret = await readSecret<YandexSecret>(client, account.id);
-  const [info, stored] = await Promise.all([fetchYandexCampaignInfo(secret), client.from('ad_accounts').select('yandex_goals,project_id').eq('id', account.id).single()]);
+  const [info, stored] = await Promise.all([fetchYandexCampaignInfo(secret), client.from('ad_accounts').select('yandex_goals,project_id,external_id').eq('id', account.id).single()]);
   if (stored.error) throw new Error(stored.error.message);
   if (!stored.data.project_id) throw new Error('Кабинет не привязан к проекту.');
   // GetRetargetingGoals is rate-limited independently of Reports. A daily sync
@@ -92,6 +94,8 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
   const knownCounters = await readYandexGoalCounters(secret, info.flatMap((c) => c.counterIds));
   for (const [id, counter] of knownCounters) counters.set(id, counter);
   const goals = discovered.map((goal) => ({ ...goal, counterId: counters.get(goal.id) ?? null }));
+  const requirement = selectedYandexGoalIds === undefined ? yandexReportRequirement({ id: account.id, ...stored.data }) : undefined;
+  const requiredReportGoals = requirement ? requiredYandexReportGoals(goals, requirement.goalIds) : [];
   if (!cachedGoals.length || knownCounters.size) {
     const { error } = await client.from('ad_accounts').update({ yandex_goals: goals }).eq('id', account.id);
     if (error) throw new Error(error.message);
@@ -100,17 +104,36 @@ export async function fetchConnectedDays(client: Service, account: { id: string;
     const { error: campaignError } = await client.from('ad_campaigns').upsert(info.map((c) => ({ ad_account_id: account.id, external_id: c.id, project_id: stored.data.project_id, name: c.name, status: c.status, metrika_counter_ids: c.counterIds })), { onConflict: 'ad_account_id,external_id' });
     if (campaignError) throw new Error(campaignError.message);
   }
+  const preferences = selectedYandexGoalIds === undefined ? await readGoalPreferences(client, account.id, stored.data.project_id) : null;
   const reportGoals = selectedYandexGoalIds === undefined
-    ? chooseYandexSyncGoals({ catalog: goals, ...(await readGoalPreferences(client, account.id, stored.data.project_id)) })
+    ? chooseYandexSyncGoals({ catalog: goals, ...preferences!, requiredKeys: [...preferences!.requiredKeys, ...requiredReportGoals.map((goal) => yandexGoalKey(goal.id))] })
     : goals.filter((goal) => selectedYandexGoalIds.includes(goal.id));
   if (selectedYandexGoalIds?.some((id) => !reportGoals.some((goal) => goal.id === id)))
     throw new Error('Настроенная цель статуса отсутствует в каталоге целей кабинета.');
   const rows = await fetchYandexGoalReport(secret, period.from, period.to, reportGoals);
   const byId = new Map(info.map((campaign) => [campaign.id, campaign]));
-  return rows.map((row) => ({ campaignId: row.campaignId, name: row.campaignName, date: row.date, spend: row.cost, impressions: row.impressions, clicks: row.clicks, results: null, actionType: "yandex:conversions", spendIncludesVat: true,
-    counterIds: byId.get(row.campaignId)?.counterIds ?? [], status: byId.get(row.campaignId)?.status,
-    goalResults: Object.entries(row.goals ?? {}).map(([id, count]) => ({ action: yandexGoalAction(id), count, value: row.goalValues?.[id] ?? null })),
-  }));
+  const lcDays = yandexCampaignDays(rows);
+  const days = requirement ? mergeYandexAttributionDays(lcDays,
+    yandexCampaignDays(await fetchYandexGoalReport(secret, period.from, period.to, requiredReportGoals, { attribution: requirement.attribution }), requirement.attribution)) : lcDays;
+  return days.map((row) => ({ ...row, counterIds: byId.get(row.campaignId)?.counterIds ?? [], status: byId.get(row.campaignId)?.status }));
+}
+
+export const YANDEX_REPORT_BACKFILL_PERIOD = { from: "2026-10-16", to: "2026-10-29" } as const;
+
+/** Fixed recovery scope. No discovery, campaign/goal/settings updates or broad sync. */
+export async function fetchRequiredYandexReportDays(client: Service, accountId: string, onReport?: YandexReportOptions["onReport"]) {
+  const { data: account, error } = await client.from("ad_accounts").select("id,project_id,external_id,platform,yandex_goals").eq("id", accountId).single();
+  if (error || !account || account.platform !== "yandex_direct") throw new Error("REPORT_ACCOUNT_NOT_FOUND");
+  const requirement = yandexReportRequirement(account);
+  if (!requirement) throw new Error("REPORT_ACCOUNT_NOT_ALLOWED");
+  const goals = requiredYandexReportGoals(parseYandexGoals(account.yandex_goals), requirement.goalIds);
+  const secret = await readSecret<YandexSecret>(client, account.id);
+  const { from, to } = YANDEX_REPORT_BACKFILL_PERIOD;
+  const lcDays = yandexCampaignDays(await fetchYandexGoalReport(secret, from, to, goals, { attribution: "LC", onReport }));
+  const reportDays = yandexCampaignDays(await fetchYandexGoalReport(secret, from, to, goals, { attribution: requirement.attribution, onReport }), requirement.attribution);
+  const days = mergeYandexAttributionDays(lcDays, reportDays);
+  if (!days.length || days.some((day) => day.date < from || day.date > to)) throw new Error("REPORT_PERIOD_MISMATCH");
+  return { account: { id: account.id, project_id: requirement.projectId }, days, requirement };
 }
 
 async function inBatches<T>(rows: T[], write: (batch: T[]) => PromiseLike<{ error: { message: string } | null }>) {

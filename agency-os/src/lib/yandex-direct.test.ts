@@ -37,6 +37,13 @@ describe("fetchYandexClient", () => {
 });
 
 describe("parseYandexCampaignReport", () => {
+  it.each(["AUTO", "LSCCD"] as const)("parses only explicitly requested %s columns, with zero versus unknown intact", (model) => {
+    const header = `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_${model}\tRevenue_42_${model}`;
+    const tsv = `${header}\n2026-10-27\t101\tTools\t100\t5\t0\t--\t--\n2026-10-28\t101\tTools\t100\t5\t0\t\t\n2026-10-29\t101\tTools\t100\t5\t0\t1.5\t-2`;
+    const rows = parseYandexCampaignReport(tsv, ["42"], model);
+    expect(rows.map((row) => [row.goals?.["42"], row.goalValues?.["42"]])).toEqual([[0, 0], [null, null], [1.5, -2]]);
+    expect(() => parseYandexCampaignReport(tsv.replaceAll(`_${model}`, "_LC"), ["42"], model)).toThrow("не вернул запрошенную цель");
+  });
   it('uses the exact LC goal column, never the aggregate', () => {
     const tsv = 'Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions\tConversions_42_LC\tConversions_43_LC\tRevenue_42_LC\tRevenue_43_LC\n2026-10-01\t101\tПоиск\t100\t4\t200\t739\t2\t0\t300\t0\n2026-10-02\t101\tПоиск\t100\t4\t200\t90\t--\t--\t--\t--';
     const rows = parseYandexCampaignReport(tsv, ['42','43']);
@@ -109,6 +116,24 @@ describe("fetchYandexCampaignReport", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", fetchMock);
+  });
+  it.each(["AUTO", "LSCCD"] as const)("requests explicit %s and exposes only raw report body to the audit hook", async (model) => {
+    const tsv = `Date\tCampaignId\tCampaignName\tImpressions\tClicks\tCost\tConversions_42_${model}\tRevenue_42_${model}\n2026-10-27\t101\tTools\t100\t5\t0\t--\t--`;
+    fetchMock.mockResolvedValue({ status: 200, text: async () => tsv } as Response);
+    const onReport = vi.fn();
+    const rows = await fetchYandexGoalReport({ token: "test-only-secret", clientLogin: "client" }, "2026-10-16", "2026-10-29", [{ id: "42", name: "Purchase", domain: "", counterId: null }], { attribution: model, onReport });
+    const params = JSON.parse(fetchMock.mock.calls[0][1].body).params;
+    expect(params.AttributionModels).toEqual([model]);
+    expect(params.ReportName).toContain(` ${model} `);
+    expect(rows[0].goals).toEqual({ "42": 0 });
+    expect(onReport).toHaveBeenCalledWith({ attribution: model, goalIds: ["42"], tsv });
+    expect(JSON.stringify(onReport.mock.calls)).not.toContain("test-only-secret");
+  });
+  it("propagates a rejected attribution request without inventing empty goal values", async () => {
+    fetchMock.mockResolvedValue({ status: 400, json: async () => ({ error: { error_string: "Model unavailable" } }) } as Response);
+    const onReport = vi.fn();
+    await expect(fetchYandexCampaignReport({ token: "test-only" }, "2026-10-16", "2026-10-29", { goalIds: ["42"], attribution: "AUTO", onReport })).rejects.toThrow("Model unavailable");
+    expect(onReport).not.toHaveBeenCalled();
   });
 
   it("waits for an offline report and sends Client-Login including VAT", async () => {

@@ -1,5 +1,5 @@
 import "server-only";
-import type { YandexGoal } from "@/lib/yandex-goals";
+import { assertYandexAttributionModel, type YandexAttributionModel, type YandexGoal } from "@/lib/yandex-goals";
 
 type AgencyClientRow = {
   Login?: string;
@@ -75,7 +75,8 @@ export type YandexCampaignDay = {
 const REPORT_FIELDS = ["Date", "CampaignId", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"] as const;
 
 /** Parses a Reports TSV. Missing cells are unknown; an explicit goal count "--" is zero. */
-export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): YandexCampaignDay[] {
+export function parseYandexCampaignReport(tsv: string, goalIds: string[] = [], attribution: YandexAttributionModel = "LC"): YandexCampaignDay[] {
+  assertYandexAttributionModel(attribution);
   const lines = tsv.split("\n").map((line) => line.replace(/\r$/, "")).filter(Boolean);
   if (lines.length === 0) return [];
   const header = lines[0].split("\t");
@@ -99,19 +100,19 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
     return number(value, field);
   };
   const goalColumns = goalIds.map((id) => {
-    const index = header.indexOf(`Conversions_${id}_LC`);
+    const index = header.indexOf(`Conversions_${id}_${attribution}`);
     if (index < 0) throw new Error(`Яндекс не вернул запрошенную цель ${id}. Данные не заменены нулями.`);
     return { id, index };
   });
   const goalValueColumns = goalIds.map((id) => {
-    const index = header.indexOf(`Revenue_${id}_LC`);
+    const index = header.indexOf(`Revenue_${id}_${attribution}`);
     if (index < 0) throw new Error(`Яндекс не вернул ценность запрошенной цели ${id}. Данные не заменены нулями.`);
     return { id, index };
   });
   return lines.slice(1).map((line) => {
     const cells = line.split("\t");
     const conversions = columns.Conversions < 0 ? undefined : cells[columns.Conversions];
-    const goalCounts = Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index], `Conversions_${id}_LC`)])) as Record<string, number | null>;
+    const goalCounts = Object.fromEntries(goalColumns.map(({ id, index }) => [id, cells[index] === undefined || cells[index] === "" ? null : number(cells[index], `Conversions_${id}_${attribution}`)])) as Record<string, number | null>;
     return {
       date: cells[columns.Date],
       campaignId: cells[columns.CampaignId],
@@ -120,7 +121,7 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
       clicks: requiredNumber(cells[columns.Clicks], "клики"),
       cost: requiredNumber(cells[columns.Cost], "расход"),
       conversions: conversions === undefined || conversions === "--" || conversions === "" ? null : number(conversions, "Conversions"),
-      // A successful explicit Conversions_<goal>_LC column uses "--" for no
+      // A successful explicit Conversions_<goal>_<model> column uses "--" for no
       // conversions. Missing columns/cells and failed imports remain unknown.
       ...(goalIds.length ? {
         goals: goalCounts,
@@ -128,7 +129,7 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
           cells[index] === "--" && goalCounts[id] === 0 ? 0
             // Revenue is supplied by Metrika and may contain signed adjustments.
             // Counts and traffic still require finite, nonnegative numbers.
-            : cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index], `Revenue_${id}_LC`, true)])),
+            : cells[index] === "--" || cells[index] === undefined || cells[index] === "" ? null : number(cells[index], `Revenue_${id}_${attribution}`, true)])),
       } : {}),
     };
   });
@@ -136,6 +137,11 @@ export function parseYandexCampaignReport(tsv: string, goalIds: string[] = []): 
 
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const isMethodRateLimit = (message: string) => /лимит запросов метода|method.*request.*limit|not more often than once/i.test(message);
+export type YandexReportOptions = {
+  attribution?: YandexAttributionModel;
+  /** Audit hook receives only the report body, never request headers or credentials. */
+  onReport?: (report: { attribution: YandexAttributionModel; goalIds: string[]; tsv: string }) => void;
+};
 
 /**
  * Daily campaign statistics through the Reports service, cost including VAT.
@@ -145,17 +151,18 @@ export async function fetchYandexCampaignReport(
   auth: YandexAuth,
   from: string,
   to: string,
-  { maxAttempts = 12, goalIds = [] }: { maxAttempts?: number; goalIds?: string[] } = {},
+  { maxAttempts = 12, goalIds = [], attribution = "LC", onReport }: YandexReportOptions & { maxAttempts?: number; goalIds?: string[] } = {},
 ): Promise<YandexCampaignDay[]> {
+  assertYandexAttributionModel(attribution);
   if (goalIds.length > 10 || goalIds.some((id) => !/^\d+$/.test(id))) throw new Error("За запрос можно получить не более 10 целей Яндекса.");
   const body = JSON.stringify({
     params: {
       SelectionCriteria: { DateFrom: from, DateTo: to },
       // Goals/AttributionModels expand Revenue into goal-specific response columns.
       FieldNames: [...REPORT_FIELDS, ...(goalIds.length ? ["Revenue"] : [])],
-      ...(goalIds.length ? { Goals: goalIds, AttributionModels: ["LC"] } : {}),
+      ...(goalIds.length ? { Goals: goalIds, AttributionModels: [attribution] } : {}),
       // Yandex caches reports by name; a fresh name returns today's numbers, not a cached copy.
-      ReportName: `agency-os ${auth.clientLogin ?? "self"} ${from} ${to} ${goalIds.join('-')} ${Date.now()}`,
+      ReportName: `agency-os ${auth.clientLogin ?? "self"} ${from} ${to} ${attribution} ${goalIds.join('-')} ${Date.now()}`,
       ReportType: "CUSTOM_REPORT",
       DateRangeType: "CUSTOM_DATE",
       Format: "TSV",
@@ -175,7 +182,12 @@ export async function fetchYandexCampaignReport(
       },
       body,
     });
-    if (response.status === 200) return parseYandexCampaignReport(await response.text(), goalIds);
+    if (response.status === 200) {
+      const tsv = await response.text();
+      const rows = parseYandexCampaignReport(tsv, goalIds, attribution);
+      onReport?.({ attribution, goalIds: [...goalIds], tsv });
+      return rows;
+    }
     if (response.status === 201 || response.status === 202) {
       const retryIn = Number(response.headers.get("retryIn") ?? "5");
       await sleep(Math.min(30, Math.max(1, Number.isFinite(retryIn) ? retryIn : 5)) * 1000);
@@ -253,16 +265,16 @@ export async function fetchYandexCampaignInfo(auth: YandexAuth): Promise<YandexC
 }
 
 /** Merge goal batches into one campaign/day: money and clicks must never be duplicated. */
-export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: string, goals: YandexGoal[]): Promise<YandexCampaignDay[]> {
+export async function fetchYandexGoalReport(auth: YandexAuth, from: string, to: string, goals: YandexGoal[], options: YandexReportOptions = {}): Promise<YandexCampaignDay[]> {
   const ids = [...new Set(goals.map((goal) => goal.id))];
   if (!ids.length) {
-    const rows = await fetchYandexCampaignReport(auth, from, to);
+    const rows = await fetchYandexCampaignReport(auth, from, to, options);
     return rows.map((row) => ({ ...row, conversions: null, goals: {} }));
   }
   const days = new Map<string, YandexCampaignDay>();
   for (let index = 0; index < ids.length; index += 10) {
     const batch = ids.slice(index, index + 10);
-    const rows = await fetchYandexCampaignReport(auth, from, to, { goalIds: batch });
+    const rows = await fetchYandexCampaignReport(auth, from, to, { ...options, goalIds: batch });
     for (const row of rows) {
       const key = `${row.campaignId}:${row.date}`;
       const previous = days.get(key);
