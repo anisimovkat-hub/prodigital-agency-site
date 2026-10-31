@@ -1,0 +1,58 @@
+# Install in prodigital-agency/prodigital-agency.github.io as .github/workflows/publish.yml.
+# No automatic publishing: run manually after approval. Source code remains in the agency repository.
+name: Publish ProDigital
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Source branch or commit to publish
+        required: true
+        default: main
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: anisimovkat-hub/prodigital-agency-site
+          ref: ${{ inputs.source_ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Set public site URL and build
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('data/site.json')
+          data = json.loads(p.read_text())
+          data['site_url'] = 'https://prodigital-agency.github.io'
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+          PY
+          python3 tools/build_pages.py
+          mkdir -p /tmp/site
+          git ls-files -z | while IFS= read -r -d '' file; do
+            case "$file" in
+              *.html|*.css|*.js|*.json|*.png|*.jpg|*.jpeg|*.webp|*.svg|*.ico|*.woff|*.woff2|*.pdf|robots.txt|sitemap.xml)
+                mkdir -p "/tmp/site/$(dirname "$file")"
+                cp "$file" "/tmp/site/$file"
+                ;;
+            esac
+          done
+          touch /tmp/site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: /tmp/site
+      - uses: actions/deploy-pages@v4
+        id: deployment
